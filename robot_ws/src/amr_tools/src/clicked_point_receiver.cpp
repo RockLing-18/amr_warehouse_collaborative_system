@@ -1,4 +1,4 @@
-#include "clicked_point_receiver.h"
+#include "amr_tools/clicked_point_receiver.h"
 
 
 ClickedPointReceiver::ClickedPointReceiver(rclcpp::Node::SharedPtr node, PointCallback callback) : m_node(node), m_callback(callback)

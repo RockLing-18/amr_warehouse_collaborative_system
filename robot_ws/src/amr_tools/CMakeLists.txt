@@ -24,9 +24,6 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-include_directories(
-  include/amr_tools
-)
 
 add_library(
 amr_tools_common

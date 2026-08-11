@@ -63,7 +63,7 @@ private:
         goal.pose.position.y = 2.0;
         // yaw=0
         goal.pose.orientation.w = 1.0;
-        m_navigation_manager->navigateTo(goal);
+        // m_navigation_manager->navigateTo(goal);
     }
 
 

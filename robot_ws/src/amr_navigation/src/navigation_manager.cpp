@@ -1,4 +1,5 @@
 #include "amr_navigation/navigation_manager.h"
+#include <inttypes.h>
 
 namespace amr_navigation
 {
@@ -10,23 +11,43 @@ NavigationManager::NavigationManager(rclcpp::Node::SharedPtr node) : m_node(node
         );
 }
 
-bool NavigationManager::navigateToPose(const geometry_msgs::msg::PoseStamped &goal_pose)
+NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& req)
 {
+    NavigationResponse resp;
     if(!m_action_client->wait_for_action_server(std::chrono::seconds(5)))
     {
         RCLCPP_ERROR(m_node->get_logger(), "Nav2 Action服务未启动");
-        return false;
+        resp.accepted = false;
+        resp.navigation_id = 0;
+        return resp;
+    }
+
+    if(m_state == NavigationState::ACCEPTING || m_state == NavigationState::NAVIGATING || m_state == NavigationState::CANCELING)
+    {
+        resp.accepted = false;
+        resp.navigation_id = m_navigation_id;
+        resp.state = m_state;
+        resp.message="robot busy";
+
+        RCLCPP_WARN(
+            m_node->get_logger(),
+            "robot already navigating id=%" PRIu64,
+            m_navigation_id
+        );
+
+        return resp;
     }
 
     RCLCPP_INFO(
     m_node->get_logger(),
-    "Send goal frame=%s x=%.2f y=%.2f",
-    goal_pose.header.frame_id.c_str(),
-    goal_pose.pose.position.x,
-    goal_pose.pose.position.y);
+    "Send goal navigation_id=%" PRIu64 " frame=%s x=%.2f y=%.2f",
+    req.navigation_id,
+    req.goal.header.frame_id.c_str(),
+    req.goal.pose.position.x,
+    req.goal.pose.position.y);
 
     NavigateToPose::Goal goal;
-    goal.pose = goal_pose;
+    goal.pose = req.goal;
     auto options = rclcpp_action::Client<NavigateToPose>::SendGoalOptions();
     options.goal_response_callback = std::bind(&NavigationManager::goalResponseCallback, this, std::placeholders::_1);
     options.feedback_callback = std::bind(
@@ -42,8 +63,15 @@ bool NavigationManager::navigateToPose(const geometry_msgs::msg::PoseStamped &go
             std::placeholders::_1
         );
 
+    m_navigation_id = req.navigation_id;
+    m_state = NavigationState::ACCEPTING;
     m_action_client->async_send_goal(goal, options);
-    return true;
+
+    resp.accepted = true;
+    resp.navigation_id = m_navigation_id;
+    resp.state = NavigationState::ACCEPTING;
+    resp.message = "navigation request accepted, navigation_id[" + std::to_string(m_navigation_id) + "]";
+    return resp;
 }
 
 void NavigationManager::goalResponseCallback(GoalHandle::SharedPtr goal_handle)
@@ -51,11 +79,19 @@ void NavigationManager::goalResponseCallback(GoalHandle::SharedPtr goal_handle)
     if(!goal_handle)
     {
         RCLCPP_ERROR(m_node->get_logger(), "导航目标被拒绝");
+        auto navigationId = m_navigation_id;
+        m_state = NavigationState::FAILED;
+        m_navigation_id = 0;
+        m_goal_handle.reset();
+
+        if(m_result_callback)
+            m_result_callback(navigationId, NavigationState::FAILED);
+        
         return;
     }
 
+    m_state = NavigationState::NAVIGATING;
     m_goal_handle = goal_handle;
-    m_navigating = true;
     RCLCPP_INFO(m_node->get_logger(), "导航目标已接受");
 }
 
@@ -71,15 +107,15 @@ void NavigationManager::feedbackCallback(GoalHandle::SharedPtr, const std::share
         feedback->distance_remaining
     );
 
-
     if(m_feedback_callback)
     {
-        NavigationStatus status;
-        status.state = NavigationState::NAVIGATING;
-        status.current_pose = pose;
-        status.distance_remaining = feedback->distance_remaining;
+        NavigationFeedback feedbackStatus;
+        feedbackStatus.navigation_id = m_navigation_id;
+        feedbackStatus.state = NavigationState::NAVIGATING;
+        feedbackStatus.current_pose = pose;
+        feedbackStatus.distance_remaining = feedback->distance_remaining;
 
-        m_feedback_callback(status);
+        m_feedback_callback(feedbackStatus);
     }
 }
 
@@ -92,7 +128,6 @@ void NavigationManager::resultCallback(const GoalHandle::WrappedResult &result)
     );
 
     NavigationState state = NavigationState::FAILED;
-    m_navigating = false;
     switch(result.code)
     {
         case rclcpp_action::ResultCode::SUCCEEDED:
@@ -111,23 +146,39 @@ void NavigationManager::resultCallback(const GoalHandle::WrappedResult &result)
             break;
     }
 
+    // 保存历史
+    // m_last_navigation_id = navigationId;
+    // m_last_result_state = state;
+
+
+    auto navigationId = m_navigation_id;
+    m_navigation_id = 0;
+    m_goal_handle.reset();
+    m_state = NavigationState::IDLE;
+
     if(m_result_callback)
-        m_result_callback(state);
+        m_result_callback(navigationId, state);
 }
 
-void NavigationManager::cancelNavigation()
+void NavigationManager::cancelNavigation(uint64_t navigationId)
 {
-    if(m_goal_handle && m_navigating)
+    if(m_goal_handle && navigationId == m_navigation_id)
     {
+        m_state = NavigationState::CANCELING;
         m_action_client->async_cancel_goal(m_goal_handle);
+        RCLCPP_INFO(m_node->get_logger(), "cancel request sent id=%" PRIu64, navigationId);
     }
 }
 
-bool NavigationManager::isNavigating() const
-{
-    return m_navigating;
-}
+// bool NavigationManager::isNavigating() const
+// {
+//     return m_navigating;
+// }
 
+NavigationState NavigationManager::getState() const
+{
+    return m_state;
+}
 void NavigationManager::setFeedbackCallback(FeedbackCallback cb)
 {
     m_feedback_callback = cb;

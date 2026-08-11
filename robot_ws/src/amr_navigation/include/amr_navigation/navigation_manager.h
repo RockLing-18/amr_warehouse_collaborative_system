@@ -13,24 +13,48 @@ namespace amr_navigation
 enum class NavigationState
 {
     IDLE,
+    ACCEPTING,
     NAVIGATING,
+    CANCELING,
     SUCCEEDED,
     FAILED,
     CANCELED
 };
 
-struct NavigationStatus
+struct NavigationFeedback
 {
+    uint64_t navigation_id;
     NavigationState state;
     double distance_remaining;
     geometry_msgs::msg::PoseStamped current_pose;
+
+    // 暂未使用
+    // PoseStamped goal_pose;
+    // double distance_remaining;
+    // double navigation_time;
+};
+
+// 导航请求
+struct NavigationRequest
+{
+    uint64_t navigation_id;  // 导航id
+    geometry_msgs::msg::PoseStamped goal;
+};
+
+// 导航请求响应
+struct NavigationResponse
+{
+    bool accepted{false}; // 请求是否被接受
+    uint64_t navigation_id{0};  // 当前导航id, 与请求下发不一致时，说明当前存在导航，需主动取消(当为0时是其他错误)
+    NavigationState state{NavigationState::IDLE};
+    std::string message;
 };
 
 class NavigationManager
 {
 public:
-    using ResultCallback = std::function<void(NavigationState)>;
-    using FeedbackCallback = std::function<void(const NavigationStatus&)>;
+    using ResultCallback = std::function<void(uint64_t, NavigationState)>;
+    using FeedbackCallback = std::function<void(const NavigationFeedback&)>;
 
     using NavigateToPose = nav2_msgs::action::NavigateToPose;
     using GoalHandle = rclcpp_action::ClientGoalHandle<NavigateToPose>;
@@ -40,17 +64,19 @@ public:
     /**
      * 发送导航目标
      */
-    bool navigateToPose(const geometry_msgs::msg::PoseStamped &goal);
+    NavigationResponse navigateToPose(const NavigationRequest& req);
 
     /**
-     * 取消当前导航
+     * 取消导航
      */
-    void cancelNavigation();
+    void cancelNavigation(uint64_t navigationId);
 
     /**
      * 是否正在导航
      */
-    bool isNavigating() const;
+    //bool isNavigating() const;
+
+    NavigationState getState() const;
 
     void setFeedbackCallback(FeedbackCallback cb);
     void setResultCallback(ResultCallback cb);
@@ -63,11 +89,11 @@ private:
 private:
     rclcpp::Node::SharedPtr m_node;
     rclcpp_action::Client<NavigateToPose>::SharedPtr m_action_client;
+    uint64_t m_navigation_id{0};
     GoalHandle::SharedPtr m_goal_handle;
     FeedbackCallback m_feedback_callback;
     ResultCallback m_result_callback;
     NavigationState m_state{NavigationState::IDLE};
-    std::atomic<bool> m_navigating{false};
 };
 
 }
