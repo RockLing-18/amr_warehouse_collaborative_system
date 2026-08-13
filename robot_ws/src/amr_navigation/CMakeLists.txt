@@ -19,6 +19,19 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(rclcpp_action REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(builtin_interfaces REQUIRED)
+find_package(amr_interfaces REQUIRED)
+
+# ============================
+# interfaces
+# ============================
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "action/AmrNavigateToPose.action"
+  "srv/GetRobotPose.srv"
+  "msg/RobotPose.msg"
+  DEPENDENCIES geometry_msgs builtin_interfaces amr_interfaces
+)
 
 # ============================
 # TF Helper Library
@@ -109,11 +122,38 @@ ament_target_dependencies(
 )
 
 # ============================
+# Navigation Server
+# ============================
+add_executable(
+    navigation_server
+    src/navigation_server.cpp
+)
+
+target_link_libraries(
+    navigation_server
+    tf_helper
+    navigation_manager
+)
+
+ament_target_dependencies(
+    navigation_server
+    rclcpp
+    rclcpp_action
+    geometry_msgs
+    nav2_msgs
+    amr_interfaces
+)
+
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(navigation_server ${cpp_typesupport_target})
+
+# ============================
 # install
 # ============================
 install(
     TARGETS
     navigation_node
+    navigation_server
     tf_helper
     navigation_manager
     waypoint_navigator
