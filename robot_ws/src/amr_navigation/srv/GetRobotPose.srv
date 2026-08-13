@@ -1,0 +1,14 @@
+# GetRobotPose
+# 查询机器人当前位姿（默认 TF: map -> base_footprint）
+# 由 amr_navigation 节点提供，供 amr_manager / 监控 / 云端桥接跨进程调用
+
+# ===== Request =====
+string frame_id    # 目标坐标系，默认 "base_footprint"
+
+# ===== Response =====
+bool success
+float64 x
+float64 y
+float64 yaw
+builtin_interfaces/Time stamp
+string message
