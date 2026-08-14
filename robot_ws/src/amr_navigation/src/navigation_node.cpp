@@ -8,8 +8,7 @@ class NavigationNode : public rclcpp::Node
 {
 public:
     NavigationNode() : Node("navigation_node",
-        rclcpp::NodeOptions()
-            .append_parameter_override(
+        rclcpp::NodeOptions().append_parameter_override(
                 "use_sim_time",
                 true)
     )

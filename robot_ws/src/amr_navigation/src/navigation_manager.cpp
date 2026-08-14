@@ -5,8 +5,8 @@ namespace amr_navigation
 NavigationManager::NavigationManager(rclcpp::Node::SharedPtr node) : m_node(node)
 {
     m_action_client = rclcpp_action::create_client<NavigateToPose>(
-            m_node,
-            "navigate_to_pose"
+        m_node,
+        "navigate_to_pose"
         );
 }
 
