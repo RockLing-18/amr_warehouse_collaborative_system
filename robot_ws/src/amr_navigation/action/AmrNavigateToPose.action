@@ -17,9 +17,9 @@ string message
 
 # ===== Feedback =====
 
-amr_interfaces/msg/NavigationState state
+amr_interfaces/NavigationState state
 geometry_msgs/PoseStamped current_pose
-builtin_interfaces/Time navigation_time              # 已导航时长
-builtin_interfaces/Time estimated_time_remaining     # 预计剩余时间
+builtin_interfaces/Duration navigation_time              # 已导航时长
+builtin_interfaces/Duration estimated_time_remaining     # 预计剩余时间
 float32 distance_remaining
 uint16 number_of_recoveries                          # 恢复行为触发次数

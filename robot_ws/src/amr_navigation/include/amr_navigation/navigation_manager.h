@@ -26,8 +26,8 @@ struct NavigationFeedback
 {
     NavigationState state;
     geometry_msgs::msg::PoseStamped current_pose;
-    builtin_interfaces::msg::Time navigation_time;
-    builtin_interfaces::msg::Time estimated_time_remaining;
+    builtin_interfaces::msg::Duration navigation_time;
+    builtin_interfaces::msg::Duration estimated_time_remaining;
     double distance_remaining;
     uint16_t number_of_recoveries;
 };

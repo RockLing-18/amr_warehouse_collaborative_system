@@ -5,6 +5,7 @@
 # ===== Request =====
 string frame_id    # 目标坐标系，默认 "base_footprint"
 
+---
 # ===== Response =====
 bool success
 float64 x

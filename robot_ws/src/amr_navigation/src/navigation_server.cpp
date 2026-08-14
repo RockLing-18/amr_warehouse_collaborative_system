@@ -200,13 +200,12 @@ private:
 		{
 			std::lock_guard<std::mutex> lock(m_navigation_mutex);
 			m_navigation_result_ready = false;
-			m_navigation_result_id = 0;
 			m_active_goal_handle = goal_handle;
 		}
 
 		// 发送初始 NAVIGATING feedback
 		auto feedback = std::make_shared<AmrNavigateToPose::Feedback>();
-		feedback->state.state = NavigationState::STATE_NAVIGATING;
+		feedback->state.navigation_state = NavigationState::NAVIGATING;
 		goal_handle->publish_feedback(feedback);
 
 		// 场景4：阻塞等待 NavigationManager 结果回调（替代轮询 is_canceling）
@@ -259,7 +258,7 @@ private:
 
 		auto feedback = std::make_shared<AmrNavigateToPose::Feedback>();
 		// 枚举顺序与 NavigationState 消息常量一致（IDLE=0 ... CANCELED=6）
-		feedback->state.state = static_cast<uint8_t>(fb.state);
+		feedback->state.navigation_state = static_cast<uint8_t>(fb.state);
 		feedback->current_pose = fb.current_pose;
 		feedback->navigation_time = fb.navigation_time;
 		feedback->estimated_time_remaining = fb.estimated_time_remaining;
