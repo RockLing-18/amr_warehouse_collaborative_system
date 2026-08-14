@@ -54,14 +54,36 @@ void NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped & go
 void NavigationClient::cancelNavigation()
 {
   auto gh = current_goal_handle_;
-  if (gh && gh->is_active())
+
+  if (!gh)
+  {
+    RCLCPP_WARN(
+      node_->get_logger(),
+      "no goal handle"
+    );
+    return;
+  }
+
+
+  auto status = gh->get_status();
+
+  if (status == action_msgs::msg::GoalStatus::STATUS_ACCEPTED ||
+      status == action_msgs::msg::GoalStatus::STATUS_EXECUTING)
   {
     action_client_->async_cancel_goal(gh);
-    RCLCPP_INFO(node_->get_logger(), "cancel goal sent");
+
+    RCLCPP_INFO(
+      node_->get_logger(),
+      "cancel goal sent"
+    );
   }
   else
   {
-    RCLCPP_WARN(node_->get_logger(), "no active goal to cancel");
+    RCLCPP_WARN(
+      node_->get_logger(),
+      "goal is not active, status=%d",
+      status
+    );
   }
 }
 
