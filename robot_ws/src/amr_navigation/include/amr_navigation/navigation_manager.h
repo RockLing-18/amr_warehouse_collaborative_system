@@ -5,6 +5,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "nav2_msgs/action/navigate_to_pose.hpp"
+#include "builtin_interfaces/msg/time.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 
 namespace amr_navigation
@@ -23,21 +24,17 @@ enum class NavigationState
 
 struct NavigationFeedback
 {
-    uint64_t navigation_id;
     NavigationState state;
-    double distance_remaining;
     geometry_msgs::msg::PoseStamped current_pose;
-
-    // 暂未使用
-    // PoseStamped goal_pose;
-    // double distance_remaining;
-    // double navigation_time;
+    builtin_interfaces::msg::Time navigation_time;
+    builtin_interfaces::msg::Time estimated_time_remaining;
+    double distance_remaining;
+    uint16_t number_of_recoveries;
 };
 
 // 导航请求
 struct NavigationRequest
 {
-    uint64_t navigation_id;  // 导航id
     geometry_msgs::msg::PoseStamped goal;
 };
 
@@ -45,7 +42,6 @@ struct NavigationRequest
 struct NavigationResponse
 {
     bool accepted{false}; // 请求是否被接受
-    uint64_t navigation_id{0};  // 当前导航id, 与请求下发不一致时，说明当前存在导航，需主动取消(当为0时是其他错误)
     NavigationState state{NavigationState::IDLE};
     std::string message;
 };
@@ -53,7 +49,7 @@ struct NavigationResponse
 class NavigationManager
 {
 public:
-    using ResultCallback = std::function<void(uint64_t, NavigationState)>;
+    using ResultCallback = std::function<void(NavigationState)>;
     using FeedbackCallback = std::function<void(const NavigationFeedback&)>;
 
     using NavigateToPose = nav2_msgs::action::NavigateToPose;
@@ -67,9 +63,9 @@ public:
     NavigationResponse navigateToPose(const NavigationRequest& req);
 
     /**
-     * 取消导航
+     * 取消当前导航
      */
-    void cancelNavigation(uint64_t navigationId);
+    void cancelNavigation();
 
     /**
      * 是否正在导航
@@ -89,7 +85,6 @@ private:
 private:
     rclcpp::Node::SharedPtr m_node;
     rclcpp_action::Client<NavigateToPose>::SharedPtr m_action_client;
-    uint64_t m_navigation_id{0};
     GoalHandle::SharedPtr m_goal_handle;
     FeedbackCallback m_feedback_callback;
     ResultCallback m_result_callback;

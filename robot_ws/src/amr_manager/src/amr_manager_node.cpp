@@ -45,7 +45,7 @@ public:
     nav_client_->setFeedbackCallback(
       [this](const std::shared_ptr<const NavigationClient::AmrNavigateToPose::Feedback> feedback)
       {
-        // TODO: 更新任务执行状态（navigation_id / state / distance_remaining）
+        // TODO: 更新任务执行状态（state / distance_remaining）
         (void)feedback;
       });
 

@@ -39,8 +39,8 @@ public:
   bool waitForActionServer(
     const std::chrono::seconds & timeout = std::chrono::seconds(5));
 
-  // 发送单点导航目标（按坐标导航，纯能力接口）
-  void navigateToPose(uint64_t navigation_id, const geometry_msgs::msg::PoseStamped & goal);
+  // 发送单点导航目标（按坐标导航，纯能力接口；业务身份由调用方自行维护）
+  void navigateToPose(const geometry_msgs::msg::PoseStamped & goal);
 
   // 取消当前导航
   void cancelNavigation();
@@ -62,7 +62,7 @@ private:
   rclcpp::Client<GetRobotPose>::SharedPtr pose_service_client_;
   rclcpp::Subscription<RobotPose>::SharedPtr pose_sub_;
 
-  // TODO: 保存当前 goal_handle，用于取消 / 去重（navigation_id 语义）
+  // 当前目标句柄：取消 / 状态查询用（每次发送后更新）
   GoalHandle::SharedPtr current_goal_handle_;
 
   mutable std::mutex pose_mutex_;

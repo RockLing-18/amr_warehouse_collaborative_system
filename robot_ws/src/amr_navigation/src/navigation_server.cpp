@@ -1,5 +1,5 @@
 // navigation_server.cpp
-// amr_navigation 对外服务节点（代码框架，业务逻辑见 TODO）
+// amr_navigation 对外服务节点
 //
 // 对外接口（全部相对名，robot namespace 实例化）:
 //   action : navigate_to_pose (amr_navigation::action::AmrNavigateToPose)
@@ -10,8 +10,10 @@
 //   ros2 run amr_navigation navigation_server --ros-args -r __ns:=/robot_namespace
 
 #include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <thread>
 
 #include "rclcpp/rclcpp.hpp"
@@ -46,6 +48,13 @@ public:
 	{
 		m_tf_helper = std::make_shared<TFHelper>(shared_from_this());
 		m_navigation_manager = std::make_shared<amr_navigation::NavigationManager>(shared_from_this());
+
+		// 注册 NavigationManager 的 feedback/result 回调
+		// （场景4：结果经回调通知 execute，不轮询 is_canceling）
+		m_navigation_manager->setFeedbackCallback(
+			std::bind(&NavigationServer::onNavigationFeedback, this, std::placeholders::_1));
+		m_navigation_manager->setResultCallback(
+			std::bind(&NavigationServer::onNavigationResult, this, std::placeholders::_1));
 	
 		// 位姿话题（相对名：/robot_namespace/robot_pose）
 		m_robot_pose_pub = this->create_publisher<RobotPoseMsg>("robot_pose", 10);
@@ -55,7 +64,7 @@ public:
 			"get_robot_pose",
 			std::bind(&NavigationServer::handleGetRobotPose, this,
 				std::placeholders::_1, std::placeholders::_2));
-	
+		
 		// 导航 Action server（相对名：/robot_namespace/navigate_to_pose）
 		m_nav_action_server = rclcpp_action::create_server<AmrNavigateToPose>(
 			this,
@@ -91,6 +100,7 @@ private:
 			// TODO: yaw -> 四元数，填充 msg.pose.pose.orientation
 			msg.pose.pose.orientation.w = 1.0;
 		}
+		
 		m_robot_pose_pub->publish(msg);
 	}
 	
@@ -100,11 +110,20 @@ private:
 		std::shared_ptr<GetRobotPose::Response> response)
 	{
 		(void)request;
-		// TODO:
 		//   1. 查询 TF: map -> request->frame_id（默认 base_footprint）
 		//   2. 填充 response->x / y / yaw / stamp / success / message
-		response->success = false;
-		response->message = "TODO: implement";
+		amr_navigation::RobotPose tf_pose{};
+		response->success = m_tf_helper->getRobotPose(tf_pose);
+		if (response->success)
+		{
+			response->x = tf_pose.x;
+			response->y = tf_pose.y;
+			response->yaw = tf_pose.yaw;
+			response->stamp = this->now();
+			response->message = "ok";
+		}
+		else
+			response->message = "getRobotPose failed";
 	}
 	
 	// ---------------- AmrNavigateToPose action ----------------
@@ -113,20 +132,23 @@ private:
 		const std::shared_ptr<const AmrNavigateToPose::Goal> goal)
 	{
 		(void)uuid;
-		RCLCPP_INFO(this->get_logger(), "receive goal, navigation_id=%lu",
-			goal->navigation_id);
-		// TODO:
+		RCLCPP_INFO(this->get_logger(), "receive goal, frame=%s x=%.2f y=%.2f",
+			goal->goal_pose.header.frame_id.c_str(),
+			goal->goal_pose.pose.position.x,
+			goal->goal_pose.pose.position.y);
+
 		//   1. 校验 goal_pose（frame_id / 坐标合法性）
-		//   2. navigation_id 与当前导航不一致时，先取消旧导航（NavigationManager 语义）
+		//   2. 导航冲突（busy）在 execute 中取消旧导航后重试（supersede）
 		return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
 	}
 	
-	rclcpp_action::CancelResponse handleCancel(
-		const std::shared_ptr<GoalHandle> goal_handle)
+	rclcpp_action::CancelResponse handleCancel(const std::shared_ptr<GoalHandle> goal_handle)
 	{
 		(void)goal_handle;
 		RCLCPP_INFO(this->get_logger(), "receive cancel request");
-		// TODO: 调用 m_navigation_manager->cancelNavigation(current_navigation_id)
+		// 单 client 单活动导航：取消当前 Nav2 导航即可；
+		// 客户端取消的是旧目标时，NavigationManager 无活动句柄则自动 no-op
+		m_navigation_manager->cancelNavigation();
 		return rclcpp_action::CancelResponse::ACCEPT;
 	}
 	
@@ -139,44 +161,154 @@ private:
 	void execute(const std::shared_ptr<GoalHandle> goal_handle)
 	{
 		const auto goal = goal_handle->get_goal();
-		auto feedback = std::make_shared<AmrNavigateToPose::Feedback>();
 		auto result = std::make_shared<AmrNavigateToPose::Result>();
-	
-		feedback->navigation_id = goal->navigation_id;
-		feedback->state.state = NavigationState::STATE_NAVIGATING;
-		goal_handle->publish_feedback(feedback);
-	
-		// TODO:
-		//   1. 用 goal_pose 构造 NavigationRequest 并调用 m_navigation_manager->navigateToPose(req)
-		//   2. 通过 NavigationManager 的 feedback/result 回调推进本函数状态
-		//   3. 周期发布 feedback（state / distance_remaining / current_pose）
-		while (rclcpp::ok() && !goal_handle->is_canceling())
-		{
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
-			break;  // TODO: 等待真实导航结果后退出
-		}
-	
+
+		// 客户端可能在执行前就取消了该目标
 		if (goal_handle->is_canceling())
 		{
-			result->navigation_id = goal->navigation_id;
 			result->success = false;
-			result->message = "canceled";
+			result->message = "canceled before start";
 			goal_handle->canceled(result);
 			return;
 		}
-	
-		result->navigation_id = goal->navigation_id;
-		result->success = true;  // TODO: 按 NavigationManager 结果设置
-		result->message = "navigation finished";
-		goal_handle->succeed(result);
+
+		amr_navigation::NavigationRequest req;
+		req.goal = goal->goal_pose;
+
+		// 机器人正忙于其他导航：直接取消旧导航（supersede），等待结束后重试本次目标
+		amr_navigation::NavigationResponse resp = m_navigation_manager->navigateToPose(req);
+		if (!resp.accepted && isBusyState(resp.state))
+		{
+			RCLCPP_WARN(this->get_logger(), "robot busy, cancel current navigation and retry");
+			m_navigation_manager->cancelNavigation();
+			amr_navigation::NavigationState old_state;
+			if (waitForNavigationResult(old_state))
+				RCLCPP_INFO(this->get_logger(), "old navigation finished, state=%d",
+					static_cast<int>(old_state));
+			resp = m_navigation_manager->navigateToPose(req);
+		}
+
+		if (!resp.accepted)
+		{
+			result->success = false;
+			result->message = resp.message.empty() ? "navigate request rejected" : resp.message;
+			goal_handle->abort(result);
+			return;
+		}
+
+		// 重置结果标记，登记当前活动目标（供 feedback 回调发布）
+		{
+			std::lock_guard<std::mutex> lock(m_navigation_mutex);
+			m_navigation_result_ready = false;
+			m_navigation_result_id = 0;
+			m_active_goal_handle = goal_handle;
+		}
+
+		// 发送初始 NAVIGATING feedback
+		auto feedback = std::make_shared<AmrNavigateToPose::Feedback>();
+		feedback->state.state = NavigationState::STATE_NAVIGATING;
+		goal_handle->publish_feedback(feedback);
+
+		// 场景4：阻塞等待 NavigationManager 结果回调（替代轮询 is_canceling）
+		amr_navigation::NavigationState final_state;
+		if (!waitForNavigationResult(final_state))
+		{
+			result->success = false;
+			result->message = "navigation result timeout";
+			goal_handle->abort(result);
+			return;
+		}
+
+		switch (final_state)
+		{
+			case amr_navigation::NavigationState::SUCCEEDED:
+				result->success = true;
+				result->message = "navigation succeeded";
+				goal_handle->succeed(result);
+				break;
+			case amr_navigation::NavigationState::CANCELED:
+				result->success = false;
+				result->message = "canceled";
+				goal_handle->canceled(result);
+				break;
+			default:
+				result->success = false;
+				result->message = "navigation failed";
+				goal_handle->abort(result);
+				break;
+		}
+	}
+
+	bool isBusyState(amr_navigation::NavigationState state) const
+	{
+		return state == amr_navigation::NavigationState::ACCEPTING ||
+			state == amr_navigation::NavigationState::NAVIGATING ||
+			state == amr_navigation::NavigationState::CANCELING;
 	}
 	
+	// ---------------- NavigationManager 回调 ----------------
+	void onNavigationFeedback(const amr_navigation::NavigationFeedback & fb)
+	{
+		std::shared_ptr<GoalHandle> gh;
+		{
+			std::lock_guard<std::mutex> lock(m_navigation_mutex);
+			gh = m_active_goal_handle;
+		}
+		if (!gh)
+			return;
+
+		auto feedback = std::make_shared<AmrNavigateToPose::Feedback>();
+		// 枚举顺序与 NavigationState 消息常量一致（IDLE=0 ... CANCELED=6）
+		feedback->state.state = static_cast<uint8_t>(fb.state);
+		feedback->current_pose = fb.current_pose;
+		feedback->navigation_time = fb.navigation_time;
+		feedback->estimated_time_remaining = fb.estimated_time_remaining;
+		feedback->distance_remaining = static_cast<float>(fb.distance_remaining);
+		feedback->number_of_recoveries = fb.number_of_recoveries;
+		gh->publish_feedback(feedback);
+	}
+	
+	void onNavigationResult(amr_navigation::NavigationState state)
+	{
+		{
+			std::lock_guard<std::mutex> lock(m_navigation_mutex);
+			m_navigation_result = state;
+			m_navigation_result_ready = true;
+			m_active_goal_handle.reset();
+		}
+		m_navigation_cv.notify_all();
+	}
+	
+	bool waitForNavigationResult(amr_navigation::NavigationState & out_state)
+	{
+		// 单活动导航：同一时刻只有一个 execute 在等待，ready 标志即可匹配
+		// TODO: 超时时间可配置（如 navigation_timeout_s）
+		std::unique_lock<std::mutex> lock(m_navigation_mutex);
+		bool ready = m_navigation_cv.wait_for(lock, std::chrono::seconds(60),
+			[this]()
+			{
+				return m_navigation_result_ready;
+			});
+		if (!ready)
+			return false;
+		out_state = m_navigation_result;
+		return true;
+	}
+	
+	// ---------------- members ----------------
 	std::shared_ptr<TFHelper> m_tf_helper;
 	std::shared_ptr<amr_navigation::NavigationManager> m_navigation_manager;
 	rclcpp::Publisher<RobotPoseMsg>::SharedPtr m_robot_pose_pub;
 	rclcpp::Service<GetRobotPose>::SharedPtr m_get_robot_pose_srv;
 	rclcpp_action::Server<AmrNavigateToPose>::SharedPtr m_nav_action_server;
 	rclcpp::TimerBase::SharedPtr m_pose_timer;
+
+	// 导航结果通知（场景4：结果回调 -> 条件变量唤醒 execute）
+	std::mutex m_navigation_mutex;
+	std::condition_variable m_navigation_cv;
+	bool m_navigation_result_ready{false};
+	amr_navigation::NavigationState m_navigation_result{amr_navigation::NavigationState::IDLE};
+	std::shared_ptr<GoalHandle> m_active_goal_handle;
 };
 }
 

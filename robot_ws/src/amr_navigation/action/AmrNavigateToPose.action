@@ -4,14 +4,12 @@
 
 # ===== Goal =====
 
-uint64 navigation_id                # 客户端生成的导航请求 id；与当前导航不一致时，服务端先取消旧目标
 geometry_msgs/PoseStamped goal_pose
 
 ---
 
 # ===== Result =====
 
-uint64 navigation_id
 bool success
 string message
 
@@ -19,7 +17,9 @@ string message
 
 # ===== Feedback =====
 
-uint64 navigation_id
 amr_interfaces/msg/NavigationState state
-float32 distance_remaining
 geometry_msgs/PoseStamped current_pose
+builtin_interfaces/Time navigation_time              # 已导航时长
+builtin_interfaces/Time estimated_time_remaining     # 预计剩余时间
+float32 distance_remaining
+uint16 number_of_recoveries                          # 恢复行为触发次数

@@ -19,15 +19,21 @@ bool NavigationClient::waitForActionServer(const std::chrono::seconds & timeout)
   return action_client_->wait_for_action_server(timeout);
 }
 
-void NavigationClient::navigateToPose(
-  uint64_t navigation_id,
-  const geometry_msgs::msg::PoseStamped & goal)
+void NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped & goal)
 {
   auto goal_msg = AmrNavigateToPose::Goal();
-  goal_msg.navigation_id = navigation_id;
   goal_msg.goal_pose = goal;
 
   auto send_goal_options = rclcpp_action::Client<AmrNavigateToPose>::SendGoalOptions();
+  send_goal_options.goal_response_callback =
+    [this](const GoalHandle::SharedPtr & goal_handle)
+    {
+      // 保存句柄：取消 / 状态查询用
+      if (goal_handle)
+        current_goal_handle_ = goal_handle;
+      else
+        RCLCPP_WARN(node_->get_logger(), "navigation goal rejected by server");
+    };
   send_goal_options.feedback_callback =
     [this](GoalHandle::SharedPtr,
            const std::shared_ptr<const AmrNavigateToPose::Feedback> feedback)
@@ -40,17 +46,23 @@ void NavigationClient::navigateToPose(
       if (result_cb_) { result_cb_(result); }
     };
 
-  RCLCPP_INFO(node_->get_logger(), "send navigate goal, navigation_id=%lu", navigation_id);
-  // TODO:
-  //   1. 记录 current_goal_handle_（在 send_goal_options.goal_response_callback 中）
-  //   2. navigation_id 与当前不一致时先 cancel 旧目标
+  RCLCPP_INFO(node_->get_logger(), "send navigate goal, frame=%s x=%.2f y=%.2f",
+    goal.header.frame_id.c_str(), goal.pose.position.x, goal.pose.position.y);
   action_client_->async_send_goal(goal_msg, send_goal_options);
 }
 
 void NavigationClient::cancelNavigation()
 {
-  // TODO: current_goal_handle_ 为空则忽略，否则 action_client_->async_cancel_goal(...)
-  RCLCPP_WARN(node_->get_logger(), "cancelNavigation: TODO implement");
+  auto gh = current_goal_handle_;
+  if (gh && gh->is_active())
+  {
+    action_client_->async_cancel_goal(gh);
+    RCLCPP_INFO(node_->get_logger(), "cancel goal sent");
+  }
+  else
+  {
+    RCLCPP_WARN(node_->get_logger(), "no active goal to cancel");
+  }
 }
 
 NavigationClient::RobotPose::SharedPtr NavigationClient::getLatestPose() const

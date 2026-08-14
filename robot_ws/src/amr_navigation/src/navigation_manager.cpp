@@ -1,5 +1,4 @@
 #include "amr_navigation/navigation_manager.h"
-#include <inttypes.h>
 
 namespace amr_navigation
 {
@@ -18,30 +17,23 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
     {
         RCLCPP_ERROR(m_node->get_logger(), "Nav2 Action服务未启动");
         resp.accepted = false;
-        resp.navigation_id = 0;
+        resp.message = "nav2 action server not available";
         return resp;
     }
 
+    // 单活动导航：忙碌时直接返回，由调用方（amr_navigation 的 server）决策
     if(m_state == NavigationState::ACCEPTING || m_state == NavigationState::NAVIGATING || m_state == NavigationState::CANCELING)
     {
         resp.accepted = false;
-        resp.navigation_id = m_navigation_id;
         resp.state = m_state;
-        resp.message="robot busy";
-
-        RCLCPP_WARN(
-            m_node->get_logger(),
-            "robot already navigating id=%" PRIu64,
-            m_navigation_id
-        );
-
+        resp.message = "robot busy";
+        RCLCPP_WARN(m_node->get_logger(), "robot already navigating");
         return resp;
     }
 
     RCLCPP_INFO(
     m_node->get_logger(),
-    "Send goal navigation_id=%" PRIu64 " frame=%s x=%.2f y=%.2f",
-    req.navigation_id,
+    "Send goal frame=%s x=%.2f y=%.2f",
     req.goal.header.frame_id.c_str(),
     req.goal.pose.position.x,
     req.goal.pose.position.y);
@@ -63,14 +55,12 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
             std::placeholders::_1
         );
 
-    m_navigation_id = req.navigation_id;
     m_state = NavigationState::ACCEPTING;
     m_action_client->async_send_goal(goal, options);
 
     resp.accepted = true;
-    resp.navigation_id = m_navigation_id;
     resp.state = NavigationState::ACCEPTING;
-    resp.message = "navigation request accepted, navigation_id[" + std::to_string(m_navigation_id) + "]";
+    resp.message = "navigation request accepted";
     return resp;
 }
 
@@ -79,13 +69,11 @@ void NavigationManager::goalResponseCallback(GoalHandle::SharedPtr goal_handle)
     if(!goal_handle)
     {
         RCLCPP_ERROR(m_node->get_logger(), "导航目标被拒绝");
-        auto navigationId = m_navigation_id;
         m_state = NavigationState::FAILED;
-        m_navigation_id = 0;
         m_goal_handle.reset();
 
         if(m_result_callback)
-            m_result_callback(navigationId, NavigationState::FAILED);
+            m_result_callback(NavigationState::FAILED);
         
         return;
     }
@@ -110,10 +98,12 @@ void NavigationManager::feedbackCallback(GoalHandle::SharedPtr, const std::share
     if(m_feedback_callback)
     {
         NavigationFeedback feedbackStatus;
-        feedbackStatus.navigation_id = m_navigation_id;
         feedbackStatus.state = NavigationState::NAVIGATING;
         feedbackStatus.current_pose = pose;
+        feedbackStatus.navigation_time = feedback->navigation_time;
+        feedbackStatus.estimated_time_remaining = feedback->estimated_time_remaining;
         feedbackStatus.distance_remaining = feedback->distance_remaining;
+        feedbackStatus.number_of_recoveries = feedback->number_of_recoveries;
 
         m_feedback_callback(feedbackStatus);
     }
@@ -146,27 +136,20 @@ void NavigationManager::resultCallback(const GoalHandle::WrappedResult &result)
             break;
     }
 
-    // 保存历史
-    // m_last_navigation_id = navigationId;
-    // m_last_result_state = state;
-
-
-    auto navigationId = m_navigation_id;
-    m_navigation_id = 0;
     m_goal_handle.reset();
     m_state = NavigationState::IDLE;
 
     if(m_result_callback)
-        m_result_callback(navigationId, state);
+        m_result_callback(state);
 }
 
-void NavigationManager::cancelNavigation(uint64_t navigationId)
+void NavigationManager::cancelNavigation()
 {
-    if(m_goal_handle && navigationId == m_navigation_id)
+    if(m_goal_handle)
     {
         m_state = NavigationState::CANCELING;
         m_action_client->async_cancel_goal(m_goal_handle);
-        RCLCPP_INFO(m_node->get_logger(), "cancel request sent id=%" PRIu64, navigationId);
+        RCLCPP_INFO(m_node->get_logger(), "cancel request sent");
     }
 }
 
