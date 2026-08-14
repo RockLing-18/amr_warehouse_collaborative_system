@@ -2,9 +2,9 @@
 // amr_navigation 对外服务节点
 //
 // 对外接口（全部相对名，robot namespace 实例化）:
-//   action : navigate_to_pose (amr_navigation::action::AmrNavigateToPose)
-//   service: get_robot_pose   (amr_navigation::srv::GetRobotPose)
-//   topic  : robot_pose       (amr_navigation::msg::RobotPose, 默认 1Hz)
+//   action : navigate_to_pose (amr_interfaces::action::AmrNavigateToPose)
+//   service: get_robot_pose   (amr_interfaces::srv::GetRobotPose)
+//   topic  : robot_pose       (amr_interfaces::msg::RobotPose, 默认 1Hz)
 //
 // 启动（使用 robot namespace）:
 //   ros2 run amr_navigation navigation_server --ros-args -r __ns:=/robot_namespace
@@ -19,10 +19,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 
-#include "amr_navigation/action/amr_navigate_to_pose.hpp"
+#include "amr_interfaces/action/amr_navigate_to_pose.hpp"
+#include "amr_interfaces/srv/get_robot_pose.hpp"
 #include "amr_interfaces/msg/navigation_state.hpp"
-#include "amr_navigation/srv/get_robot_pose.hpp"
-#include "amr_navigation/msg/robot_pose.hpp"
+#include "amr_interfaces/msg/robot_pose.hpp"
 #include "amr_navigation/tf_helper.h"
 #include "amr_navigation/navigation_manager.h"
 
@@ -32,10 +32,10 @@ namespace amr_navigation
 class NavigationServer : public rclcpp::Node
 {
 public:
-	using AmrNavigateToPose = amr_navigation::action::AmrNavigateToPose;
+	using AmrNavigateToPose = amr_interfaces::action::AmrNavigateToPose;
 	using GoalHandle = rclcpp_action::ServerGoalHandle<AmrNavigateToPose>;
-	using GetRobotPose = amr_navigation::srv::GetRobotPose;
-	using RobotPoseMsg = amr_navigation::msg::RobotPose;
+	using GetRobotPose = amr_interfaces::srv::GetRobotPose;
+	using RobotPoseMsg = amr_interfaces::msg::RobotPose;
 	using NavigationState = amr_interfaces::msg::NavigationState;
 	
 	NavigationServer() : Node("navigation_server")

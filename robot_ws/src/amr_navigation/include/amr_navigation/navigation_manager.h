@@ -5,7 +5,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "nav2_msgs/action/navigate_to_pose.hpp"
-#include "builtin_interfaces/msg/time.hpp"
+#include "builtin_interfaces/msg/duration.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 
 namespace amr_navigation

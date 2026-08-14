@@ -9,9 +9,9 @@
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 
-#include "amr_navigation/action/amr_navigate_to_pose.hpp"
-#include "amr_navigation/srv/get_robot_pose.hpp"
-#include "amr_navigation/msg/robot_pose.hpp"
+#include "amr_interfaces/action/amr_navigate_to_pose.hpp"
+#include "amr_interfaces/srv/get_robot_pose.hpp"
+#include "amr_interfaces/msg/robot_pose.hpp"
 
 namespace amr_manager
 {
@@ -21,10 +21,10 @@ namespace amr_manager
 class NavigationClient
 {
 public:
-  using AmrNavigateToPose = amr_navigation::action::AmrNavigateToPose;
+  using AmrNavigateToPose = amr_interfaces::action::AmrNavigateToPose;
   using GoalHandle = rclcpp_action::ClientGoalHandle<AmrNavigateToPose>;
-  using RobotPose = amr_navigation::msg::RobotPose;
-  using GetRobotPose = amr_navigation::srv::GetRobotPose;
+  using RobotPose = amr_interfaces::msg::RobotPose;
+  using GetRobotPose = amr_interfaces::srv::GetRobotPose;
 
   using FeedbackCallback =
     std::function<void(const std::shared_ptr<const AmrNavigateToPose::Feedback> feedback)>;

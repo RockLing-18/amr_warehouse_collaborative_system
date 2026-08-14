@@ -2,7 +2,7 @@
 // amr_manager 入口节点（代码框架，业务逻辑见 TODO）
 //
 // 发布（相对名）: robot_status / task_status
-// 对接 amr_navigation（相对名）:
+// 对接 amr_navigation 服务（接口类型来自 amr_interfaces，相对名）:
 //   action : navigate_to_pose
 //   service: get_robot_pose
 //   topic  : robot_pose

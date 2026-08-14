@@ -11,7 +11,6 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
-find_package(amr_navigation REQUIRED)
 find_package(amr_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
@@ -44,7 +43,6 @@ ament_target_dependencies(
     rclcpp
     rclcpp_action
     geometry_msgs
-    amr_navigation
     amr_interfaces
 )
 

@@ -100,8 +100,11 @@ void NavigationManager::feedbackCallback(GoalHandle::SharedPtr, const std::share
         NavigationFeedback feedbackStatus;
         feedbackStatus.state = NavigationState::NAVIGATING;
         feedbackStatus.current_pose = pose;
-        feedbackStatus.navigation_time = feedback->navigation_time;
-        feedbackStatus.estimated_time_remaining = feedback->estimated_time_remaining;
+        // Nav2 feedback 为 Time，内部/action 定义为 Duration，按 sec/nanosec 拷贝
+        feedbackStatus.navigation_time.sec = feedback->navigation_time.sec;
+        feedbackStatus.navigation_time.nanosec = feedback->navigation_time.nanosec;
+        feedbackStatus.estimated_time_remaining.sec = feedback->estimated_time_remaining.sec;
+        feedbackStatus.estimated_time_remaining.nanosec = feedback->estimated_time_remaining.nanosec;
         feedbackStatus.distance_remaining = feedback->distance_remaining;
         feedbackStatus.number_of_recoveries = feedback->number_of_recoveries;
 
