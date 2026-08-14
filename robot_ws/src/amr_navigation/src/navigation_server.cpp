@@ -7,7 +7,7 @@
 //   topic  : robot_pose       (amr_navigation::msg::RobotPose, 默认 1Hz)
 //
 // 启动（使用 robot namespace）:
-//   ros2 run amr_navigation navigation_server --ros-args -r __ns:=/robot_01
+//   ros2 run amr_navigation navigation_server --ros-args -r __ns:=/robot_namespace
 
 #include <chrono>
 #include <functional>
@@ -47,16 +47,16 @@ public:
 		m_tf_helper = std::make_shared<TFHelper>(shared_from_this());
 		m_navigation_manager = std::make_shared<amr_navigation::NavigationManager>(shared_from_this());
 	
-		// 位姿话题（相对名 -> /robot_01/robot_pose）
+		// 位姿话题（相对名：/robot_namespace/robot_pose）
 		m_robot_pose_pub = this->create_publisher<RobotPoseMsg>("robot_pose", 10);
 	
-		// 位姿查询服务（相对名 -> /robot_01/get_robot_pose）
+		// 位姿查询服务（相对名：/robot_namespace/get_robot_pose）
 		m_get_robot_pose_srv = this->create_service<GetRobotPose>(
 			"get_robot_pose",
 			std::bind(&NavigationServer::handleGetRobotPose, this,
 				std::placeholders::_1, std::placeholders::_2));
 	
-		// 导航 Action server（相对名 -> /robot_01/navigate_to_pose）
+		// 导航 Action server（相对名：/robot_namespace/navigate_to_pose）
 		m_nav_action_server = rclcpp_action::create_server<AmrNavigateToPose>(
 			this,
 			"navigate_to_pose",
