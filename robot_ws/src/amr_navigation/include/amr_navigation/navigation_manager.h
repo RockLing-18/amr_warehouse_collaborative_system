@@ -11,7 +11,7 @@
 namespace amr_navigation
 {
 
-enum class NavigationState
+enum class NavigationExecutionState
 {
     IDLE,
     ACCEPTING,
@@ -24,7 +24,7 @@ enum class NavigationState
 
 struct NavigationFeedback
 {
-    NavigationState state;
+    NavigationExecutionState state;
     geometry_msgs::msg::PoseStamped current_pose;
     builtin_interfaces::msg::Duration navigation_time;
     builtin_interfaces::msg::Duration estimated_time_remaining;
@@ -42,14 +42,14 @@ struct NavigationRequest
 struct NavigationResponse
 {
     bool accepted{false}; // 请求是否被接受
-    NavigationState state{NavigationState::IDLE};
+    NavigationExecutionState state{NavigationExecutionState::IDLE};
     std::string message;
 };
 
 class NavigationManager
 {
 public:
-    using ResultCallback = std::function<void(NavigationState)>;
+    using ResultCallback = std::function<void(NavigationExecutionState)>;
     using FeedbackCallback = std::function<void(const NavigationFeedback&)>;
 
     using NavigateToPose = nav2_msgs::action::NavigateToPose;
@@ -72,7 +72,7 @@ public:
      */
     //bool isNavigating() const;
 
-    NavigationState getState() const;
+    NavigationExecutionState getState() const;
 
     void setFeedbackCallback(FeedbackCallback cb);
     void setResultCallback(ResultCallback cb);
@@ -88,7 +88,7 @@ private:
     GoalHandle::SharedPtr m_goal_handle;
     FeedbackCallback m_feedback_callback;
     ResultCallback m_result_callback;
-    NavigationState m_state{NavigationState::IDLE};
+    NavigationExecutionState m_state{NavigationExecutionState::IDLE};
 };
 
 }

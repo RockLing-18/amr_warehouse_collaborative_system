@@ -22,7 +22,7 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
     }
 
     // 单活动导航：忙碌时直接返回，由调用方（amr_navigation 的 server）决策
-    if(m_state == NavigationState::ACCEPTING || m_state == NavigationState::NAVIGATING || m_state == NavigationState::CANCELING)
+    if(m_state == NavigationExecutionState::ACCEPTING || m_state == NavigationExecutionState::NAVIGATING || m_state == NavigationExecutionState::CANCELING)
     {
         resp.accepted = false;
         resp.state = m_state;
@@ -55,11 +55,11 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
             std::placeholders::_1
         );
 
-    m_state = NavigationState::ACCEPTING;
+    m_state = NavigationExecutionState::ACCEPTING;
     m_action_client->async_send_goal(goal, options);
 
     resp.accepted = true;
-    resp.state = NavigationState::ACCEPTING;
+    resp.state = NavigationExecutionState::ACCEPTING;
     resp.message = "navigation request accepted";
     return resp;
 }
@@ -69,16 +69,16 @@ void NavigationManager::goalResponseCallback(GoalHandle::SharedPtr goal_handle)
     if(!goal_handle)
     {
         RCLCPP_ERROR(m_node->get_logger(), "导航目标被拒绝");
-        m_state = NavigationState::FAILED;
+        m_state = NavigationExecutionState::IDLE;
         m_goal_handle.reset();
 
         if(m_result_callback)
-            m_result_callback(NavigationState::FAILED);
+            m_result_callback(NavigationExecutionState::FAILED);
         
         return;
     }
 
-    m_state = NavigationState::NAVIGATING;
+    m_state = NavigationExecutionState::NAVIGATING;
     m_goal_handle = goal_handle;
     RCLCPP_INFO(m_node->get_logger(), "导航目标已接受");
 }
@@ -98,7 +98,7 @@ void NavigationManager::feedbackCallback(GoalHandle::SharedPtr, const std::share
     if(m_feedback_callback)
     {
         NavigationFeedback feedbackStatus;
-        feedbackStatus.state = NavigationState::NAVIGATING;
+        feedbackStatus.state = NavigationExecutionState::NAVIGATING;
         feedbackStatus.current_pose = pose;
         // Nav2 feedback 为 Time，内部/action 定义为 Duration，按 sec/nanosec 拷贝
         feedbackStatus.navigation_time.sec = feedback->navigation_time.sec;
@@ -120,27 +120,27 @@ void NavigationManager::resultCallback(const GoalHandle::WrappedResult &result)
         static_cast<int>(result.code)
     );
 
-    NavigationState state = NavigationState::FAILED;
+    NavigationExecutionState state = NavigationExecutionState::FAILED;
     switch(result.code)
     {
         case rclcpp_action::ResultCode::SUCCEEDED:
             RCLCPP_INFO(m_node->get_logger(), "导航成功");
-            state = NavigationState::SUCCEEDED;
+            state = NavigationExecutionState::SUCCEEDED;
             break;
         case rclcpp_action::ResultCode::ABORTED:
             RCLCPP_ERROR(m_node->get_logger(), "导航失败");
-            state = NavigationState::FAILED;
+            state = NavigationExecutionState::FAILED;
             break;
         case rclcpp_action::ResultCode::CANCELED:
             RCLCPP_WARN(m_node->get_logger(), "导航取消");
-            state = NavigationState::CANCELED;
+            state = NavigationExecutionState::CANCELED;
             break;
         default:
             break;
     }
 
     m_goal_handle.reset();
-    m_state = NavigationState::IDLE;
+    m_state = NavigationExecutionState::IDLE;
 
     if(m_result_callback)
         m_result_callback(state);
@@ -150,7 +150,7 @@ void NavigationManager::cancelNavigation()
 {
     if(m_goal_handle)
     {
-        m_state = NavigationState::CANCELING;
+        m_state = NavigationExecutionState::CANCELING;
         m_action_client->async_cancel_goal(m_goal_handle);
         RCLCPP_INFO(m_node->get_logger(), "cancel request sent");
     }
@@ -161,7 +161,7 @@ void NavigationManager::cancelNavigation()
 //     return m_navigating;
 // }
 
-NavigationState NavigationManager::getState() const
+NavigationExecutionState NavigationManager::getState() const
 {
     return m_state;
 }

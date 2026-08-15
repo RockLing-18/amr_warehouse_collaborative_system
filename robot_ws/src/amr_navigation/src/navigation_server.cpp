@@ -2,7 +2,7 @@
 // amr_navigation 对外服务节点
 //
 // 对外接口（全部相对名，robot namespace 实例化）:
-//   action : navigate_to_pose (amr_interfaces::action::AmrNavigateToPose)
+//   action : amr_navigate_to_pose (amr_interfaces::action::AmrNavigateToPose)
 //   service: get_robot_pose   (amr_interfaces::srv::GetRobotPose)
 //   topic  : robot_pose       (amr_interfaces::msg::RobotPose, 默认 1Hz)
 //
@@ -41,7 +41,6 @@ public:
 	NavigationServer() : Node("navigation_server")
 	{
 		this->declare_parameter("pose_publish_rate_hz", 1.0);
-		this->declare_parameter("use_sim_time", true);
 	}
 	
 	void init()
@@ -62,10 +61,10 @@ public:
 			std::bind(&NavigationServer::handleGetRobotPose, this, std::placeholders::_1, std::placeholders::_2)
 			);
 		
-		// 导航 Action server（相对名：/robot_namespace/navigate_to_pose）
+		// 导航 Action server（相对名：/robot_namespace/amr_navigate_to_pose
 		m_nav_action_server = rclcpp_action::create_server<AmrNavigateToPose>(
 			this,
-			"navigate_to_pose",
+			"amr_navigate_to_pose",
 			std::bind(&NavigationServer::handleGoal, this, std::placeholders::_1, std::placeholders::_2),
 			std::bind(&NavigationServer::handleCancel, this, std::placeholders::_1),
 			std::bind(&NavigationServer::handleAccepted, this, std::placeholders::_1)
@@ -177,7 +176,7 @@ private:
 		{
 			RCLCPP_WARN(this->get_logger(), "robot busy, cancel current navigation and retry");
 			m_navigation_manager->cancelNavigation();
-			amr_navigation::NavigationState old_state;
+			amr_navigation::NavigationExecutionState old_state;
 			if (waitForNavigationResult(old_state))
 				RCLCPP_INFO(this->get_logger(), "old navigation finished, state=%d",
 					static_cast<int>(old_state));
@@ -205,7 +204,7 @@ private:
 		goal_handle->publish_feedback(feedback);
 
 		// 阻塞等待 NavigationManager 结果回调
-		amr_navigation::NavigationState final_state;
+		amr_navigation::NavigationExecutionState final_state;
 		if (!waitForNavigationResult(final_state))
 		{
 			result->success = false;
@@ -216,12 +215,12 @@ private:
 
 		switch (final_state)
 		{
-			case amr_navigation::NavigationState::SUCCEEDED:
+			case amr_navigation::NavigationExecutionState::SUCCEEDED:
 				result->success = true;
 				result->message = "navigation succeeded";
 				goal_handle->succeed(result);
 				break;
-			case amr_navigation::NavigationState::CANCELED:
+			case amr_navigation::NavigationExecutionState::CANCELED:
 				result->success = false;
 				result->message = "canceled";
 				goal_handle->canceled(result);
@@ -234,11 +233,11 @@ private:
 		}
 	}
 
-	bool isBusyState(amr_navigation::NavigationState state) const
+	bool isBusyState(amr_navigation::NavigationExecutionState state) const
 	{
-		return state == amr_navigation::NavigationState::ACCEPTING ||
-			state == amr_navigation::NavigationState::NAVIGATING ||
-			state == amr_navigation::NavigationState::CANCELING;
+		return state == amr_navigation::NavigationExecutionState::ACCEPTING ||
+			state == amr_navigation::NavigationExecutionState::NAVIGATING ||
+			state == amr_navigation::NavigationExecutionState::CANCELING;
 	}
 	
 	// ---------------- NavigationManager 回调 ----------------
@@ -263,7 +262,7 @@ private:
 		gh->publish_feedback(feedback);
 	}
 	
-	void onNavigationResult(amr_navigation::NavigationState state)
+	void onNavigationResult(amr_navigation::NavigationExecutionState state)
 	{
 		{
 			std::lock_guard<std::mutex> lock(m_navigation_mutex);
@@ -274,7 +273,7 @@ private:
 		m_navigation_cv.notify_all();
 	}
 	
-	bool waitForNavigationResult(amr_navigation::NavigationState & out_state)
+	bool waitForNavigationResult(amr_navigation::NavigationExecutionState & out_state)
 	{
 		// 单活动导航：同一时刻只有一个 execute 在等待，ready 标志即可匹配
 		// 超时时间可配置
@@ -302,7 +301,7 @@ private:
 	std::mutex m_navigation_mutex;
 	std::condition_variable m_navigation_cv;
 	bool m_navigation_result_ready{false};
-	amr_navigation::NavigationState m_navigation_result{amr_navigation::NavigationState::IDLE};
+	amr_navigation::NavigationExecutionState m_navigation_result{amr_navigation::NavigationExecutionState::IDLE};
 	std::shared_ptr<GoalHandle> m_active_goal_handle;
 };
 }
