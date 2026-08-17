@@ -18,6 +18,8 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 #include "amr_interfaces/action/amr_navigate_to_pose.hpp"
 #include "amr_interfaces/srv/get_robot_pose.hpp"
@@ -94,6 +96,9 @@ private:
 			msg.pose.pose.position.x = tf_pose.x;
 			msg.pose.pose.position.y = tf_pose.y;
 			// yaw -> 四元数，填充 msg.pose.pose.orientation
+			tf2::Quaternion q;
+        	q.setRPY(0.0, 0.0, tf_pose.yaw);
+			msg.pose.pose.orientation = tf2::toMsg(q);
 			msg.pose.pose.orientation.w = 1.0;
 		}
 		

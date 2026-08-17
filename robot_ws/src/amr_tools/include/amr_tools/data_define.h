@@ -41,3 +41,10 @@ struct Station
     std::string zone_id;
     std::vector<Location> locations;
 };
+
+struct Wall
+{
+    int marker_id{-1};  // marker运行时id
+    std::string id;
+    std::vector<std::pair<double,double>> line;
+};

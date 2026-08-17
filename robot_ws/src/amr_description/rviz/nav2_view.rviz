@@ -7,9 +7,9 @@ Panels:
         - /Global Options1
         - /TF1/Frames1
         - /TF1/Tree1
-        - /MarkerArray2
-        - /MarkerArray3
         - /MarkerArray3/Topic1
+        - /MarkerArray4
+        - /MarkerArray4/Topic1
       Splitter Ratio: 0.5611110925674438
     Tree Height: 462
   - Class: rviz_common/Selection
@@ -78,13 +78,50 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        base_footprint:
+          Value: true
+        base_link:
+          Value: true
+        camera_link:
+          Value: true
+        camera_optical_link:
+          Value: true
+        imu_link:
+          Value: true
+        laser_cylinder_link:
+          Value: true
+        laser_link:
+          Value: true
+        left_wheel_link:
+          Value: true
+        map:
+          Value: true
+        odom:
+          Value: true
+        right_wheel_link:
+          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: false
       Tree:
-        {}
+        map:
+          odom:
+            base_footprint:
+              base_link:
+                camera_link:
+                  camera_optical_link:
+                    {}
+                imu_link:
+                  {}
+                laser_cylinder_link:
+                  laser_link:
+                    {}
+                left_wheel_link:
+                  {}
+                right_wheel_link:
+                  {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -506,13 +543,25 @@ Visualization Manager:
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        station_point: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Transient Local
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /station_point_marker
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: MarkerArray
+      Namespaces:
+        wall_line: true
+      Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /wall_marker
       Value: true
   Enabled: true
   Global Options:
@@ -561,7 +610,7 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 60.81380081176758
+      Scale: 70.9482421875
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz_default_plugins)
       X: 0
@@ -585,5 +634,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1545
-  X: 1083
+  X: 1013
   Y: 52

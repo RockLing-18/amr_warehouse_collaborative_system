@@ -22,9 +22,6 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch.substitutions import Command,LaunchConfiguration
 import os
 def generate_launch_description():
-    """
-    AD
-    """
     pkg_dir = get_package_share_directory("amr_description")
     default_model_path = os.path.join(pkg_dir,"urdf/amr_description","amr.urdf.xacro")
     default_rviz_path = os.path.join(pkg_dir,"rviz","display.rviz")

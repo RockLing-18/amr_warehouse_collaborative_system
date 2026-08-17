@@ -32,6 +32,8 @@ src/yaml_zone_manager.cpp
 src/yaml_station_manager.cpp
 src/zone_marker_publisher.cpp
 src/station_marker_publisher.cpp
+src/yaml_wall_manager.cpp
+src/wall_marker_publisher.cpp
 )
 
 target_include_directories(
@@ -88,11 +90,30 @@ geometry_msgs
 visualization_msgs
 )
 
+add_executable(
+  wall_editor
+  src/wall_editor_node.cpp
+)
+
+
+target_link_libraries(
+  wall_editor
+  amr_tools_common
+)
+
+ament_target_dependencies(
+  wall_editor
+  rclcpp
+  geometry_msgs
+  visualization_msgs
+)
+
 install(
   TARGETS
   amr_tools_common
   zone_editor
   station_editor
+  wall_editor
   DESTINATION lib/${PROJECT_NAME}
 )
 

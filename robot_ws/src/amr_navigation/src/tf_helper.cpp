@@ -14,39 +14,51 @@ TFHelper::TFHelper(rclcpp::Node::SharedPtr node): m_node(node)
 
 bool TFHelper::getRobotPose(RobotPose &pose)
 {
+    constexpr char target_frame[] = "map";
+    constexpr char source_frame[] = "base_footprint";
+
+    if (!m_buffer->canTransform(
+            target_frame,
+            source_frame,
+            tf2::TimePointZero))
+    {
+        return false;
+    }
+
     try
     {
-        auto transform = m_buffer->lookupTransform(
-                "map",
-                "base_footprint",
-                tf2::TimePointZero
-            );
+        const auto transform = m_buffer->lookupTransform(
+            target_frame,
+            source_frame,
+            tf2::TimePointZero);
 
         pose.x = transform.transform.translation.x;
         pose.y = transform.transform.translation.y;
 
-        auto q = transform.transform.rotation;
         tf2::Quaternion quat;
-        tf2::fromMsg(q, quat);
+        tf2::fromMsg(transform.transform.rotation, quat);
 
         double roll;
         double pitch;
 
         tf2::Matrix3x3(quat).getRPY(
-                roll,
-                pitch,
-                pose.yaw
-            );
+            roll,
+            pitch,
+            pose.yaw);
 
         return true;
     }
-    catch(const tf2::TransformException &ex)
+    catch (const tf2::TransformException &ex)
     {
-        RCLCPP_WARN(m_node->get_logger(), "TF error:%s", ex.what());
+        RCLCPP_WARN_THROTTLE(
+            m_node->get_logger(),
+            *m_node->get_clock(),
+            5000,
+            "TF lookup failed: %s",
+            ex.what());
+
         return false;
     }
-
-    return false;
 }
 
 }
