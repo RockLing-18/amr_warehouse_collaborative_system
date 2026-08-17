@@ -153,7 +153,7 @@ private:
 
         m_receiver->stop();
 
-        RCLCPP_INFO(get_logger(), "click x=%f y=%f", point.point.x, point.point.y);
+        RCLCPP_INFO(get_logger(), "collect location x=%f y=%f", point.point.x, point.point.y);
 
         // m_preview_location = inputLocationInfo();
         m_preview_location.pose.x = point.point.x;
