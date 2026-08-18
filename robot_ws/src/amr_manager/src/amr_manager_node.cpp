@@ -15,8 +15,8 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "amr_manager/navigation_client.h"
-#include "amr_manager/msg/robot_status.hpp"
-#include "amr_manager/msg/task_status.hpp"
+#include "amr_interfaces/msg/robot_status.hpp"
+#include "amr_interfaces/msg/task_status.hpp"
 
 namespace amr_manager
 {
@@ -24,8 +24,8 @@ namespace amr_manager
 class AmrManagerNode : public rclcpp::Node
 {
 public:
-  using RobotStatus = amr_manager::msg::RobotStatus;
-  using TaskStatus = amr_manager::msg::TaskStatus;
+  using RobotStatus = amr_interfaces::msg::RobotStatus;
+  using TaskStatus = amr_interfaces::msg::TaskStatus;
 
   AmrManagerNode()
   : Node("amr_manager")

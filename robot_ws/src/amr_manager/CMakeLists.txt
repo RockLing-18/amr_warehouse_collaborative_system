@@ -10,18 +10,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(builtin_interfaces REQUIRED)
 find_package(amr_interfaces REQUIRED)
-find_package(rosidl_default_generators REQUIRED)
 
-# ============================
-# interfaces
-# ============================
-rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/RobotStatus.msg"
-  "msg/TaskStatus.msg"
-  DEPENDENCIES builtin_interfaces
-)
 
 # ============================
 # Manager Node
@@ -45,9 +35,6 @@ ament_target_dependencies(
     geometry_msgs
     amr_interfaces
 )
-
-rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
-target_link_libraries(amr_manager_node ${cpp_typesupport_target})
 
 # ============================
 # install

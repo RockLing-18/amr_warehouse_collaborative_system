@@ -15,6 +15,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetRobotPose.srv"
   "msg/NavigationState.msg"
   "msg/RobotPose.msg"
+  "msg/RobotStatus.msg"
+  "msg/TaskStatus.msg"
   DEPENDENCIES geometry_msgs builtin_interfaces
 )
 
