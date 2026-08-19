@@ -2,6 +2,12 @@
 robot_ws/build/
 robot_ws/install/
 robot_ws/log/
+simulation_ws/build/
+simulation_ws/install/
+simulation_ws/log/
+edge_ws/build/
+edge_ws/install/
+edge_ws/log/
 **/.ros
 **/.daemon
 *.db3
