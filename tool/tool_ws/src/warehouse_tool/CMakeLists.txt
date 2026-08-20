@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(amr_tools)
+project(warehouse_tool)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -26,7 +26,7 @@ endif()
 
 
 add_library(
-amr_tools_common
+warehouse_tool_common
 src/clicked_point_receiver.cpp
 src/yaml_zone_manager.cpp
 src/yaml_station_manager.cpp
@@ -37,20 +37,20 @@ src/wall_marker_publisher.cpp
 )
 
 target_include_directories(
-  amr_tools_common
+  warehouse_tool_common
   PUBLIC
   include
 )
 
 ament_target_dependencies(
-  amr_tools_common
+  warehouse_tool_common
   rclcpp
   geometry_msgs
   visualization_msgs
 )
 
 target_link_libraries(
-  amr_tools_common
+  warehouse_tool_common
   yaml-cpp
 )
 
@@ -62,7 +62,7 @@ add_executable(
 
 target_link_libraries(
   zone_editor
-  amr_tools_common
+  warehouse_tool_common
 )
 
 ament_target_dependencies(
@@ -80,7 +80,7 @@ add_executable(
 
 target_link_libraries(
 station_editor
-amr_tools_common
+warehouse_tool_common
 )
 
 ament_target_dependencies(
@@ -98,7 +98,7 @@ add_executable(
 
 target_link_libraries(
   wall_editor
-  amr_tools_common
+  warehouse_tool_common
 )
 
 ament_target_dependencies(
@@ -110,14 +110,21 @@ ament_target_dependencies(
 
 install(
   TARGETS
-  amr_tools_common
+  warehouse_tool_common
   zone_editor
   station_editor
   wall_editor
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch rviz DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY launch config rviz DESTINATION share/${PROJECT_NAME})
+
+install(
+    PROGRAMS
+        scripts/warehouse_tool.py
+    DESTINATION lib/${PROJECT_NAME}
+)
+
 
 
 ament_package()

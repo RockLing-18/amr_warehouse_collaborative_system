@@ -1,0 +1,14 @@
+warehouse:
+  id: warehouse_01
+  data_root: /opt/amr/data/warehouses
+  map_name: warehouse_01.yaml
+
+
+edge_server:
+  url: http://127.0.0.1:8080
+
+  # upload:
+  #   map: /api/warehouse/map
+  #   zone: /api/warehouse/zone
+  #   station: /api/warehouse/station
+  #   wall: /api/warehouse/wall
