@@ -1,3 +1,13 @@
+# ============================================================
+# 控制器参数模板（控制算法参数）
+# 几何/关节参数由 config/amr_v1.yaml 提供，生成脚本加载本模板后
+# 覆盖注入以下字段：
+#   amr_effort_controller.joints
+#   amr_diff_drive_controller.left_wheel_names / right_wheel_names
+#   amr_diff_drive_controller.wheel_radius / wheel_separation
+#   amr_diff_drive_controller.odom_frame_id / base_frame_id
+# 本文件不直接维护机器人几何参数。
+# ============================================================
 controller_manager:
   ros__parameters:
     update_rate: 100  # Hz
@@ -5,47 +15,16 @@ controller_manager:
     amr_robot_joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
       use_sim_time: true
-    amr_effort_controller:
-      type: effort_controllers/JointGroupEffortController
     amr_diff_drive_controller:
       type: diff_drive_controller/DiffDriveController
 
 
-amr_effort_controller:
-  ros__parameters:
-    joints:
-      - left_wheel_joint
-      - right_wheel_joint
-    command_interfaces:
-      - effort
-    state_interfaces:
-      - position
-      - velocity
-      - effort
-
 amr_diff_drive_controller:
   ros__parameters:
-    left_wheel_names: ["left_wheel_joint"]
-    right_wheel_names: ["right_wheel_joint"]
-
-    wheel_separation: 0.32
-    #wheels_per_side: 1  # actually 2, but both are controlled by 1 signal
-    wheel_radius: 0.064
-
-    wheel_separation_multiplier: 1.0
-    left_wheel_radius_multiplier: 1.0
-    right_wheel_radius_multiplier: 1.0
-
     publish_rate: 50.0
-    odom_frame_id: odom
-    base_frame_id: base_footprint
-    pose_covariance_diagonal : [0.001, 0.001, 0.0, 0.0, 0.0, 0.01]
+    pose_covariance_diagonal: [0.001, 0.001, 0.0, 0.0, 0.0, 0.01]
     twist_covariance_diagonal: [0.001, 0.0, 0.0, 0.0, 0.0, 0.01]
-
     open_loop: true
     enable_odom_tf: true
-
     cmd_vel_timeout: 0.5
-    #publish_limited_velocity: true
     use_stamped_vel: false
-    #velocity_rolling_window_size: 10

@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/common_inertia.xacro"/>
-    <xacro:macro name="wheel_xacro" params="wheel_name radius length xyz">
-        <link name="${wheel_name}_wheel_link">
+    <xacro:include filename="$(find amr_description)/urdf/common_inertia.xacro"/>
+    <xacro:macro name="wheel_xacro" params="wheel_name radius length xyz prefix mass">
+        <link name="${prefix}${wheel_name}_wheel_link">
             <visual>
                 <geometry>
                     <cylinder radius="${radius}" length="${length}"/>
@@ -17,15 +17,15 @@
                 <origin xyz="0.0 0.0 0.0" rpy="${PI / 2} 0.0 0.0"/>
                 <material name="yellow"/>
             </collision>
-            <xacro:cylinder_inertia m="${1.0}" r="${radius}" h="${length}"/>
+            <xacro:cylinder_inertia m="${mass}" r="${radius}" h="${length}"/>
         </link>
-        <joint name="${wheel_name}_wheel_joint" type="continuous">
-            <parent link="base_link"/>
-            <child link="${wheel_name}_wheel_link"/>
+        <joint name="${prefix}${wheel_name}_wheel_joint" type="continuous">
+            <parent link="${prefix}base_link"/>
+            <child link="${prefix}${wheel_name}_wheel_link"/>
             <origin xyz="${xyz}"/>
             <axis xyz="0 1 0"/>
         </joint>
-        <gazebo reference="${wheel_name}_wheel_link">
+        <gazebo reference="${prefix}${wheel_name}_wheel_link">
             <material>Gazebo/Yellow</material>
             <mu1 value="20.0"/>
             <mu2 value="20.0"/>

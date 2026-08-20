@@ -1,29 +1,40 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot_name">
+    <!-- 实例参数：
+         prefix            TF 帧前缀（如 robot01_），空则单机根命名空间
+         namespace         ROS 命名空间（如 robot01），空则根命名空间
+         controller_params 控制器参数文件路径（默认模板；生成脚本按规格注入几何参数）
+         调用示例：xacro amr.urdf.xacro prefix:=robot01_ namespace:=robot01
+    -->
+    <xacro:arg name="prefix" default=""/>
+    <xacro:arg name="namespace" default=""/>
+    <xacro:arg name="controller_params" default="$(find amr_description)/config/amr_ros2_controller.yaml"/>
+
+    <!-- 几何参数：默认值与 config/amr_v1.yaml 一致，生成脚本从规格文件覆盖传入 -->
+    <xacro:arg name="car_length" default="0.6"/>
+    <xacro:arg name="car_width" default="0.4"/>
+    <xacro:arg name="car_height" default="0.15"/>
+    <xacro:arg name="wheel_radius" default="0.064"/>
+    <xacro:arg name="wheel_length" default="0.06"/>
+    <xacro:arg name="wheel_mass" default="1.0"/>
+
     <!--基础部分-->
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/base.urdf.xacro"/>
+    <xacro:include filename="$(find amr_description)/urdf/base.urdf.xacro"/>
     <!--传感器部分-->
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/sensor/imu.urdf.xacro"/>
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/sensor/camera.urdf.xacro"/>
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/sensor/laser.urdf.xacro"/>
+    <xacro:include filename="$(find amr_description)/urdf/sensor/imu.urdf.xacro"/>
+    <xacro:include filename="$(find amr_description)/urdf/sensor/camera.urdf.xacro"/>
+    <xacro:include filename="$(find amr_description)/urdf/sensor/laser.urdf.xacro"/>
     <!--执行器部分-->
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/actuator/wheel.urdf.xacro"/>
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/actuator/caster.urdf.xacro"/>
+    <xacro:include filename="$(find amr_description)/urdf/actuator/wheel.urdf.xacro"/>
+    <xacro:include filename="$(find amr_description)/urdf/actuator/caster.urdf.xacro"/>
     <!--插件部分-->
-    <!-- <xacro:include filename="$(find amr_description)/urdf/amr_description/plugins/gazebo_control_plugin.xacro"/> -->
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/plugins/gazebo_sensor_plugin.xacro"/>
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/amr.ros2_control.xacro"/>
+    <!-- <xacro:include filename="$(find amr_description)/urdf/plugins/gazebo_control_plugin.xacro"/> -->
+    <xacro:include filename="$(find amr_description)/urdf/plugins/gazebo_sensor_plugin.xacro"/>
+    <xacro:include filename="$(find amr_description)/urdf/amr.ros2_control.xacro"/>
 
     <!-- PI 值 -->
     <xacro:property name="PI" value="3.1415927"/>
-    <!-- 底盘尺寸 -->
-    <xacro:property name="car_length" value="0.6"/>
-    <xacro:property name="car_width" value="0.4"/>
-    <xacro:property name="car_height" value="0.15"/>
-    <!-- 轮胎尺寸 -->
-    <xacro:property name="wheel_radius" value="0.064"/>
-    <xacro:property name="wheel_length" value="0.06"/>
-    <!-- 轮胎关节平移量 -->
+    <!-- 轮胎关节平移量（由几何参数推导，勿手改） -->
     <xacro:property name="wheel_joint_y" value="${car_width / 2 - wheel_length / 2 - 0.01}"/>
     <xacro:property name="wheel_joint_z" value="${-car_height / 2}"/>
 
@@ -42,18 +53,18 @@
     </material>
     
     <!-- 调用底盘，统一使用全局尺寸 -->
-    <xacro:base_xacro length="${car_length}" width="${car_width}" height="${car_height}" wheel_radius="${wheel_radius}"/>
+    <xacro:base_xacro length="${car_length}" width="${car_width}" height="${car_height}" wheel_radius="${wheel_radius}" prefix="${prefix}"/>
     <!-- 调用传感器模块 -->
-    <xacro:imu_xacro imu_name="imu" length="0.02" width="0.02" height="0.02" xyz="0 0 0.02"/>
-    <xacro:camera_xacro length="0.02" width="0.1" height="0.02" xyz="${car_length / 2 - 0.01} 0 ${car_height / 2}"/>
-    <xacro:laser_xacro radius="0.02" length="0.02" xyz="0 0 0.1"/>
+    <xacro:imu_xacro imu_name="imu" length="0.02" width="0.02" height="0.02" xyz="0 0 0.02" prefix="${prefix}"/>
+    <xacro:camera_xacro length="0.02" width="0.1" height="0.02" xyz="${car_length / 2 - 0.01} 0 ${car_height / 2}" prefix="${prefix}"/>
+    <xacro:laser_xacro radius="0.02" length="0.02" xyz="0 0 0.1" prefix="${prefix}"/>
     <!-- 调用执行器模块 -->
-    <xacro:wheel_xacro wheel_name="left" radius="${wheel_radius}" length="${wheel_length}" xyz="0 ${wheel_joint_y} ${wheel_joint_z}"/>
-    <xacro:wheel_xacro wheel_name="right" radius="${wheel_radius}" length="${wheel_length}" xyz="0 ${-wheel_joint_y} ${wheel_joint_z}"/>
-    <xacro:caster_xacro caster_name="front" radius="${wheel_radius}" xyz="${car_length / 2 - wheel_radius - 0.02} 0 ${wheel_joint_z}"/>
-    <xacro:caster_xacro caster_name="back" radius="${wheel_radius}" xyz="${-(car_length / 2 - wheel_radius - 0.02)} 0 ${wheel_joint_z}"/>
+    <xacro:wheel_xacro wheel_name="left" radius="${wheel_radius}" length="${wheel_length}" xyz="0 ${wheel_joint_y} ${wheel_joint_z}" prefix="${prefix}" mass="${wheel_mass}"/>
+    <xacro:wheel_xacro wheel_name="right" radius="${wheel_radius}" length="${wheel_length}" xyz="0 ${-wheel_joint_y} ${wheel_joint_z}" prefix="${prefix}" mass="${wheel_mass}"/>
+    <xacro:caster_xacro caster_name="front" radius="${wheel_radius}" xyz="${car_length / 2 - wheel_radius - 0.02} 0 ${wheel_joint_z}" prefix="${prefix}"/>
+    <xacro:caster_xacro caster_name="back" radius="${wheel_radius}" xyz="${-(car_length / 2 - wheel_radius - 0.02)} 0 ${wheel_joint_z}" prefix="${prefix}"/>
     <!-- 调用插件模块 -->
-    <!-- <xacro:gazebo_control_plugin left_joint_name="left_wheel_joint" right_joint_name="right_wheel_joint" wheel_separation="${wheel_joint_y * 2}" wheel_diameter="${wheel_radius * 2}"/> -->
-    <xacro:gazebo_sensor_plugin/>
-    <xacro:amr_ros2_control left_joint_name="left_wheel_joint" right_joint_name="right_wheel_joint"/>
+    <!-- <xacro:gazebo_control_plugin left_joint_name="${prefix}left_wheel_joint" right_joint_name="${prefix}right_wheel_joint" wheel_separation="${wheel_joint_y * 2}" wheel_diameter="${wheel_radius * 2}" base_frame="${prefix}base_footprint" namespace="${namespace}"/> -->
+    <xacro:gazebo_sensor_plugin prefix="${prefix}" namespace="${namespace}"/>
+    <xacro:amr_ros2_control left_joint_name="${prefix}left_wheel_joint" right_joint_name="${prefix}right_wheel_joint" prefix="${prefix}" namespace="${namespace}" controller_params="${controller_params}"/>
 </robot>

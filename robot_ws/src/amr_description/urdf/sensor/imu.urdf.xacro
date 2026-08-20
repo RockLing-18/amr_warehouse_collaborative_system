@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/common_inertia.xacro"/>
+    <xacro:include filename="$(find amr_description)/urdf/common_inertia.xacro"/>
     <!-- 声明 IMU 模块 -->
-    <xacro:macro name="imu_xacro" params="imu_name length width height xyz">
-        <link name="${imu_name}_link">
+    <xacro:macro name="imu_xacro" params="imu_name length width height xyz prefix">
+        <link name="${prefix}${imu_name}_link">
             <visual>
                 <geometry>
                     <box size="${length} ${width} ${height}"/>
@@ -20,9 +20,9 @@
             </collision>
              <xacro:box_inertia m="${1.0}" l="${length}" w="${width}" h="${height}"/>
         </link>
-        <joint name="${imu_name}_joint" type="fixed">
-            <parent link="base_link"/>
-            <child link="${imu_name}_link"/>
+        <joint name="${prefix}${imu_name}_joint" type="fixed">
+            <parent link="${prefix}base_link"/>
+            <child link="${prefix}${imu_name}_link"/>
             <origin xyz="${xyz}" rpy="0.0 0.0 0.0"/>
         </joint>
     </xacro:macro>

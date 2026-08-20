@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/common_inertia.xacro"/>
-    <xacro:macro name="caster_xacro" params="caster_name radius xyz">
-        <link name="${caster_name}_caster_link">
+    <xacro:include filename="$(find amr_description)/urdf/common_inertia.xacro"/>
+    <xacro:macro name="caster_xacro" params="caster_name radius xyz prefix">
+        <link name="${prefix}${caster_name}_caster_link">
             <visual>
                 <geometry>
                     <sphere radius="${radius}"/>
@@ -19,12 +19,12 @@
             </collision>
             <xacro:sphere_inertia m="${1.5}" r="${radius}"/>
         </link>
-        <joint name="${caster_name}_caster_joint" type="continuous">
-            <parent link="base_link"/>
-            <child link="${caster_name}_caster_link"/>
+        <joint name="${prefix}${caster_name}_caster_joint" type="continuous">
+            <parent link="${prefix}base_link"/>
+            <child link="${prefix}${caster_name}_caster_link"/>
             <origin xyz="${xyz}"/>
         </joint>    
-        <gazebo reference="${caster_name}_caster_link">
+        <gazebo reference="${prefix}${caster_name}_caster_link">
             <material>Gazebo/Yellow</material>
             <mu1 value="0.0"/>
             <mu2 value="0.0"/>

@@ -1,6 +1,13 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:macro name="amr_ros2_control" params="left_joint_name right_joint_name">
+    <!--
+        left_joint_name / right_joint_name  带前缀的轮关节名
+        prefix            TF 帧前缀（如 robot01_），用于控制器 joint / 坐标系参数
+        namespace         controller_manager 的命名空间（如 robot01，空为根）
+        controller_params 控制器参数文件路径（默认 amr_ros2_controller.yaml 模板；
+                          生成脚本按机器人规格生成并传入）
+    -->
+    <xacro:macro name="amr_ros2_control" params="left_joint_name right_joint_name prefix namespace controller_params">
         <ros2_control name="AmrRobotGazeboSystem" type="system">
                 <hardware>
                     <plugin>gazebo_ros2_control/GazeboSystem</plugin>
@@ -34,10 +41,11 @@
         </ros2_control>
         <gazebo>
             <plugin filename="libgazebo_ros2_control.so" name="gazebo_ros2_control">
-                <parameters>$(find amr_description)/config/amr_ros2_controller.yaml</parameters>
+                <parameters>${controller_params}</parameters>
                 <ros>
-                    <remapping>/amr_diff_drive_controller/cmd_vel_unstamped:=/cmd_vel</remapping>
-                    <remapping>/amr_diff_drive_controller/odom:=/odom</remapping>
+                    <namespace>${namespace}</namespace>
+                    <remapping>amr_diff_drive_controller/cmd_vel_unstamped:=cmd_vel</remapping>
+                    <remapping>amr_diff_drive_controller/odom:=odom</remapping>
                 </ros>
             </plugin>
         </gazebo>

@@ -1,0 +1,25 @@
+# ============================================================
+# AMR 机器人规格（几何参数单一来源）
+# 生成脚本（spawn_amr.launch.py）优先读取本文件，将几何/关节参数
+# 同时注入：
+#   1) xacro 参数（amr.urdf.xacro）
+#   2) 控制器参数（amr_ros2_controller.yaml 模板 + 覆盖）
+# 控制算法参数（publish_rate / cmd_vel_timeout 等）见
+# amr_ros2_controller.yaml，不在此维护。
+# ============================================================
+robot:
+  name: amr_v1
+  chassis:
+    length: 0.6
+    width: 0.4
+    height: 0.15
+  wheel:
+    radius: 0.064
+    width: 0.06
+    mass: 1.0
+  wheel_separation: 0.32
+  wheels:
+    left_joint: left_wheel_joint
+    right_joint: right_wheel_joint
+  base_frame: base_footprint
+  odom_frame: odom

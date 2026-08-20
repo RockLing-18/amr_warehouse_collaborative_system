@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/common_inertia.xacro"/>
+    <xacro:include filename="$(find amr_description)/urdf/common_inertia.xacro"/>
     <!-- 声明 base 模块 -->
-    <xacro:macro name="base_xacro" params="length width height wheel_radius">
-        <link name="base_footprint"/>
-        <link name="base_link">
+    <xacro:macro name="base_xacro" params="length width height wheel_radius prefix">
+        <link name="${prefix}base_footprint"/>
+        <link name="${prefix}base_link">
             <visual>
                 <geometry>
                     <box size="${length} ${width} ${height}"/>
@@ -21,12 +21,12 @@
             </collision>
             <xacro:box_inertia m="${20.0}" l="${length}" w="${width}" h="${height}"/>
         </link>
-        <joint name="base_link_joint" type="fixed">
-            <parent link="base_footprint"/>
-            <child link="base_link"/>
+        <joint name="${prefix}base_link_joint" type="fixed">
+            <parent link="${prefix}base_footprint"/>
+            <child link="${prefix}base_link"/>
             <origin xyz="0.0 0.0 ${height / 2 + wheel_radius - 0.001}"/>
         </joint>
-        <gazebo reference="base_link">
+        <gazebo reference="${prefix}base_link">
             <material>Gazebo/Orange</material>
         </gazebo>
     </xacro:macro>

@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-    <xacro:include filename="$(find amr_description)/urdf/amr_description/common_inertia.xacro"/>
-    <xacro:macro name="camera_xacro" params="length width height xyz">
-        <link name="camera_link">
+    <xacro:include filename="$(find amr_description)/urdf/common_inertia.xacro"/>
+    <xacro:macro name="camera_xacro" params="length width height xyz prefix">
+        <link name="${prefix}camera_link">
             <visual>
                 <geometry>
                     <box size="${length} ${width} ${height}"/>
@@ -21,15 +21,15 @@
             </collision>
              <xacro:box_inertia m="${0.6}" l="${length}" w="${width}" h="${height}"/>
         </link>
-        <joint name="camera_joint" type="fixed">
-            <parent link="base_link"/>
-            <child link="camera_link"/>
+        <joint name="${prefix}camera_joint" type="fixed">
+            <parent link="${prefix}base_link"/>
+            <child link="${prefix}camera_link"/>
             <origin xyz="${xyz}"/>
         </joint>
-        <link name="camera_optical_link"></link>
-        <joint name="camera_optical_joint" type="fixed">
-            <parent link="camera_link"/>
-            <child link="camera_optical_link"/>
+        <link name="${prefix}camera_optical_link"></link>
+        <joint name="${prefix}camera_optical_joint" type="fixed">
+            <parent link="${prefix}camera_link"/>
+            <child link="${prefix}camera_optical_link"/>
             <origin xyz="0 0 0" rpy="${-PI / 2} 0.0 ${-PI / 2} "/>
         </joint>    
     </xacro:macro> 
