@@ -8,6 +8,9 @@ simulation_ws/log/
 edge_ws/build/
 edge_ws/install/
 edge_ws/log/
+tool/amr_tool_ws/build/
+tool/amr_tool_ws/install/
+tool/amr_tool_ws/log/
 **/.ros
 **/.daemon
 *.db3
