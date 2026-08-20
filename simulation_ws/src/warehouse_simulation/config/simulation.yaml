@@ -1,0 +1,15 @@
+simulation:
+  warehouse_id: warehouse_01
+  world:
+    file: /opt/amr/data/warehouses/warehouse_01/world/custom_room.world
+
+  edge_server:
+    websocket:
+      url: ws://127.0.0.1:9000/ws/simulation
+    reconnect_interval: 5
+
+  robot_sync:
+    interval: 5
+
+  gazebo_config:
+    verbose: true

@@ -26,7 +26,6 @@ endif()
 install(
     DIRECTORY
     launch
-    worlds
     models
     rviz
     config
