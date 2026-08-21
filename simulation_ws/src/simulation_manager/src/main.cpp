@@ -3,7 +3,8 @@
 int main(int argc, char ** argv)
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<simulation_manager::SimulationManagerNode >();
+    auto node = std::make_shared<simulation_manager::SimulationManagerNode>();
+    node->init();
 
     rclcpp::spin(node);
     rclcpp::shutdown();

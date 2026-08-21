@@ -94,7 +94,7 @@ def launch_robot(context, *args, **kwargs):
         executable='spawn_entity.py',
         arguments=[
             '-topic', '/' + robot_id + '/robot_description',
-            '-entity', 'amr_robot_' + robot_id + '_' + instance_id,
+            '-entity', 'amr_' + robot_id + '_' + instance_id,
             '-namespace', robot_id,
             '-x', x,
             '-y', y,

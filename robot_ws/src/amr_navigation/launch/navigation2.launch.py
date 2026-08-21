@@ -7,10 +7,9 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
     # 获取与拼接默认路径
-    pkg_dir = get_package_share_directory(
-        'amr_description')
+    pkg_dir = get_package_share_directory('amr_navigation')
     nav2_bringup_dir = get_package_share_directory('nav2_bringup')
-    nav2_view_dir = get_package_share_directory('amr_description')
+    nav2_view_dir = get_package_share_directory('amr_navigation')
     rviz_config_dir = os.path.join(nav2_view_dir, 'rviz', 'nav2_view.rviz')
     
     # 创建 Launch 配置
