@@ -21,9 +21,7 @@ def launch_setup(context):
         "map_yaml"
     ).perform(context)
 
-    use_sim_time = LaunchConfiguration(
-        "use_sim_time"
-    ).perform(context)
+    use_sim_time = LaunchConfiguration("use_sim_time")
 
     # RViz 配置
     rviz_config = os.path.join(

@@ -1,7 +1,12 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import subprocess
 from pathlib import Path
+import signal
+from ament_index_python.packages import get_package_share_directory
+from ament_index_python.packages import get_package_prefix
 
 import yaml
 
@@ -19,6 +24,19 @@ class WarehouseTool:
         self.config = self._load_yaml(self.config_path)
 
         self._load_config()
+
+        self.map_process: subprocess.Popen | None = None
+        # self.editor_processes: list[subprocess.Popen] = []
+    
+    def cleanup(self):
+        # 关闭 map viewer
+        if self.map_process and self.map_process.poll() is None:
+            self.map_process.terminate()
+            try:
+                self.map_process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.map_process.kill()
+        self.map_process = None
 
     # ============================================================
     # Configuration
@@ -152,93 +170,79 @@ class WarehouseTool:
         print("0. Exit")
         print("-" * 60)
 
+    def run_process_background(self, command: list[str]) -> subprocess.Popen:
+        """后台启动进程，丢弃标准输出与错误，不阻塞主菜单"""
+        print("\nCommand:")
+        print(" ".join(f'"{arg}"' if " " in arg else arg for arg in command))
+        p = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        return p
+
     def run_map_viewer(self):
-
-        print()
-        print("=" * 60)
-        print("Starting Warehouse Map Viewer")
-        print("=" * 60)
-
-        if not self.check_map():
+        if self.map_process and self.map_process.poll() is None:
+            print("\n[INFO] Map Viewer is already running!")
             return
-
-        command = [
-            "ros2",
-            "launch",
+        print("\n[INFO] Starting persistent Map Viewer (map_server + rviz)...")
+        cmd = [
+            "ros2", "launch",
             "warehouse_tool",
             "map_viewer.launch.py",
-
-            f"map_yaml={self.map_dir}",
+            f"map_yaml:={self.map_yaml}"
         ]
-
-        self.run_process(command)
+        self.map_process = self.run_process_background(cmd)
+        print("[OK] Map Viewer running in background, ready for editors.") 
 
     # ============================================================
     # Editor
     # ============================================================
 
     def run_zone_editor(self):
-
         print()
         print("=" * 60)
         print("Starting Zone Editor")
         print("=" * 60)
-
         if not self.check_map():
             return
 
         command = [
-            "ros2",
-            "launch",
-            "warehouse_tool",
-            "zone_editor.launch.py",
-
-            f"map_dir:={self.map_dir}",
+            "ros2", "run", "warehouse_tool", "zone_editor",
+            "--ros-args", "-p", f"map_dir:={self.warehouse_dir}"
         ]
-
-        self.run_process(command)
+        self.launch_in_new_terminal(command, title="Zone Editor")
+        print("[INFO] Zone Editor opened in new terminal!")
 
     def run_station_editor(self):
-
         print()
         print("=" * 60)
         print("Starting Station Editor")
         print("=" * 60)
-
         if not self.check_map():
             return
 
         command = [
-            "ros2",
-            "launch",
-            "warehouse_tool",
-            "station_editor.launch.py",
-
-            f"map_dir:={self.map_dir}",
+            "ros2", "run", "warehouse_tool", "station_editor",
+            "--ros-args", "-p", f"map_dir:={self.warehouse_dir}"
         ]
-
-        self.run_process(command)
+        self.launch_in_new_terminal(command, title="Station Editor")
+        print("[INFO] Station Editor opened in new terminal!")
 
     def run_wall_editor(self):
-
         print()
         print("=" * 60)
         print("Starting Wall Editor")
         print("=" * 60)
-
         if not self.check_map():
             return
 
         command = [
-            "ros2",
-            "launch",
-            "warehouse_tool",
-            "wall_editor.launch.py",
-
-            f"map_dir:={self.map_dir}",
+            "ros2", "run", "warehouse_tool", "wall_editor",
+            "--ros-args", "-p", f"map_dir:={self.warehouse_dir}"
         ]
-
-        self.run_process(command)
+        self.launch_in_new_terminal(command, title="Wall Editor")
+        print("[INFO] Wall Editor opened in new terminal!")
 
     # ============================================================
     # Process
@@ -258,8 +262,12 @@ class WarehouseTool:
 
         try:
 
+            # process = subprocess.Popen(
+            #     command
+            # )
             process = subprocess.Popen(
-                command
+                command,
+                stdin=None
             )
 
             return_code = process.wait()
@@ -300,6 +308,24 @@ class WarehouseTool:
             except subprocess.TimeoutExpired:
 
                 process.kill()
+
+    def launch_in_new_terminal(self, cmd_list, title="ROS Editor"):
+        inner_cmd = " ".join(f'"{item}"' for item in cmd_list)
+        prefix = Path(get_package_prefix("warehouse_tool"))  # xxx/install
+        ws_install = prefix.parent / "setup.bash"
+
+        bash_cmd = (
+            f'source /opt/ros/humble/setup.bash && '
+            f'source {ws_install} && '
+            f'{inner_cmd}; exec bash'
+        )
+        full_cmd = [
+            "gnome-terminal",
+            "--title", title,
+            "--",
+            "bash", "-i", "-c", bash_cmd
+        ]
+        subprocess.Popen(full_cmd)
 
     # ============================================================
     # Validation
@@ -514,13 +540,20 @@ class WarehouseTool:
         # 5. Return synchronized version information
 
 
-def main():
+tool_global: WarehouseTool | None = None
+def sigint_handler(signum, frame):
+    global tool_global
+    if tool_global:
+        tool_global.cleanup()
+    print("\n[EXIT] Ctrl+C captured, exit.")
+    sys.exit(0)
 
-    default_config = (
-        Path(__file__).resolve().parent.parent
-        / "config"
-        / "warehouse_tool.yaml"
-    )
+
+def main():
+    global tool_global
+    pkg_share = Path(get_package_share_directory("warehouse_tool"))
+    default_config = pkg_share / "config" / "warehouse_tool.yaml"
+    config_path = default_config
 
     config_path = default_config
 
@@ -535,8 +568,11 @@ def main():
         tool = WarehouseTool(
             str(config_path)
         )
+        tool_global = tool
+        signal.signal(signal.SIGINT, sigint_handler)
 
         tool.run()
+        tool.cleanup()
 
     except Exception as e:
 

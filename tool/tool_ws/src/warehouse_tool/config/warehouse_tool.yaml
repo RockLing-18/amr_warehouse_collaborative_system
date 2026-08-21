@@ -1,7 +1,9 @@
 warehouse:
   id: warehouse_01
-  data_root: /opt/amr/data/warehouses
+  #data_root: /opt/amr/data/warehouses
+  data_root: /home/zyr/code/amr_edge_cloud_platform/data
   map_name: warehouse_01.yaml
+  map_version: V1.0.1
 
 
 edge_server:

@@ -65,7 +65,7 @@ private:
         m_vPoint.clear();
         m_receiver->start();
         m_collecting = true;
-        std::cout <<"start click points in RViz\n";
+        std::cout <<"start click points in RViz\n" << std::flush;
     }
 
     void finishCollect()
@@ -75,7 +75,7 @@ private:
         
         if(m_vPoint.size() < 3)
         {
-            std::cout<<"polygon need >=3 points\n";
+            std::cout<<"polygon need >=3 points\n" << std::flush;
             m_receiver->stop();
             m_marker_pub->clearPreview();
             m_collecting = false;
@@ -84,11 +84,11 @@ private:
 
         m_receiver->stop();
         m_collecting = false;
-        std::cout << "collect finished\n";
-        std::cout <<"total points:" << m_vPoint.size() << std::endl;
+        std::cout << "collect finished\n" << std::flush;
+        std::cout <<"total points:" << m_vPoint.size() << std::endl << std::flush;
         for(auto& p : m_vPoint)
         {
-            std::cout <<"(" << p.first << "," << p.second << ")\n";
+            std::cout <<"(" << p.first << "," << p.second << ")\n" << std::flush;
         }
 
         Zone zone = inputZoneInfo();
@@ -97,16 +97,16 @@ private:
         {
             if(m_zone_manager.save())
             {
-                std::cout << "save zone success\n";
+                std::cout << "save zone success\n" << std::flush;
                 m_marker_pub->clearPreview();
                 m_marker_pub->publishZone(zone);
             }
             else
-                std::cout << "save zone failed\n";
+                std::cout << "save zone failed\n" << std::flush;
         }
         else
         {
-            std::cout << "zone id already exists\n";
+            std::cout << "zone id already exists\n" << std::flush;
         }
     }
 
@@ -119,7 +119,8 @@ private:
             << "\n start : begin collect"
             << "\n finish: stop collect"
             << "\n q     : quit"
-            << "\n> ";
+            << "\n> "
+            << std::flush;
             std::string cmd;
             std::getline(std::cin, cmd);
 
