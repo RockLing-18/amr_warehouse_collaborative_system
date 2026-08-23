@@ -18,6 +18,19 @@
     <xacro:arg name="wheel_length" default="0.06"/>
     <xacro:arg name="wheel_mass" default="1.0"/>
 
+    <!-- 将 xacro arg 转换成 property，供后续表达式使用 -->
+    <xacro:property name="prefix" value="$(arg prefix)"/>
+    <xacro:property name="namespace" value="$(arg namespace)"/>
+    <xacro:property name="controller_params" value="$(arg controller_params)"/>
+
+    <xacro:property name="car_length" value="$(arg car_length)"/>
+    <xacro:property name="car_width" value="$(arg car_width)"/>
+    <xacro:property name="car_height" value="$(arg car_height)"/>
+    <xacro:property name="wheel_radius" value="$(arg wheel_radius)"/>
+    <xacro:property name="wheel_length" value="$(arg wheel_length)"/>
+    <xacro:property name="wheel_mass" value="$(arg wheel_mass)"/>
+
+
     <!--基础部分-->
     <xacro:include filename="$(find amr_description)/urdf/base.urdf.xacro"/>
     <!--传感器部分-->

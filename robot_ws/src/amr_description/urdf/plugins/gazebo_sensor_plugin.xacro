@@ -6,7 +6,7 @@
             <sensor name="laserscan" type="ray">
                 <plugin name="laserscan" filename="libgazebo_ros_ray_sensor.so">
                     <ros>
-                        <namespace>${namespace}</namespace>
+                        <namespace>/${namespace}</namespace>
                         <remapping>~/out:=scan</remapping>
                     </ros>
                     <output_type>sensor_msgs/LaserScan</output_type>
@@ -47,7 +47,7 @@
             <sensor name="imu_sensor" type="imu">
                 <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
                     <ros>
-                        <namespace>${namespace}</namespace>
+                        <namespace>/${namespace}</namespace>
                         <remapping>~/out:=imu</remapping>
                     </ros>
                     <initial_orientation_as_reference>false</initial_orientation_as_reference>
@@ -116,7 +116,7 @@
             <sensor type="depth" name="camera_sensor">
                 <plugin name="depth_camera" filename="libgazebo_ros_camera.so">
                     <ros>
-                        <namespace>${namespace}</namespace>
+                        <namespace>/${namespace}</namespace>
                     </ros>
                     <frame_name>${prefix}camera_optical_link</frame_name>
                 </plugin>

@@ -28,8 +28,8 @@ std::vector<RobotInfo> EdgeClient::getRobots()
         {
             "robot02",
             "B001",
-            5.0,
-            3.0,
+            0.0,
+            0.0,
             0.0
         }
     };

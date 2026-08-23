@@ -9,20 +9,23 @@ RobotSyncManager::RobotSyncManager(const std::shared_ptr<GazeboClient>& gazebo_c
 
 void RobotSyncManager::sync(const std::vector<RobotInfo>& edge_robots)
 {
-    std::vector<GazeboModelInfo> gazebo_models;
+    m_gazebo_client->getModelsAsync(
+        [this, edge_robots](const std::vector<GazeboModelInfo>& gazebo_models)
+        {
+            syncWithGazebo(
+                edge_robots,
+                gazebo_models);
+        });
+}
 
-    if (!m_gazebo_client->getModels(gazebo_models))
-    {
-        RCLCPP_WARN( m_logger, "Failed to get Gazebo models");
-        return;
-    }
-
-    // --------------------------------------------------
-    // Edge -> Gazebo
-    // --------------------------------------------------
+void RobotSyncManager::syncWithGazebo(const std::vector<RobotInfo>& edge_robots, const std::vector<GazeboModelInfo>& gazebo_models)
+{
     for (const auto& robot : edge_robots)
     {
-        auto it = std::find_if(gazebo_models.begin(), gazebo_models.end(), [&](const GazeboModelInfo& model)
+        auto it = std::find_if(
+            gazebo_models.begin(),
+            gazebo_models.end(),
+            [&](const GazeboModelInfo& model)
             {
                 return model.robot_id == robot.robot_id;
             });
@@ -30,6 +33,7 @@ void RobotSyncManager::sync(const std::vector<RobotInfo>& edge_robots)
         if (it == gazebo_models.end())
         {
             addRobot(robot);
+            std::this_thread::sleep_for(std::chrono::seconds(6));
             continue;
         }
 
@@ -39,16 +43,13 @@ void RobotSyncManager::sync(const std::vector<RobotInfo>& edge_robots)
         }
     }
 
-    // --------------------------------------------------
     // Gazebo -> Edge
-    // --------------------------------------------------
-
     for (const auto& model : gazebo_models)
     {
-        if (model.robot_id.empty())
-            continue;
-
-        auto it = std::find_if(edge_robots.begin(), edge_robots.end(), [&](const RobotInfo& robot)
+        auto it = std::find_if(
+            edge_robots.begin(),
+            edge_robots.end(),
+            [&](const RobotInfo& robot)
             {
                 return robot.robot_id == model.robot_id;
             });
@@ -91,8 +92,26 @@ void RobotSyncManager::removeRobot(const GazeboModelInfo& model)
 
     m_process_manager->stop(model.robot_id, model.instance_id);
 
-    if (!m_gazebo_client->deleteModel(model.model_name))
-        RCLCPP_ERROR( m_logger, "Failed to delete Gazebo model: %s", model.model_name.c_str());
+     m_gazebo_client->deleteModelAsync(
+        model.model_name,
+        [this, model](bool success)
+        {
+            if (!success)
+            {
+                RCLCPP_ERROR(m_logger, "Failed to delete Gazebo model: %s", model.model_name.c_str());
+                return;
+            }
+
+            RCLCPP_INFO(
+                m_logger,
+                "Robot removed successfully: "
+                "robot=%s instance=%s",
+                model.robot_id.c_str(),
+                model.instance_id.c_str());
+        });
+
+    // if (!m_gazebo_client->deleteModel(model.model_name))
+    //     RCLCPP_ERROR( m_logger, "Failed to delete Gazebo model: %s", model.model_name.c_str());
     
 }
 
@@ -109,16 +128,39 @@ void RobotSyncManager::replaceRobot(const RobotInfo& robot, const GazeboModelInf
     // 1. 停止旧 launch
     m_process_manager->stop(model.robot_id, model.instance_id);
 
-    // 2. 删除旧 Gazebo model
-    if (!m_gazebo_client->deleteModel(model.model_name))
-    {
-        RCLCPP_ERROR( m_logger, "Failed to delete old model: %s", model.model_name.c_str());
-        return;
-    }
+    // 2. 异步删除旧 Gazebo model
+    m_gazebo_client->deleteModelAsync(
+        model.model_name,
+        [this, robot, model](bool success)
+        {
+            if (!success)
+            {
+                RCLCPP_ERROR(m_logger, "Failed to delete old Gazebo model: %s", model.model_name.c_str());
+                return;
+            }
 
-    // 3. 创建新实例
-    if (!m_process_manager->spawn(robot))
-        RCLCPP_ERROR(m_logger, "Failed to spawn replacement robot: %s", robot.robot_id.c_str());
+            RCLCPP_INFO(m_logger, "Old Gazebo model deleted: %s", model.model_name.c_str());
+
+            // 3. 删除成功后，再生成新的AMR
+            if (!m_process_manager->spawn(robot))
+            {
+                RCLCPP_ERROR(
+                    m_logger,
+                    "Failed to spawn replacement robot: "
+                    "robot=%s instance=%s",
+                    robot.robot_id.c_str(),
+                    robot.instance_id.c_str());
+
+                return;
+            }
+
+            RCLCPP_INFO(
+                m_logger,
+                "Replacement robot spawned: "
+                "robot=%s instance=%s",
+                robot.robot_id.c_str(),
+                robot.instance_id.c_str());
+        });
 }
 
 }

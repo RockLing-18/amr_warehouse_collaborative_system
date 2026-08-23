@@ -16,6 +16,8 @@ public:
     void sync(const std::vector<RobotInfo>& edge_robots);
 
 private:
+    void syncWithGazebo(const std::vector<RobotInfo>& edge_robots, const std::vector<GazeboModelInfo>& gazebo_models);
+
     void addRobot(const RobotInfo& robot);
 
     void removeRobot(const GazeboModelInfo& model);
