@@ -9,7 +9,7 @@ simulation:
     reconnect_interval: 5
 
   robot_sync:
-    interval: 10
+    interval: 15
 
   gazebo_config:
     verbose: true

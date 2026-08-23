@@ -2,9 +2,11 @@
 
 namespace simulation_manager
 {
-RobotSyncManager::RobotSyncManager(const std::shared_ptr<GazeboClient>& gazebo_client,  const std::shared_ptr<AmrProcessManager>& process_manager, const rclcpp::Logger& logger)
-: m_gazebo_client(gazebo_client),  m_process_manager(process_manager), m_logger(logger)
+RobotSyncManager::RobotSyncManager(const rclcpp::Node::SharedPtr& node, const std::shared_ptr<GazeboClient>& gazebo_client, const std::shared_ptr<AmrProcessManager>& process_manager, const rclcpp::Logger& logger)
+: m_node(node), m_gazebo_client(gazebo_client),  m_process_manager(process_manager), m_logger(logger)
 {
+     m_controller_checker = std::make_shared<ControllerChecker>(node);
+    m_worker_thread = std::thread(&RobotSyncManager::spawnWorker, this);
 }
 
 void RobotSyncManager::sync(const std::vector<RobotInfo>& edge_robots)
@@ -33,7 +35,7 @@ void RobotSyncManager::syncWithGazebo(const std::vector<RobotInfo>& edge_robots,
         if (it == gazebo_models.end())
         {
             addRobot(robot);
-            std::this_thread::sleep_for(std::chrono::seconds(3));
+            //std::this_thread::sleep_for(std::chrono::seconds(3));
             continue;
         }
 
@@ -42,6 +44,18 @@ void RobotSyncManager::syncWithGazebo(const std::vector<RobotInfo>& edge_robots,
             replaceRobot(robot, *it);
         }
     }
+
+    // 2. 检查已经spawn的机器人
+    // for(auto& [key, robot] : m_robots)
+    // {
+
+    //     if(robot.state ==
+    //         RobotState::SPAWNED)
+    //     {
+    //         checkControllerReady(robot);
+    //     }
+
+    // }
 
     // Gazebo -> Edge
     for (const auto& model : gazebo_models)
@@ -161,6 +175,81 @@ void RobotSyncManager::replaceRobot(const RobotInfo& robot, const GazeboModelInf
                 robot.robot_id.c_str(),
                 robot.instance_id.c_str());
         });
+}
+
+void RobotSyncManager::requestSpawn(const RobotInfo& robot)
+{
+    auto key = makeKey(robot.robot_id, robot.instance_id);
+    auto it = m_robots.find(key);
+    if(it != m_robots.end())
+    {
+        if(it->second.state == RobotState::SPAWNING || it->second.state == RobotState::SPAWNED)
+            return;
+    }
+
+    ManagedRobot managed;
+    managed.info = robot;
+    managed.state = RobotState::SPAWNING;
+    m_robots[key] = managed;
+    m_spawn_queue.push(robot);
+    m_cv.notify_one();
+}
+
+void RobotSyncManager::spawnWorker()
+{
+    while(rclcpp::ok())
+    {
+        RobotInfo robot;
+        {
+            std::unique_lock<std::mutex> lock(m_mutex);
+            m_cv.wait(
+                lock, 
+                [this]
+                {
+                    return !m_spawn_queue.empty();
+                });
+
+            robot = m_spawn_queue.front();
+            m_spawn_queue.pop();
+        }
+
+        bool ret = m_process_manager->spawn(robot);
+        if(ret)
+        {
+            auto key = makeKey(robot.robot_id, robot.instance_id);
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_robots[key].state = RobotState::SPAWNED;
+        }
+    }
+}
+
+void RobotSyncManager::checkControllerReady(ManagedRobot& robot)
+{
+    auto key = makeKey( robot.info.robot_id, robot.info.instance_id);
+    m_controller_checker->checkAsync(
+        robot.info.robot_id,
+        [this, key, robot_id]
+        (
+            bool ready
+        )
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            auto it = m_robots.find(key);
+            if(it == m_robots.end())
+                return;
+
+            if(ready)
+            {
+                it->second.state = RobotState::ACTIVE;
+                RCLCPP_INFO(this->m_logger, "Robot active: %s", robot_id.c_str());
+            }
+
+        });
+}
+
+std::string RobotSyncManager::makeKey( const std::string& robot_id, const std::string& instance_id) const
+{
+    return robot_id + ":" + instance_id;
 }
 
 }

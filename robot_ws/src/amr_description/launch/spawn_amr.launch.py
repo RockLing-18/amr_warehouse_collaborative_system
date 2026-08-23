@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, RegisterEventHandler, TimerAction
 from launch.event_handlers import OnProcessExit
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
@@ -183,6 +183,7 @@ def launch_robot(context, *args, **kwargs):
             'amr_robot_joint_state_broadcaster',
             '--controller-manager',
             '/' + robot_id + '/controller_manager',
+            '--param-file', controller_yaml,
         ],
         output='screen'
     )
@@ -194,9 +195,11 @@ def launch_robot(context, *args, **kwargs):
             'amr_diff_drive_controller',
             '--controller-manager',
             '/' + robot_id + '/controller_manager',
+            '--param-file', controller_yaml,
         ],
         output='screen'
     )
+
 
     return [
         robot_state_publisher,
