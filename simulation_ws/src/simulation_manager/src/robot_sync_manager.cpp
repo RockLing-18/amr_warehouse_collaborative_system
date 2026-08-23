@@ -33,7 +33,7 @@ void RobotSyncManager::syncWithGazebo(const std::vector<RobotInfo>& edge_robots,
         if (it == gazebo_models.end())
         {
             addRobot(robot);
-            std::this_thread::sleep_for(std::chrono::seconds(6));
+            std::this_thread::sleep_for(std::chrono::seconds(3));
             continue;
         }
 

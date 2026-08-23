@@ -75,8 +75,8 @@ def launch_setup(context):
     )
 
     return [
-        gazebo
-        # simulation_manager
+        gazebo,
+        simulation_manager
     ]
 
 def generate_launch_description():
