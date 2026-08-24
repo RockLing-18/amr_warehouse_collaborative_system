@@ -10,11 +10,8 @@ ControllerChecker::ControllerChecker(const rclcpp::Node::SharedPtr& node)
 void ControllerChecker::checkAsync(const std::string& robot_id, Callback callback)
 {
     const std::string service = "/" + robot_id + "/controller_manager/list_controllers";
-
     auto client = m_node->create_client<controller_manager_msgs::srv::ListControllers>(service);
-
-
-    if(!client->service_is_ready())
+    if(!client->wait_for_service(std::chrono::seconds(1)))
     {
         callback(false);
         return;
@@ -53,7 +50,6 @@ void ControllerChecker::checkAsync(const std::string& robot_id, Callback callbac
 
 bool ControllerChecker::isControllerReady(const controller_manager_msgs::srv::ListControllers::Response::SharedPtr& response)
 {
-
     for(const auto& controller : response->controller)
     {
         RCLCPP_DEBUG(

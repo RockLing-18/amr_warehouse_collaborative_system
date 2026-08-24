@@ -17,7 +17,7 @@ find_package(rclcpp REQUIRED)
 find_package(gazebo_msgs REQUIRED)
 find_package(controller_manager_msgs REQUIRED)
 find_package(Threads REQUIRED)
-# find_package(geometry_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 
 # ============================================================
 # Executable
@@ -32,6 +32,8 @@ add_executable(
   src/amr_process_manager.cpp
   src/robot_sync_manager.cpp
   src/controller_checker.cpp
+  src/common_func.cpp
+  src/robot_lifecycle_manager.cpp
 )
 
 # ============================================================

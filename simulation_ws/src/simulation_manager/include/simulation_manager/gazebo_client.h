@@ -21,9 +21,6 @@ public:
 
     void deleteModelAsync(const std::string& model_name, std::function<void(bool)> callback);
 
-    // bool getModels(std::vector<GazeboModelInfo>& models);
-    // bool deleteModel(const std::string& model_name);
-
 private:
     bool parseModelName(const std::string& model_name, GazeboModelInfo& info);
 private:

@@ -9,11 +9,13 @@ namespace simulation_manager
 enum class RobotState
 {
     UNKNOWN,
-    ACTIVE,          // Gazebo存在，并且控制器ready
-    SPAWNING,        // 已经提交spawn
-    SPAWNED,         // Gazebo模型出现
-    ERROR,
-    STOPPING
+    WAITING_CREATE,
+    LAUNCHING,
+    WAIT_GAZEBO_MODEL,
+    WAIT_CONTROLLER,
+    ACTIVE,
+    FAILED,
+    DELETING
 };
 
 
