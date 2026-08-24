@@ -26,10 +26,18 @@ RobotLifecycleManager::~RobotLifecycleManager()
 void RobotLifecycleManager::requestCreate(const RobotInfo& robot)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if(m_active_robots.find(robot.robot_id) != m_active_robots.end())
+    if(m_robots.find(robot.robot_id) != m_robots.end())
     {
         if(it->second.state != RobotState::FAILED)
+        {
+            RCLCPP_WARN(
+                m_node->get_logger(),
+                "Robot already managed id=%s state=%d",
+                robot.robot_id.c_str(),
+                static_cast<int>(t->second.state));
+
             return;
+        }
     }
 
     RCLCPP_INFO(
@@ -37,6 +45,11 @@ void RobotLifecycleManager::requestCreate(const RobotInfo& robot)
         "Queue create robot=%s instance=%s",
         robot.robot_id.c_str(),
         robot.instance_id.c_str());
+
+    ManagedRobot managed;
+    managed.info = robot;
+    managed.state = RobotState::WAITING_CREATE;
+    m_robots[robot.robot_id] = managed;
 
     LifecycleRequest req;
     req.type = LifecycleRequest::Type::CREATE;
@@ -114,10 +127,9 @@ void RobotLifecycleManager::processRequest(const LifecycleRequest& request)
         case LifecycleRequest::Type::CREATE:
         {
             bool success = createRobot(request.robot);
-            if(success)
+            if(!success)
             {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                m_active_robots[request.robot.robot_id] = request.robot;
+                setState(robot.robot_id, RobotState::FAILED);
             }
 
             break;
@@ -140,12 +152,16 @@ bool RobotLifecycleManager::createRobot(const RobotInfo& robot)
 {
     RCLCPP_INFO(m_node->get_logger(), "Start create robot=%s", robot.robot_id.c_str());
 
+    setState(robot.robot_id, RobotState::LAUNCHING);
+
     // 启动ros2 launch
     if(!m_process_manager->spawn(robot))
     {
         RCLCPP_ERROR(m_node->get_logger(), "Launch failed robot=%s", robot.robot_id.c_str());
         return false;
     }
+
+    setState(robot.robot_id, RobotState::WAIT_GAZEBO_MODEL);
 
     // 等待Gazebo model
     if(!waitGazeboModel(robot, std::chrono::seconds(10)))
@@ -155,6 +171,8 @@ bool RobotLifecycleManager::createRobot(const RobotInfo& robot)
         return false;
     }
 
+    setState(robot.robot_id, RobotState::WAIT_CONTROLLER);
+
     // controller active
     if(!waitControllerReady(robot, std::chrono::seconds(30)))
     {
@@ -162,6 +180,8 @@ bool RobotLifecycleManager::createRobot(const RobotInfo& robot)
         cleanupRobot(robot);
         return false;
     }
+
+    setState(robot.robot_id, RobotState::ACTIVE);
 
     RCLCPP_INFO(m_node->get_logger(), "Robot active=%s", robot.robot_id.c_str());
     return true;
@@ -174,6 +194,8 @@ bool RobotLifecycleManager::deleteRobot(const GazeboModelInfo& model)
         "Delete robot=%s instance=%s",
         model.robot_id.c_str(),
         model.instance_id.c_str());
+
+    setState(robot.robot_id, RobotState::DELETING);
 
     // 1. stop ros2 launch
     m_process_manager->stop(model.robot_id, model.instance_id);
@@ -196,7 +218,7 @@ bool RobotLifecycleManager::deleteRobot(const GazeboModelInfo& model)
 
 
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_active_robots.erase(model.robot_id);
+    m_robots.erase(model.robot_id);
     return true;
 }
 
@@ -292,6 +314,15 @@ void RobotLifecycleManager::cleanupRobot( const RobotInfo& robot)
     m_gazebo_client->deleteModelAsync(model.model_name, [](bool success){});
 }
 
+void RobotLifecycleManager::setState(const std::string& robot_id, RobotState state)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it=m_robots.find(robot_id);
+    if(it!=m_robots.end())
+    {
+        it->second.state=state;
+    }
+}
 
 
 }

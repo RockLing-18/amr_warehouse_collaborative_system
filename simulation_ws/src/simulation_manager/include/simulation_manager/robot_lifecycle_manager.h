@@ -86,6 +86,8 @@ private:
      */
     bool hasGazeboModel(const RobotInfo& robot);
 
+    void setState(const std::string& robot_id, RobotState state)
+
 private:
     rclcpp::Node::SharedPtr m_node;
     std::shared_ptr<GazeboClient> m_gazebo_client;
@@ -97,7 +99,7 @@ private:
     std::atomic_bool m_running{true};
     std::thread m_worker_thread;
 
-    std::unordered_map<std::string, ManagedRobot> m_active_robots; // key: robot_id
+    std::unordered_map<std::string, ManagedRobot> m_robots; // key: robot_id
 };
 
 }

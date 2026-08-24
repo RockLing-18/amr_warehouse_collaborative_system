@@ -5,6 +5,7 @@
 // #include <gazebo_msgs/srv/get_world_properties.hpp>
 #include <gazebo_msgs/srv/get_model_list.hpp>
 #include <gazebo_msgs/srv/delete_entity.hpp>
+#include <vector>
 
 
 namespace simulation_manager
@@ -28,6 +29,7 @@ private:
     // rclcpp::Client<gazebo_msgs::srv::GetWorldProperties>::SharedPtr m_get_world_properties_client;
     rclcpp::Client<gazebo_msgs::srv::GetModelList>::SharedPtr m_get_model_list_client;
     rclcpp::Client<gazebo_msgs::srv::DeleteEntity>::SharedPtr m_delete_entity_client;
+    std::vector<GazeboModelInfo> m_models;
 };
 
 }
