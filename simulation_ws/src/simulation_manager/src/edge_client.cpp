@@ -1,5 +1,6 @@
 #include "simulation_manager/edge_client.h"
 #include "json.hpp"
+#include <iostream>
 
 namespace simulation_manager
 {
@@ -30,8 +31,7 @@ bool EdgeClient::connect()
             this,
             std::placeholders::_1));
     
-    m_ws.connect(m_websocket_url);
-    return true;
+   return m_ws.connect(m_websocket_url);
 }
 
 void EdgeClient::setNotifyCallback(NotifyCallback callback)
@@ -41,7 +41,7 @@ void EdgeClient::setNotifyCallback(NotifyCallback callback)
 
 bool EdgeClient::isConnected() const
 {
-    return true;
+    return m_ws.isConnected();
 }
 
 std::vector<RobotInfo> EdgeClient::getRobotList()
@@ -78,37 +78,52 @@ void EdgeClient::notifyDealThread()
 
 void EdgeClient::onMessage(const std::string& message)
 {
-     auto j =json::parse(message);
-
-    if(!j.contains("type"))
-        return;
-
-    if(j["type"]=="robot_list")
+    try
     {
-        handleRobotList(message);
+        auto j =json::parse(message);
+
+        if(!j.contains("type"))
+            return;
+
+        if(j["type"]=="robot_list")
+        {
+            handleRobotList(message);
+        }
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what();
     }
 }
 
 void EdgeClient::handleRobotList(const std::string& message)
 {
-    std::vector<RobotInfo> robots;
-
-    auto j = json::parse(message);
-    for(auto& item : j["robots"])
+    try
     {
-        RobotInfo robot;
-        robot.robot_id = item["robot_id"];
-        robot.instance_id = item["instance_id"];
-        robot.x = item["x"];
-        robot.y = item["y"];
-        robot.yaw = item["yaw"];
-        robots.push_back(robot);
-    }
+        std::vector<RobotInfo> robots;
 
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_robotList = robots;
-    m_robotListUpdated = true;
-    m_cv.notify_one();
+        auto j = json::parse(message);
+        for(auto& item : j["robots"])
+        {
+            RobotInfo robot;
+            robot.robot_id = item["robot_id"];
+            robot.instance_id = item["instance_id"];
+            robot.x = item["x"];
+            robot.y = item["y"];
+            robot.yaw = item["yaw"];
+            robots.push_back(robot);
+        }
+
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_robotList = robots;
+        m_robotListUpdated = true;
+        m_cv.notify_one();
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what();
+    }
+    
 
     // std::vector<RobotInfo> robots = {
     //     {

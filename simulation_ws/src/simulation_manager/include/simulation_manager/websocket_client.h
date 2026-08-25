@@ -5,12 +5,9 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <memory>
 #include <queue>
 #include <condition_variable>
-
-struct lws_context;
-struct lws;
-struct lws_protocols;
 
 namespace simulation_manager
 {
@@ -19,6 +16,7 @@ class WebSocketClient
 {
 public:
     using MessageCallback = std::function<void(const std::string&)>;
+    
 
 public:
     WebSocketClient();
@@ -28,6 +26,7 @@ public:
     bool send(const std::string& message);
     void setMessageCallback(MessageCallback callback);
     bool isConnected() const;
+    std::string popQueueMsg();
 
 private:
     void run();
@@ -40,14 +39,13 @@ public:
     std::mutex m_sendMutex;
 
 private:
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
+
     std::string m_url;
     std::string m_host;
     std::string m_path;
     int m_port{80};
-    struct lws_context* m_context{nullptr};
-    struct lws* m_wsi{nullptr};
-    struct lws_protocols* m_protocols[2];
-
     std::thread m_thread;
     std::atomic_bool m_running{false};
 };
