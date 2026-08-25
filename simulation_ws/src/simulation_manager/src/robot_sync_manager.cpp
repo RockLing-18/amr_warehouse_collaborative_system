@@ -14,15 +14,7 @@ RobotSyncManager::~RobotSyncManager()
 
 void RobotSyncManager::sync(const std::vector<RobotInfo>& edge_robots)
 {
-    m_gazebo_client->getModelsAsync(
-        [this, edge_robots](const std::vector<GazeboModelInfo>& gazebo_models)
-        {
-            syncWithGazebo(edge_robots, gazebo_models);
-        });
-}
-
-void RobotSyncManager::syncWithGazebo(const std::vector<RobotInfo>& edge_robots, const std::vector<GazeboModelInfo>& gazebo_models)
-{
+    const std::vector<GazeboModelInfo>& gazebo_models = m_gazebo_client->getModels();
     for (const auto& robot : edge_robots)
     {
         auto it = std::find_if(

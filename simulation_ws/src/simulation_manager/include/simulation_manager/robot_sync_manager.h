@@ -19,9 +19,6 @@ public:
     void sync(const std::vector<RobotInfo>& edge_robots);
 
 private:
-    void syncWithGazebo(const std::vector<RobotInfo>& edge_robots, const std::vector<GazeboModelInfo>& gazebo_models);
-
-private:
     rclcpp::Node::SharedPtr m_node;
     std::shared_ptr<GazeboClient> m_gazebo_client;
     std::shared_ptr<RobotLifecycleManager> m_lifecycle_manager;

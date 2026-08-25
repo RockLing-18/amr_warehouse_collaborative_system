@@ -68,7 +68,7 @@ def launch_setup(context):
             {
                 "warehouse_id":simulation["warehouse_id"],
                 "websocket_url":edge_server_config["websocket"]["url"],
-                "sync_interval":simulation["robot_sync"]["interval"]
+                "update_gazebo_models_interval":simulation["robot_models_update"]["interval"]
             }
         ],
         output="screen"

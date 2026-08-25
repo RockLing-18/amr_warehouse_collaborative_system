@@ -16,7 +16,7 @@ public:
     void init();
 
 private:
-    void onTimer();
+    void onTimerUpdateRobotModels();
 
 private:
     std::shared_ptr<EdgeClient> m_edge_client;

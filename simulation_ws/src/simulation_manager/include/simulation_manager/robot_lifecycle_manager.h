@@ -81,12 +81,7 @@ private:
      */
     void cleanupRobot(const RobotInfo& robot);
 
-    /*
-     * 查询Gazebo model
-     */
-    bool hasGazeboModel(const RobotInfo& robot);
-
-    void setState(const std::string& robot_id, RobotState state)
+    void setState(const std::string& robot_id, RobotState state);
 
 private:
     rclcpp::Node::SharedPtr m_node;
@@ -96,7 +91,7 @@ private:
     std::queue<LifecycleRequest> m_queue;
     std::mutex m_mutex;
     std::condition_variable m_cv;
-    std::atomic_bool m_running{true};
+    std::atomic<bool> m_running{true};
     std::thread m_worker_thread;
 
     std::unordered_map<std::string, ManagedRobot> m_robots; // key: robot_id

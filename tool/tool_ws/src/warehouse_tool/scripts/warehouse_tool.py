@@ -21,7 +21,7 @@ class WarehouseTool:
                 f"Config file not found: {self.config_path}"
             )
 
-        self.config = self._load_yaml(self.config_path)
+        self.config = self._load_yaml(self.config_path)sync
 
         self._load_config()
 

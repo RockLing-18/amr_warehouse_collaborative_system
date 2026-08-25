@@ -40,8 +40,6 @@ struct ManagedRobot
 {
     RobotInfo info;
     RobotState state{RobotState::UNKNOWN};
-    std::chrono::steady_clock::time_point update_time;
-    pid_t launch_pid{-1};
 };
 
 }

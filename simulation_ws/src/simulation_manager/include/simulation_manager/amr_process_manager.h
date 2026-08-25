@@ -19,8 +19,6 @@ private:
         pid_t pid{-1};
     };
 
-    std::string makeKey(const std::string& robot_id, const std::string& instance_id) const;
-
 private:
     std::map<std::string, ProcessInfo> m_processes;
 };

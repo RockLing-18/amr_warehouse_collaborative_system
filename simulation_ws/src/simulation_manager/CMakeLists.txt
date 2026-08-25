@@ -18,6 +18,13 @@ find_package(gazebo_msgs REQUIRED)
 find_package(controller_manager_msgs REQUIRED)
 find_package(Threads REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(PkgConfig REQUIRED)
+
+pkg_check_modules(
+    LIBWEBSOCKETS
+    REQUIRED
+    libwebsockets
+)
 
 # ============================================================
 # Executable
@@ -34,6 +41,7 @@ add_executable(
   src/controller_checker.cpp
   src/common_func.cpp
   src/robot_lifecycle_manager.cpp
+  src/websocket_client.cpp
 )
 
 # ============================================================
@@ -44,6 +52,7 @@ target_include_directories(
   simulation_manager
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${LIBWEBSOCKETS_INCLUDE_DIRS}
 )
 
 # ============================================================
@@ -61,6 +70,7 @@ ament_target_dependencies(
 target_link_libraries(
   simulation_manager
   Threads::Threads
+  ${LIBWEBSOCKETS_LIBRARIES}
 )
 
 # ============================================================

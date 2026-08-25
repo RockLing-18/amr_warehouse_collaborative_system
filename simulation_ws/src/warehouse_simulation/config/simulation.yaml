@@ -8,8 +8,8 @@ simulation:
       url: ws://127.0.0.1:9000/ws/simulation
     reconnect_interval: 5
 
-  robot_sync:
-    interval: 15
+  robot_models_update:
+    interval: 1
 
   gazebo_config:
     verbose: true
