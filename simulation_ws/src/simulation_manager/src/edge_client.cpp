@@ -4,7 +4,7 @@
 
 namespace simulation_manager
 {
-using json=nlohmann::json;
+using json = nlohmann::json;
 
 EdgeClient::EdgeClient(const std::string &websocket_url)
 : m_websocket_url(websocket_url)
@@ -17,13 +17,22 @@ EdgeClient::~EdgeClient()
 
     m_cv.notify_all();
 
-    if(m_thread.joinable())
-        m_thread.join();
+    if(m_connection_thread.joinable())
+        m_connection_thread.join();
+
+    if(m_notify_thread.joinable())
+        m_notify_thread.join();
+    
+     m_ws.close();
 }
 
 bool EdgeClient::connect()
 {
-    m_thread = std::thread(&EdgeClient::notifyDealThread, this);
+    m_running = true;
+    m_notify_thread = std::thread(&EdgeClient::notifyDealThread, this);
+
+    // websocket管理线程
+    m_connection_thread = std::thread( &EdgeClient::connectionThread, this);
 
     m_ws.setMessageCallback(
         std::bind(
@@ -31,7 +40,23 @@ bool EdgeClient::connect()
             this,
             std::placeholders::_1));
     
-   return m_ws.connect(m_websocket_url);
+     if(!m_ws.connect(m_websocket_url))
+    {
+        return false;
+    }
+
+    return subscribe();
+}
+
+bool EdgeClient::subscribe()
+{
+    json msg;
+    msg["type"] = "subscribe";
+    msg["topics"] = {
+        "robot_list"
+    };
+
+    return m_ws.send(msg.dump());
 }
 
 void EdgeClient::setNotifyCallback(NotifyCallback callback)
@@ -76,11 +101,33 @@ void EdgeClient::notifyDealThread()
     }
 }
 
+void EdgeClient::connectionThread()
+{
+    while(m_running)
+    {
+        if(!m_ws.isConnected())
+        {
+            std::cout <<"connecting edge server..." <<std::endl;
+            if(m_ws.connect(m_websocket_url))
+            {
+                std::cout<<"edge connected" <<std::endl;
+                subscribe();
+            }
+            else
+            {
+                std::cerr <<"edge connect failed" <<std::endl;
+            }
+        }
+
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+    }
+}
+
 void EdgeClient::onMessage(const std::string& message)
 {
     try
     {
-        auto j =json::parse(message);
+        auto j = json::parse(message);
 
         if(!j.contains("type"))
             return;

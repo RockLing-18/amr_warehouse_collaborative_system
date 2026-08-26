@@ -21,17 +21,20 @@ public:
 
     bool connect();
 
+    bool subscribe();
+
     void setNotifyCallback(NotifyCallback callback);
 
     bool isConnected() const;
 
     std::vector<RobotInfo> getRobotList();
 
-    void notifyDealThread();
-
 private:
     void onMessage(const std::string& message);
     void handleRobotList(const std::string& message);
+
+    void notifyDealThread();
+    void connectionThread();
     
 private:
     std::string m_websocket_url;
@@ -40,7 +43,8 @@ private:
     std::vector<RobotInfo> m_robotList;
     std::mutex m_mutex;
     std::condition_variable m_cv;
-    std::thread m_thread;
+    std::thread m_notify_thread;
+    std::thread m_connection_thread;
     std::atomic<bool> m_running{true};
     bool m_robotListUpdated{false};
 };
