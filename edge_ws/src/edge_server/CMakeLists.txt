@@ -42,8 +42,10 @@ add_executable(
     src/edge_server_node.cpp
     src/websocket/websocket_server.cpp
     src/websocket/websocket_session.cpp
+    src/websocket/websocket_message_router.cpp
     src/robot/robot_manager.cpp
     src/robot/robot_list_publisher.cpp
+    src/topic/topic_manager.cpp
 )
 
 

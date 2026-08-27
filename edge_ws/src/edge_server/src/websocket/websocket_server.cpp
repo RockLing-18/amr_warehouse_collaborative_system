@@ -194,7 +194,7 @@ void WebSocketServer::messageThread()
 
         if(m_message_callback)
         {
-            m_message_callback(message.client, message.data);
+            m_message_callback(getClientSessionId(message.client), message.data);
         }
     }
 }
@@ -214,6 +214,18 @@ void WebSocketServer::removeClientSession(struct lws* wsi)
     std::lock_guard<std::mutex> lock(m_mutex);
     if(m_clientSession.find(wsi) != m_clientSession.end())
         m_clientSession.erase(wsi);
+}
+
+uint64_t WebSocketServer::getClientSessionId(struct lws* wsi)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if(m_clientSession.find(wsi) != m_clientSession.end())
+    {
+        std::shared_ptr<WebSocketSession> session = m_clientSession.at(wsi);
+        return session->getClientSessionId();
+    }
+
+    return 0;
 }
 
 void WebSocketServer::pushReceiveMessage(struct lws* wsi, const std::string &message)

@@ -11,10 +11,13 @@ class WebSocketMessageRouter
 {
 
 public:
-    void onMessage(lws* client, const std::string& msg);
+    void onMessage(lws* client, const std::string& message);
 
 private:
-    void handleSubscribe(lws* client, json& msg);
+    void handleSubscribe(lws* client, const std::string& message);
+
+// private:
+//     std::shared_ptr<TopicManager> m_topic_manager;
 };
 
 }

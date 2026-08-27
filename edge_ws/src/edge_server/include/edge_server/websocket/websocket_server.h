@@ -25,7 +25,7 @@ struct WebSocketMessage
 class WebSocketServer
 {
 public:
-    using MessageCallback = std::function<void(lws* client, const std::string&)>;
+    using MessageCallback = std::function<void(uint64_t, const std::string&)>;
 
 public:
     WebSocketServer();
@@ -39,6 +39,7 @@ public:
     void setMessageCallback(MessageCallback callback);
     void addClientSession(struct lws* wsi);
     void removeClientSession(struct lws* wsi);
+    uint64_t getClientSessionId(struct lws* wsi);
     void pushReceiveMessage(struct lws* wsi, const std::string& message);
     std::string popQueueMsg(struct lws* wsi);
 

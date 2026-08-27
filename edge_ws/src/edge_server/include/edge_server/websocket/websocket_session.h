@@ -3,6 +3,7 @@
 #include <string>
 #include <queue>
 #include <mutex>
+#include "edge_server/common/identifierGenerator.h"
 
 struct lws;
 
@@ -14,8 +15,7 @@ class WebSocketSession
 public:
     explicit WebSocketSession(struct lws* wsi);
 
-    struct lws* getWsi() const;
-
+    uint64_t getClientSessionId() const;
 
     // 业务层调用
     void sendToClient(const std::string& message);
@@ -24,7 +24,11 @@ public:
     std::string popMessage();
 
 private:
+    static IdGeneratorU64_t sm_idGenerator;
+
+private:
     struct lws* m_wsi{nullptr};
+    uint64_t m_clientSessionId;
     std::mutex m_mutex;
     std::queue<std::string> m_sendQueue;
 };

@@ -4,13 +4,17 @@
 namespace edge_server
 {
 
-WebSocketSession::WebSocketSession(struct lws* wsi)
-: m_wsi(wsi)
-{}
+IdGeneratorU64_t WebSocketSession::sm_idGenerator;
 
-lws* WebSocketSession::getWsi() const
+WebSocketSession::WebSocketSession(struct lws* wsi)
+: m_wsi(wsi), m_clientSessionId(0)
 {
-    return m_wsi;
+    m_clientSessionId = sm_idGenerator.generate();
+}
+
+uint64_t WebSocketSession::getClientSessionId() const
+{
+    return m_clientSessionId;
 }
 
 void WebSocketSession::sendToClient(const std::string& message)
