@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cstring>
 #include <vector>
+#include "websocket_client.h"
 
 namespace simulation_manager
 {
@@ -10,9 +11,9 @@ namespace simulation_manager
 static bool sendToWS(struct lws* wsi, const std::string& msg)
 {
     std::vector<unsigned char> buffer(LWS_PRE + msg.size());
-    memcpy(buffer.data()+LWS_PRE, msg.data(), msg.size());
+    memcpy(buffer.data() + LWS_PRE, msg.data(), msg.size());
 
-    int ret = lws_write(wsi, buffer.data()+LWS_PRE, msg.size(), LWS_WRITE_TEXT);
+    int ret = lws_write(wsi, buffer.data() + LWS_PRE, msg.size(), LWS_WRITE_TEXT);
     return ret >= 0;
 }
 
@@ -99,7 +100,6 @@ struct WebSocketClient::Impl
 WebSocketClient::WebSocketClient()
 {
     m_impl = std::make_unique<Impl>();
-
 }
 
 WebSocketClient::~WebSocketClient()
@@ -146,6 +146,12 @@ void WebSocketClient::setMessageCallback(MessageCallback callback)
 bool WebSocketClient::isConnected() const
 {
     return m_connected;
+}
+
+void WebSocketClient::pushQueueMsg(const std::string& message)
+{
+    std::lock_guard<std::mutex> lock(m_sendMutex);
+    m_sendQueue.push(message);
 }
 
 std::string WebSocketClient::popQueueMsg()
@@ -212,10 +218,7 @@ void WebSocketClient::run()
 
 bool WebSocketClient::send(const std::string& message)
 {
-    {
-        std::lock_guard<std::mutex> lock(m_sendMutex);
-        m_sendQueue.push(message);
-    }
+    pushQueueMsg(message);
 
     if(m_impl->context)
     {

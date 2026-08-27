@@ -59,7 +59,7 @@ void RobotListPublisher::publish()
             msg["robots"].push_back(item);
         }
 
-        m_websocket->broadcast(msg.dump());
+        // m_websocket->broadcast(msg.dump());
     }
     catch(const std::exception& e)
     {

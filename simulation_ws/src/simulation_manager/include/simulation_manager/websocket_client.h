@@ -26,6 +26,7 @@ public:
     bool send(const std::string& message);
     void setMessageCallback(MessageCallback callback);
     bool isConnected() const;
+    void pushQueueMsg(const std::string& message);
     std::string popQueueMsg();
 
 private:
