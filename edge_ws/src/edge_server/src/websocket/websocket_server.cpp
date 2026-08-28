@@ -7,9 +7,8 @@
 
 namespace edge_server
 {
-static WebSocketServer* gs_instance = nullptr;
 
-static bool sendToWSClientItance(struct lws* wsi, const std::string& msg)
+static bool sendToWSClientInstance(struct lws* wsi, const std::string& msg)
 {
     std::vector<unsigned char> buffer(LWS_PRE + msg.size());
     memcpy(buffer.data() + LWS_PRE, msg.data(), msg.size());
@@ -18,48 +17,60 @@ static bool sendToWSClientItance(struct lws* wsi, const std::string& msg)
     return ret >= 0;
 }
 
-static int wsCallback(struct lws* wsi,  enum lws_callback_reasons reason, void* /*user*/, void* in,  size_t len)
+static int wsCallback(struct lws* wsi,  enum lws_callback_reasons reason, void* user, void* in,  size_t len)
 {
+    auto* protocol = lws_get_protocol(wsi);
+    if (!protocol)
+        return 0;
+
+    auto* server = static_cast<WebSocketServer*>(protocol->user);
+    if (!server)
+        return 0;
+
     switch(reason)
     {
     case LWS_CALLBACK_ESTABLISHED:
     {
-        gs_instance->addClientSession(wsi);
-        std::cout << "client connected" << std::endl;
+        uint64_t& clientSessionId = *static_cast<uint64_t*>(user);
+        clientSessionId = server->addClientSession(wsi);
+        std::cout << "client connected, id: " << clientSessionId << std::endl;
         break;
     }
-    break;
     case LWS_CALLBACK_RECEIVE:
     {
+        uint64_t& clientSessionId = *static_cast<uint64_t*>(user);
         std::string msg(static_cast<char*>(in), len);
-        gs_instance->pushReceiveMessage(wsi, msg);
+        server->pushReceiveMessage(clientSessionId, msg);
         break;
     }
     case LWS_CALLBACK_CLOSED:
     {
-        gs_instance->removeClientSession(wsi);
+        uint64_t& clientSessionId = *static_cast<uint64_t*>(user);
+        server->removeClientSession(clientSessionId);
         std::cout << "client disconnect" << std::endl;
         break;
     }
     case LWS_CALLBACK_SERVER_WRITEABLE:
     {
-        while(true)
+        uint64_t& clientSessionId = *static_cast<uint64_t*>(user);
+        auto msg = server->popSendMsg(clientSessionId);
+        if(!msg.empty())
         {
-            auto msg = gs_instance->popQueueMsg(wsi);
-            if(msg.empty())
-                break;
-
-            sendToWSClientItance(wsi, msg);
+            sendToWSClientInstance(wsi, msg);
+            if(server->hasMoreSendMsg(clientSessionId))
+            {
+                lws_callback_on_writable(wsi);
+            }
         }
-        
         break;
     }
     default:
-    break;
+        // LWS_CALLBACK_PROTOCOL_INIT 等内部reason走到这里，完全不访问user
+        break;
     }
-
     return 0;
 }
+
 
 struct WebSocketServer::Impl
 {
@@ -73,26 +84,17 @@ struct WebSocketServer::Impl
 
     ~Impl()
     {
-        if(context)
-        {
-            lws_context_destroy(context);
-            context = nullptr;
-        }
     }
 };
 
 WebSocketServer::WebSocketServer()
 {
-    gs_instance = this;
     m_impl = std::make_unique<Impl>();
 }
 
 WebSocketServer::~WebSocketServer()
 {
     stop();
-
-    if(gs_instance == this)
-        gs_instance = nullptr;
 }
 
 bool WebSocketServer::start(const std::string &/*host*/, int port)
@@ -104,10 +106,10 @@ bool WebSocketServer::start(const std::string &/*host*/, int port)
      {
         "edge-protocol",
         wsCallback,
-        sizeof(void*),
+        sizeof(uint64_t), // 存客户端 ID
         4096,
         0,
-        nullptr,
+        this,
         0
     };
 
@@ -134,24 +136,49 @@ bool WebSocketServer::start(const std::string &/*host*/, int port)
 void WebSocketServer::stop()
 {
     m_running = false;
+    if(m_impl->context)
+    {
+        lws_cancel_service(m_impl->context);
+    }
+
     if(m_thread.joinable())
         m_thread.join();
-    
+
     m_receiveCv.notify_all();
-    
     if(m_messageThread.joinable())
         m_messageThread.join();
+
+    if(m_impl->context)
+    {
+        lws_context_destroy(m_impl->context);
+        m_impl->context = nullptr;
+    }
+
+    std::lock_guard<std::mutex> lock(m_sessionMutex);
+    m_sessionById.clear();
 }
 
-void WebSocketServer::sendToWSClient(lws * wsi)
+bool WebSocketServer::sendToWSClient(uint64_t clientSessionId, const std::string& message)
 {
-    gs_instance->triggerWritable(wsi);
+    std::shared_ptr<WebSocketSession> session = pushSendMsg(clientSessionId, message);
+    if (!session) 
+        return false;
+
+    struct lws* wsi = session->getWsi();  // 原子读取
+    if (wsi)
+    {
+        triggerWritable(wsi);
+        return true;
+    }
+        
+    return false;
 }
 
 void WebSocketServer::triggerWritable(struct lws *wsi)
 {
     lws_callback_on_writable(wsi);
-    lws_cancel_service(m_impl->context);
+    if(m_impl->context)
+        lws_cancel_service(m_impl->context);
 }
 
 void WebSocketServer::setMessageCallback(MessageCallback callback)
@@ -161,7 +188,7 @@ void WebSocketServer::setMessageCallback(MessageCallback callback)
 
 void WebSocketServer::serviceThread()
 {
-    while(m_running)
+    while(m_running && m_impl->context)
     {
         lws_service(m_impl->context, 100);
     }
@@ -194,64 +221,85 @@ void WebSocketServer::messageThread()
 
         if(m_message_callback)
         {
-            m_message_callback(getClientSessionId(message.client), message.data);
+            m_message_callback(message.client, message.data);
         }
     }
 }
 
-void WebSocketServer::addClientSession(struct lws* wsi)
+uint64_t WebSocketServer::addClientSession(struct lws* wsi)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if(m_clientSession.find(wsi) != m_clientSession.end())
-        m_clientSession.erase(wsi);
-    
-    auto session = std::make_shared<WebSocketSession>(wsi);
-    m_clientSession.insert(std::make_pair(wsi, session));
+    std::lock_guard<std::mutex> lock(m_sessionMutex);
+    uint64_t id = m_idGenerator.generate();
+    auto session = std::make_shared<WebSocketSession>(wsi, id);
+    m_sessionById.emplace(id, session);
+    return id;
 }
 
-void WebSocketServer::removeClientSession(struct lws* wsi)
+void WebSocketServer::removeClientSession(uint64_t clientSessionId)
 {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if(m_clientSession.find(wsi) != m_clientSession.end())
-        m_clientSession.erase(wsi);
+    std::lock_guard<std::mutex> lock(m_sessionMutex);
+    auto iter = m_sessionById.find(clientSessionId);
+    if(iter == m_sessionById.end())
+        return;
+
+    iter->second->setWsiInvalid();
+    m_sessionById.erase(iter);
 }
 
-uint64_t WebSocketServer::getClientSessionId(struct lws* wsi)
-{
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if(m_clientSession.find(wsi) != m_clientSession.end())
-    {
-        std::shared_ptr<WebSocketSession> session = m_clientSession.at(wsi);
-        return session->getClientSessionId();
-    }
-
-    return 0;
-}
-
-void WebSocketServer::pushReceiveMessage(struct lws* wsi, const std::string &message)
+void WebSocketServer::pushReceiveMessage(uint64_t clientSessionId, const std::string &message)
 {
     std::unique_lock<std::mutex> lock(m_receiveMutex);
     WebSocketMessage msg;
-    msg.client = wsi;
+    msg.client = clientSessionId;
     msg.data = message;
     m_receiveQueue.push(msg);
     m_receiveCv.notify_one();
 }
 
-std::string WebSocketServer::popQueueMsg(struct lws* wsi)
+std::shared_ptr<WebSocketSession> WebSocketServer::pushSendMsg(uint64_t clientSessionId, const std::string& message)
+{
+    std::shared_ptr<WebSocketSession> session;
+    {
+        std::lock_guard<std::mutex> lock(m_sessionMutex);
+        if(m_sessionById.find(clientSessionId) != m_sessionById.end())
+            session = m_sessionById.at(clientSessionId);
+    }
+
+    if(session)
+        session->pushMessage(message);
+
+    return session;
+}
+
+std::string WebSocketServer::popSendMsg(uint64_t clientSessionId)
 {
     std::string msg;
     std::shared_ptr<WebSocketSession> session;
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if(m_clientSession.find(wsi) == m_clientSession.end())
+        std::lock_guard<std::mutex> lock(m_sessionMutex);
+        if(m_sessionById.find(clientSessionId) == m_sessionById.end())
             return msg;
 
-        session = m_clientSession.at(wsi);
+        session = m_sessionById.at(clientSessionId);
     }
 
     msg = session->popMessage();
     return msg;
+}
+
+bool WebSocketServer::hasMoreSendMsg(uint64_t clientSessionId)
+{
+    std::shared_ptr<WebSocketSession> session;
+    {
+        std::lock_guard<std::mutex> lock(m_sessionMutex);
+        auto it = m_sessionById.find(clientSessionId);
+        if(it == m_sessionById.end())
+            return false;
+
+        session = m_sessionById.at(clientSessionId);
+    }
+
+    return !session->isEmptyMessage();
 }
 
 }

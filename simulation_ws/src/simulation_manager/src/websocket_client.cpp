@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 #include "websocket_client.h"
+#include "websocket_client.h"
 
 namespace simulation_manager
 {
@@ -51,14 +52,14 @@ static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* /*u
     }
     case LWS_CALLBACK_CLIENT_WRITEABLE:
     {
-        while(true)
-        {
-            auto msg = client->popQueueMsg();
-            if(msg.empty())
+        auto msg = client->popQueueMsg();
+        if(msg.empty())
                 break;
 
-            sendToWS(wsi, msg);
-        }
+        sendToWS(wsi, msg);
+
+        if(client->isEmptyQueueMsg() == false)
+            lws_callback_on_writable(wsi)
         
         break;
     }
@@ -67,6 +68,8 @@ static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* /*u
         lws_callback_on_writable(wsi);
         break;
     }
+    case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
+    break;
     default:
         break;
     }
@@ -128,12 +131,6 @@ void WebSocketClient::close()
     if(m_thread.joinable())
         m_thread.join();
 
-    if(m_impl->context)
-    {
-        lws_context_destroy(m_impl->context);
-        m_impl->context = nullptr;
-    }
-
     m_connected = false;
 }
 
@@ -167,6 +164,15 @@ std::string WebSocketClient::popQueueMsg()
     }
 
     return msg;
+}
+
+bool WebSocketClient::isEmptyQueueMsg()
+{
+    std::lock_guard<std::mutex> lock(m_sendMutex);
+        if(m_sendQueue.empty())
+            return true;
+    
+    return false;
 }
 
 void WebSocketClient::run()

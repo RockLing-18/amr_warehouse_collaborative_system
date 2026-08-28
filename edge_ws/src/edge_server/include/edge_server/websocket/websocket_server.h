@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <condition_variable>
 #include "edge_server/websocket/websocket_session.h"
+#include "edge_server/common/identifierGenerator.h"
 
 struct lws;
 
@@ -18,7 +19,7 @@ namespace edge_server
 {
 struct WebSocketMessage
 {
-    struct lws* client{nullptr};
+    uint64_t client{0};
     std::string data;
 };
 
@@ -33,15 +34,20 @@ public:
 
     bool start(const std::string& host, int port);
     void stop();
-
-    static void sendToWSClient(struct lws* wsi);
-
     void setMessageCallback(MessageCallback callback);
-    void addClientSession(struct lws* wsi);
-    void removeClientSession(struct lws* wsi);
-    uint64_t getClientSessionId(struct lws* wsi);
-    void pushReceiveMessage(struct lws* wsi, const std::string& message);
-    std::string popQueueMsg(struct lws* wsi);
+
+    uint64_t addClientSession(struct lws* wsi);
+    void removeClientSession(uint64_t clientSessionId);
+
+    // 业务层调用
+    bool sendToWSClient(uint64_t clientSessionId, const std::string& message);
+    
+    // 接收消息入队列
+    void pushReceiveMessage(uint64_t clientSessionId, const std::string& message);
+    // 发送消息入/出队列,从WebSocketSession的消息队列操作
+    std::shared_ptr<WebSocketSession> pushSendMsg(uint64_t clientSessionId, const std::string& message);
+    std::string popSendMsg(uint64_t clientSessionId);
+    bool hasMoreSendMsg(uint64_t clientSessionId);
 
 private:
     void serviceThread();
@@ -54,13 +60,14 @@ private:
     MessageCallback m_message_callback;
     struct Impl;
     std::unique_ptr<Impl> m_impl;
-    std::unordered_map<lws*, std::shared_ptr<WebSocketSession>> m_clientSession;
-    std::mutex m_mutex;
+    std::unordered_map<uint64_t, std::shared_ptr<WebSocketSession>> m_sessionById;
+    std::mutex m_sessionMutex;
 
     std::queue<WebSocketMessage> m_receiveQueue;
     std::mutex  m_receiveMutex;
     std::condition_variable m_receiveCv;
     std::thread m_messageThread;
+    IdGeneratorU64_t m_idGenerator;
 };
 
 

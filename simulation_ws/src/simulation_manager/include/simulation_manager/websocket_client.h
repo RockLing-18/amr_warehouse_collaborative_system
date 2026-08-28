@@ -28,6 +28,7 @@ public:
     bool isConnected() const;
     void pushQueueMsg(const std::string& message);
     std::string popQueueMsg();
+    bool isEmptyQueueMsg();
 
 private:
     void run();
