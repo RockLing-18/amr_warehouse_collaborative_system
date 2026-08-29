@@ -103,23 +103,23 @@ void EdgeClient::notifyDealThread()
 
 void EdgeClient::connectionThread()
 {
-    while(m_running)
-    {
-        if(!m_ws.isConnected())
-        {
-            std::cout <<"connecting edge server..." <<std::endl;
-            if(m_ws.connect(m_websocket_url))
-            {
-                std::cout<<"edge connected" <<std::endl;
-            }
-            else
-            {
-                std::cerr <<"edge connect failed" <<std::endl;
-            }
-        }
+    // while(m_running)
+    // {
+    //     if(!m_ws.isConnected())
+    //     {
+    //         std::cout <<"connecting edge server..." <<std::endl;
+    //         if(m_ws.connect(m_websocket_url))
+    //         {
+    //             std::cout<<"edge connected" <<std::endl;
+    //         }
+    //         else
+    //         {
+    //             std::cerr <<"edge connect failed" <<std::endl;
+    //         }
+    //     }
 
-        std::this_thread::sleep_for(std::chrono::seconds(3));
-    }
+    //     std::this_thread::sleep_for(std::chrono::seconds(3));
+    // }
 }
 
 void EdgeClient::onEventCallback(const WebSocketClient::WebSocketEvent& event)
