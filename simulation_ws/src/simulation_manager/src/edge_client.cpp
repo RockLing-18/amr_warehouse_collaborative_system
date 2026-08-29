@@ -32,13 +32,13 @@ bool EdgeClient::connect()
     m_notify_thread = std::thread(&EdgeClient::notifyDealThread, this);
 
     // websocket管理线程
-    m_connection_thread = std::thread( &EdgeClient::connectionThread, this);
+    m_connection_thread = std::thread(&EdgeClient::connectionThread, this);
 
-    m_ws.setMessageCallback(
-        std::bind(
-            &EdgeClient::onMessage,
-            this,
-            std::placeholders::_1));
+    m_ws.setEventCallback(
+        [this](const WebSocketClient::WebSocketEvent& event)
+        {
+            onEventCallback(event);
+        });
     
      if(!m_ws.connect(m_websocket_url))
     {
@@ -111,7 +111,6 @@ void EdgeClient::connectionThread()
             if(m_ws.connect(m_websocket_url))
             {
                 std::cout<<"edge connected" <<std::endl;
-                subscribe();
             }
             else
             {
@@ -123,7 +122,35 @@ void EdgeClient::connectionThread()
     }
 }
 
-void EdgeClient::onMessage(const std::string& message)
+void EdgeClient::onEventCallback(const WebSocketClient::WebSocketEvent& event)
+{
+    switch (event.type)
+    {
+    case WebSocketClient::EventType::CONNECTED:
+    {
+        std::cout << " edge server connected !" <<std::endl;
+        subscribe();
+        break;
+    }
+    case WebSocketClient::EventType::DISCONNECTED:
+    {
+        std::cout << " edge server disconnected !" <<std::endl;
+        break;
+    }
+    case WebSocketClient::EventType::MESSAGE:
+        handleMessage(event.message);
+        break;
+    case WebSocketClient::EventType::ERROR:
+    {
+        std::cout << " edge server Error !" <<std::endl;
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+void EdgeClient::handleMessage(const std::string& message)
 {
     try
     {

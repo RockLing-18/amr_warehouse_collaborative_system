@@ -30,7 +30,8 @@ public:
     std::vector<RobotInfo> getRobotList();
 
 private:
-    void onMessage(const std::string& message);
+    void onEventCallback(const WebSocketClient::WebSocketEvent& event);
+    void handleMessage(const std::string& message);
     void handleRobotList(const std::string& message);
 
     void notifyDealThread();

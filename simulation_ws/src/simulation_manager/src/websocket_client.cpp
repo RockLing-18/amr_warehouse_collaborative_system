@@ -3,8 +3,6 @@
 #include <iostream>
 #include <cstring>
 #include <vector>
-#include "websocket_client.h"
-#include "websocket_client.h"
 
 namespace simulation_manager
 {
@@ -20,6 +18,9 @@ static bool sendToWS(struct lws* wsi, const std::string& msg)
 
 static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* /*user*/, void* in, size_t len)
 {
+    if(!wsi)
+        return 0;
+
     auto protocol = lws_get_protocol(wsi);
     if(!protocol)
         return 0;
@@ -33,20 +34,41 @@ static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* /*u
     case LWS_CALLBACK_CLIENT_ESTABLISHED:
     {
         client->m_connected = true;
+        WebSocketClient::WebSocketEvent eventMsg = 
+        {
+            WebSocketClient::EventType::CONNECTED,
+            "",
+            0
+        };
+
+        client->pushEventMessage(eventMsg);
         std::cout << "connect succeed! " << std::endl;
         break;
     }
     case LWS_CALLBACK_CLIENT_RECEIVE:
     {
         std::string msg(static_cast<char*>(in), len);
-        if(client->m_callback)
-            client->m_callback(msg);
-    
+        WebSocketClient::WebSocketEvent eventMsg = 
+        {
+            WebSocketClient::EventType::MESSAGE,
+            msg,
+            0
+        };
+        
+        client->pushEventMessage(eventMsg);
         break;
     }
     case LWS_CALLBACK_CLIENT_CLOSED:
     {
         client->m_connected = false;
+        WebSocketClient::WebSocketEvent eventMsg = 
+        {
+            WebSocketClient::EventType::DISCONNECTED,
+            "",
+            0
+        };
+        
+        client->pushEventMessage(eventMsg);
         std::cout << "websocket closed" << std::endl;
         break;
     }
@@ -54,12 +76,12 @@ static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* /*u
     {
         auto msg = client->popQueueMsg();
         if(msg.empty())
-                break;
+            break;
 
         sendToWS(wsi, msg);
 
         if(client->isEmptyQueueMsg() == false)
-            lws_callback_on_writable(wsi)
+            lws_callback_on_writable(wsi);
         
         break;
     }
@@ -69,7 +91,17 @@ static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* /*u
         break;
     }
     case LWS_CALLBACK_CLIENT_CONNECTION_ERROR:
-    break;
+    {
+        WebSocketClient::WebSocketEvent eventMsg = 
+        {
+            WebSocketClient::EventType::ERROR,
+            "",
+            -1
+        };
+        
+        client->pushEventMessage(eventMsg);
+        break;
+    }
     default:
         break;
     }
@@ -81,7 +113,7 @@ struct WebSocketClient::Impl
 {
     struct lws_protocols protocols[2];
     lws_context* context{nullptr};
-    lws* wsi{nullptr};
+    std::atomic<lws*> wsi;
 
     Impl()
     {
@@ -90,13 +122,6 @@ struct WebSocketClient::Impl
 
     ~Impl()
     {
-        if(context)
-        {
-            lws_context_destroy(context);
-            context = nullptr;
-        }
-
-        wsi = nullptr;
     }
 };
 
@@ -117,6 +142,7 @@ bool WebSocketClient::connect(const std::string& url)
         return false;
 
     m_running = true;
+    m_messageThread = std::thread(&WebSocketClient::messageThread, this);
     m_thread = std::thread(&WebSocketClient::run, this);
     return true;
 }
@@ -124,18 +150,27 @@ bool WebSocketClient::connect(const std::string& url)
 void WebSocketClient::close()
 {
     m_running = false;
-
+    m_connected = false;
     if(m_impl->context)
         lws_cancel_service(m_impl->context);
     
+    m_receiveCv.notify_all();
+    
     if(m_thread.joinable())
         m_thread.join();
+    
+    if(m_messageThread.joinable())
+        m_messageThread.join();
 
-    m_connected = false;
+    m_impl->wsi=nullptr;
+    if(m_impl->context)
+    {
+        lws_context_destroy(m_impl->context);
+        m_impl->context = nullptr;
+    }
 }
 
-
-void WebSocketClient::setMessageCallback(MessageCallback callback)
+void WebSocketClient::setEventCallback(EventCallback callback)
 {
     m_callback = callback;
 }
@@ -224,6 +259,9 @@ void WebSocketClient::run()
 
 bool WebSocketClient::send(const std::string& message)
 {
+    if(!m_connected)
+        return false;
+    
     pushQueueMsg(message);
 
     if(m_impl->context)
@@ -270,5 +308,45 @@ bool WebSocketClient::parseUrl(const std::string& url)
 
     return true;
 }
+
+void WebSocketClient::messageThread()
+{
+    while(m_running)
+    {
+        WebSocketEvent msg;
+
+        {
+            std::unique_lock<std::mutex> lock(m_receiveMutex);
+            m_receiveCv.wait(
+                lock,
+                [this]
+                {
+                    return  !m_running || !m_receiveQueue.empty();
+                });
+
+            if(!m_running)
+                break;
+
+            if(m_receiveQueue.empty())
+                continue;
+
+            msg = m_receiveQueue.front();
+            m_receiveQueue.pop();
+        }
+
+        if(m_callback)
+        {
+            m_callback(msg);
+        }
+    }
+}
+
+
+ void WebSocketClient::pushEventMessage(const WebSocketEvent& eventMsg)
+ {
+    std::unique_lock<std::mutex> lock(m_receiveMutex);
+    m_receiveQueue.push(eventMsg);
+    m_receiveCv.notify_one();
+ }
 
 }

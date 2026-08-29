@@ -19,6 +19,9 @@ static bool sendToWSClientInstance(struct lws* wsi, const std::string& msg)
 
 static int wsCallback(struct lws* wsi,  enum lws_callback_reasons reason, void* user, void* in,  size_t len)
 {
+    if(!wsi)
+        return 0;
+    
     auto* protocol = lws_get_protocol(wsi);
     if (!protocol)
         return 0;
