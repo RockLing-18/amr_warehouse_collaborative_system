@@ -23,6 +23,16 @@ struct WebSocketMessage
     std::string data;
 };
 
+struct WebSocketServerOptions 
+{
+    // Ping发送间隔 
+    std::chrono::seconds heartbeatInterval{30}; 
+    // Ping发送后，等待Pong的最大时间 
+    std::chrono::seconds heartbeatTimeout{10}; 
+    // LWS service timeout 
+    int serviceTimeoutMs{100}; 
+};
+
 class WebSocketServer
 {
 public:
@@ -32,12 +42,15 @@ public:
     WebSocketServer();
     ~WebSocketServer();
 
-    bool start(const std::string& host, int port);
+    bool start(const std::string& host, int port, const std::string& protocolName, const WebSocketServerOptions& options = {});
     void stop();
     void setMessageCallback(MessageCallback callback);
 
-    uint64_t addClientSession(struct lws* wsi);
-    void removeClientSession(uint64_t clientSessionId);
+    uint64_t onConnected(struct lws *wsi);
+    void onDisconnected(uint64_t clientSessionId);
+    void onWriteable(uint64_t clientSessionId);
+    void onReceive(uint64_t clientSessionId, const std::string& message);
+    void onPong(uint64_t clientSessionId);
 
     // 业务层调用
     bool sendToWSClient(uint64_t clientSessionId, const std::string& message);
@@ -54,6 +67,16 @@ private:
     void messageThread();
     void triggerWritable(struct lws *wsi);
 
+    // 心跳 
+    void checkHeartbeat(); 
+    void triggerHeartbeat(struct lws* wsi); 
+    // Session
+    uint64_t addClientSession(struct lws* wsi);
+    std::shared_ptr<WebSocketSession> removeClientSession(uint64_t clientSessionId);
+    std::shared_ptr<WebSocketSession> getClientSession(uint64_t clientSessionId); 
+    // 删除并关闭Session 
+    void cleanupSession(uint64_t clientSessionId);
+
 private:
     std::thread m_thread;
     std::atomic<bool> m_running{false};
@@ -68,6 +91,7 @@ private:
     std::condition_variable m_receiveCv;
     std::thread m_messageThread;
     IdGeneratorU64_t m_idGenerator;
+    WebSocketServerOptions m_options;
 };
 
 

@@ -53,7 +53,7 @@ public:
     WebSocketClient(const WebSocketClient&) = delete;
     WebSocketClient& operator=(const WebSocketClient&) = delete;
 
-    bool connect(const std::string& url, const WebSocketClientOptions& options = WebSocketClientOptions{});
+    bool connect(const std::string& url, const std::string& protocolName, const WebSocketClientOptions& options = WebSocketClientOptions{});
     void close();
     bool send(const std::string& message);
     void setEventCallback(EventCallback callback);
@@ -97,6 +97,7 @@ private:
     std::unique_ptr<Impl> m_impl;
     EventCallback m_callback;
     std::string m_url;
+    std::string m_protocolName;
     std::string m_host;
     std::string m_path;
     int m_port{80};
@@ -114,7 +115,7 @@ private:
     // 心跳
     std::chrono::steady_clock::time_point m_lastPingTime{};
     std::chrono::steady_clock::time_point m_lastPongTime{};
-    bool m_pingOutstanding{false};
+    std::atomic<bool> m_pingOutstanding{false};
 
     std::queue<WebSocketEvent> m_receiveQueue;
     std::mutex m_receiveMutex;

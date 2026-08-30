@@ -17,9 +17,6 @@ EdgeClient::~EdgeClient()
 
     m_cv.notify_all();
 
-    if(m_connection_thread.joinable())
-        m_connection_thread.join();
-
     if(m_notify_thread.joinable())
         m_notify_thread.join();
     
@@ -31,21 +28,18 @@ bool EdgeClient::connect()
     m_running = true;
     m_notify_thread = std::thread(&EdgeClient::notifyDealThread, this);
 
-    // websocket管理线程
-    m_connection_thread = std::thread(&EdgeClient::connectionThread, this);
-
     m_ws.setEventCallback(
         [this](const WebSocketClient::WebSocketEvent& event)
         {
             onEventCallback(event);
         });
     
-     if(!m_ws.connect(m_websocket_url))
+    if(!m_ws.connect(m_websocket_url, "robotList-protocol"))
     {
         return false;
     }
 
-    return subscribe();
+    return true;
 }
 
 bool EdgeClient::subscribe()
@@ -87,39 +81,18 @@ void EdgeClient::notifyDealThread()
                 return !m_running || m_robotListUpdated;
             });
 
-    if(!m_running)
-        break;
+        if(!m_running)
+            break;
 
-    if(!m_robotListUpdated)
-        continue;
+        if(!m_robotListUpdated)
+            continue;
 
-    m_robotListUpdated=false;
-    lock.unlock();
-    
-    if(m_notify_callback)
-        m_notify_callback();
+        m_robotListUpdated=false;
+        lock.unlock();
+        
+        if(m_notify_callback)
+            m_notify_callback();
     }
-}
-
-void EdgeClient::connectionThread()
-{
-    // while(m_running)
-    // {
-    //     if(!m_ws.isConnected())
-    //     {
-    //         std::cout <<"connecting edge server..." <<std::endl;
-    //         if(m_ws.connect(m_websocket_url))
-    //         {
-    //             std::cout<<"edge connected" <<std::endl;
-    //         }
-    //         else
-    //         {
-    //             std::cerr <<"edge connect failed" <<std::endl;
-    //         }
-    //     }
-
-    //     std::this_thread::sleep_for(std::chrono::seconds(3));
-    // }
 }
 
 void EdgeClient::onEventCallback(const WebSocketClient::WebSocketEvent& event)
@@ -166,7 +139,7 @@ void EdgeClient::handleMessage(const std::string& message)
     }
     catch(const std::exception& e)
     {
-        std::cerr << e.what();
+        std::cerr << e.what() << std::endl;
     }
 }
 
@@ -195,7 +168,7 @@ void EdgeClient::handleRobotList(const std::string& message)
     }
     catch(const std::exception& e)
     {
-        std::cerr << e.what();
+        std::cerr << e.what() << std::endl;
     }
     
 

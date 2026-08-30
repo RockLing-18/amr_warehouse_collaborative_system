@@ -17,6 +17,24 @@ static bool sendToWSClientInstance(struct lws* wsi, const std::string& msg)
     return ret >= 0;
 }
 
+static bool sendPingToClient(struct lws* wsi)
+{
+    if(!wsi)
+        return false;
+
+    // 改进：不带payload ping
+    // unsigned char buffer[LWS_PRE];
+    // int ret = lws_write(wsi, buffer + LWS_PRE, 0, LWS_WRITE_PING);
+    // return ret >= 0;
+
+    // WebSocket Ping 控制帧。    
+    unsigned char buffer[LWS_PRE + 1];
+    const unsigned char pingData = 0x01;
+    buffer[LWS_PRE] = pingData;
+    int ret = lws_write(wsi, buffer + LWS_PRE, 1, LWS_WRITE_PING);
+    return ret >= 0;
+}
+
 static int wsCallback(struct lws* wsi,  enum lws_callback_reasons reason, void* user, void* in,  size_t len)
 {
     if(!wsi)
@@ -35,36 +53,32 @@ static int wsCallback(struct lws* wsi,  enum lws_callback_reasons reason, void* 
     case LWS_CALLBACK_ESTABLISHED:
     {
         uint64_t& clientSessionId = *static_cast<uint64_t*>(user);
-        clientSessionId = server->addClientSession(wsi);
-        std::cout << "client connected, id: " << clientSessionId << std::endl;
+        clientSessionId = server->onConnected(wsi);
         break;
     }
     case LWS_CALLBACK_RECEIVE:
     {
         uint64_t& clientSessionId = *static_cast<uint64_t*>(user);
         std::string msg(static_cast<char*>(in), len);
-        server->pushReceiveMessage(clientSessionId, msg);
+        server->onReceive(clientSessionId, msg);
         break;
     }
     case LWS_CALLBACK_CLOSED:
     {
         uint64_t& clientSessionId = *static_cast<uint64_t*>(user);
-        server->removeClientSession(clientSessionId);
-        std::cout << "client disconnect" << std::endl;
+        server->onDisconnected(clientSessionId);
         break;
     }
     case LWS_CALLBACK_SERVER_WRITEABLE:
     {
         uint64_t& clientSessionId = *static_cast<uint64_t*>(user);
-        auto msg = server->popSendMsg(clientSessionId);
-        if(!msg.empty())
-        {
-            sendToWSClientInstance(wsi, msg);
-            if(server->hasMoreSendMsg(clientSessionId))
-            {
-                lws_callback_on_writable(wsi);
-            }
-        }
+        server->onWriteable(clientSessionId);
+        break;
+    }
+    case LWS_CALLBACK_RECEIVE_PONG:
+    {
+        uint64_t& clientSessionId = *static_cast<uint64_t*>(user);
+        server->onPong(clientSessionId);
         break;
     }
     default:
@@ -100,14 +114,14 @@ WebSocketServer::~WebSocketServer()
     stop();
 }
 
-bool WebSocketServer::start(const std::string &/*host*/, int port)
+bool WebSocketServer::start(const std::string &/*host*/, int port, const std::string& protocolName, const WebSocketServerOptions& options)
 {
     if(m_running)
         return false;
     
     m_impl->protocols[0] =
      {
-        "edge-protocol",
+        protocolName.c_str(),
         wsCallback,
         sizeof(uint64_t), // 存客户端 ID
         4096,
@@ -121,6 +135,7 @@ bool WebSocketServer::start(const std::string &/*host*/, int port)
     
     info.port = port;
     info.protocols = m_impl->protocols;
+    m_options = options;
     m_impl->context = lws_create_context(&info);
 
     if(!m_impl->context)
@@ -191,9 +206,18 @@ void WebSocketServer::setMessageCallback(MessageCallback callback)
 
 void WebSocketServer::serviceThread()
 {
-    while(m_running && m_impl->context)
-    {
-        lws_service(m_impl->context, 100);
+    auto lastHeartbeatCheck = std::chrono::steady_clock::now(); 
+    
+    while(m_running && m_impl->context) 
+    { 
+        lws_service( m_impl->context, m_options.serviceTimeoutMs); 
+        auto now = std::chrono::steady_clock::now(); 
+        // 心跳检查1秒检查一次足够。 
+        if(now - lastHeartbeatCheck >= std::chrono::seconds(5)) 
+        { 
+            checkHeartbeat(); 
+            lastHeartbeatCheck = now; 
+        } 
     }
 }
 
@@ -209,7 +233,7 @@ void WebSocketServer::messageThread()
                 lock,
                 [this]
                 {
-                    return  !m_running || !m_receiveQueue.empty();
+                    return !m_running || !m_receiveQueue.empty();
                 });
 
             if(!m_running)
@@ -238,15 +262,33 @@ uint64_t WebSocketServer::addClientSession(struct lws* wsi)
     return id;
 }
 
-void WebSocketServer::removeClientSession(uint64_t clientSessionId)
+std::shared_ptr<WebSocketSession> WebSocketServer::removeClientSession(uint64_t clientSessionId)
 {
-    std::lock_guard<std::mutex> lock(m_sessionMutex);
-    auto iter = m_sessionById.find(clientSessionId);
-    if(iter == m_sessionById.end())
-        return;
+    std::shared_ptr<WebSocketSession> session;
+    {
+        std::lock_guard<std::mutex> lock(m_sessionMutex);
+        auto iter = m_sessionById.find(clientSessionId);
+        if(iter == m_sessionById.end())
+            return session;
 
-    iter->second->setWsiInvalid();
-    m_sessionById.erase(iter);
+        session = iter->second;
+        m_sessionById.erase(iter);
+    }
+    
+    return session;
+}
+
+std::shared_ptr<WebSocketSession> WebSocketServer::getClientSession(uint64_t clientSessionId)
+{
+    std::shared_ptr<WebSocketSession> session;
+    {
+        std::lock_guard<std::mutex> lock(m_sessionMutex);
+        auto iter = m_sessionById.find(clientSessionId);
+        if(iter != m_sessionById.end())
+            session = iter->second;
+    }
+   
+    return session;
 }
 
 void WebSocketServer::pushReceiveMessage(uint64_t clientSessionId, const std::string &message)
@@ -303,6 +345,173 @@ bool WebSocketServer::hasMoreSendMsg(uint64_t clientSessionId)
     }
 
     return !session->isEmptyMessage();
+}
+
+void WebSocketServer::checkHeartbeat()
+{
+    const auto now = std::chrono::steady_clock::now();
+    std::vector<uint64_t> timeoutClients;
+    std::vector<lws*> needWritableWsi;
+
+    {
+        std::lock_guard<std::mutex> lock(m_sessionMutex);
+        for(const auto& [clientId, session] : m_sessionById)
+        {
+            if(!session || !session->isWsiValid())
+                continue;
+
+            // 已经发送Ping，但是没有收到Pong
+            if(session->isPingOutstanding())
+            {
+                const auto elapsed = now - session->getLastPingTime();
+                if(elapsed >= m_options.heartbeatTimeout)
+                {
+                    timeoutClients.push_back(clientId);
+                }
+
+                continue;
+            }
+
+            /*
+             * 没有Ping等待。
+             *
+             * 如果距离上一次Pong已经超过heartbeatInterval，
+             * 则申请WRITEABLE，让LWS发送Ping。
+             */
+            const auto elapsed = now - session->getLastPongTime();
+            if(elapsed >= m_options.heartbeatInterval)
+            {
+                lws* wsi = session->getWsi();
+                if(wsi)
+                {
+                    needWritableWsi.push_back(wsi);
+                }
+            }
+        }
+    }
+
+    for(lws* wsi : needWritableWsi)
+    {
+        lws_callback_on_writable(wsi);
+    }
+
+    /*
+     * 心跳超时的客户端统一清理
+     */
+    for(uint64_t clientId : timeoutClients)
+    {
+        std::cerr
+            << "[WebSocketServer] "
+            << "heartbeat timeout, client="
+            << clientId
+            << std::endl;
+
+        cleanupSession(clientId);
+    }
+}
+
+
+void WebSocketServer::cleanupSession(uint64_t clientSessionId)
+{
+    auto session = removeClientSession(clientSessionId);
+    if(!session)
+        return;
+
+    lws* wsi = session->getWsi();
+    session->setWsiInvalid();
+    if(wsi)
+    {
+        /*
+         * 当前仍然处于LWS service线程，
+         * 可以安全关闭。
+         */
+        lws_set_timeout(wsi, PENDING_TIMEOUT_CLOSE_SEND, 1);
+    }
+}
+
+uint64_t WebSocketServer::onConnected(struct lws *wsi)
+{
+    uint64_t clientSessionId = addClientSession(wsi);
+    std::cout << "client connected, id: " << clientSessionId << std::endl;
+    return clientSessionId;
+}
+
+void WebSocketServer::onDisconnected(uint64_t clientSessionId)
+{
+    auto session = removeClientSession(clientSessionId);
+    if(!session)
+        return;
+
+    session->setWsiInvalid();
+    std::cout << "client disconnect, clientSessionId:" << clientSessionId << std::endl;
+}
+
+void WebSocketServer::onWriteable(uint64_t clientSessionId)
+{
+    auto session = getClientSession(clientSessionId); 
+    if(!session) 
+        return; 
+
+    //1. Ping优先
+    auto now = std::chrono::steady_clock::now(); 
+    if(!session->isPingOutstanding() && now - session->getLastPongTime() >= m_options.heartbeatInterval) 
+    { 
+        if(sendPingToClient(session->getWsi())) 
+        { 
+            session->markPingSent(); 
+            std::cout << "[WebSocketServer] ping client: " << clientSessionId << std::endl; 
+        } 
+
+        // Ping之后继续处理业务消息 
+        if(hasMoreSendMsg(clientSessionId)) 
+        { 
+            lws_callback_on_writable(session->getWsi()); 
+        } 
+        
+        return; 
+    } 
+    
+    // 2. 业务消息
+    auto msg = popSendMsg(clientSessionId); 
+    if(!msg.empty()) 
+    { 
+        if(!sendToWSClientInstance(session->getWsi(), msg)) 
+        { 
+            std::cerr << "[WebSocketServer] " << "send message failed, client=" << clientSessionId << std::endl;
+        } 
+    } 
+    
+    // 3. 还有业务消息，继续触发WRITEABLE 
+    if(hasMoreSendMsg(clientSessionId)) 
+    { 
+        lws_callback_on_writable(session->getWsi());
+    }
+}
+
+void WebSocketServer::onReceive(uint64_t clientSessionId, const std::string& message)
+{
+    std::cout << "receive " << message << std::endl;
+    auto session = getClientSession(clientSessionId);
+    if(session)
+    {
+        session->updatePong(); // 收到业务消息，重置心跳
+    }
+
+    pushReceiveMessage(clientSessionId, message);
+}
+
+void WebSocketServer::onPong(uint64_t clientSessionId)
+{
+    std::cout << " onPong .... " << std::endl;
+    auto session = getClientSession(clientSessionId);
+    if(session)
+    {
+        session->updatePong();
+        std::cout
+            << "[WebSocketServer] pong client: "
+            << clientSessionId
+            << std::endl;
+    }
 }
 
 }

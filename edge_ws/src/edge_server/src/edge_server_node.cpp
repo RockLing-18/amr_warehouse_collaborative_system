@@ -13,11 +13,18 @@ void EdgeServerNode::init()
     int period = this->declare_parameter<int>("robot_list_period_ms", 1000);
     m_robot_manager = std::make_shared<RobotManager>();
     m_websocket = std::make_shared<WebSocketServer>();
-    if(!m_websocket->start(host, port))
+    if(!m_websocket->start(host, port, "robotList-protocol"))
     {
         RCLCPP_ERROR(
             this->get_logger(),
             "websocket start failed");
+    }
+    else
+    {
+        RCLCPP_INFO(
+            this->get_logger(),
+            "WebSocket server started, port=%d",
+            port);
     }
 
     m_robot_publisher = std::make_shared<RobotListPublisher>(m_robot_manager, m_websocket);

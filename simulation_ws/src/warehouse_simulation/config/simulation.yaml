@@ -5,7 +5,7 @@ simulation:
 
   edge_server:
     websocket:
-      url: ws://127.0.0.1:9000/ws/simulation
+      url: ws://127.0.0.1:9000
     reconnect_interval: 5
 
   robot_models_update:

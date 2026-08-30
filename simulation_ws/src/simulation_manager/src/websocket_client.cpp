@@ -24,6 +24,11 @@ static bool sendPingToWs(struct lws* wsi)
     if(!wsi)
         return false;
 
+    // 改进：不带payload ping
+    // unsigned char buffer[LWS_PRE];
+    // int ret = lws_write(wsi, buffer + LWS_PRE, 0, LWS_WRITE_PING);
+    // return ret >= 0;
+
     // WebSocket Ping 控制帧。    
     unsigned char buffer[LWS_PRE + 1];
     const unsigned char pingData = 0x01;
@@ -120,7 +125,7 @@ WebSocketClient::~WebSocketClient()
     close();
 }
 
-bool WebSocketClient::connect(const std::string& url, const WebSocketClientOptions& options)
+bool WebSocketClient::connect(const std::string& url, const std::string& protocolName, const WebSocketClientOptions& options)
 {
     if(m_running.load())
     {
@@ -131,6 +136,7 @@ bool WebSocketClient::connect(const std::string& url, const WebSocketClientOptio
     if(!parseUrl(url))
         return false;
 
+    m_protocolName = protocolName;
     m_url = url;
     m_options = options;
 
@@ -217,7 +223,7 @@ void WebSocketClient::run()
 {
     m_impl->protocols[0] =
     {
-        "robot-protocol",
+        m_protocolName.c_str(),
         callback,
         sizeof(void*),
         4096,
@@ -600,7 +606,8 @@ void WebSocketClient::onWrite()
 
 void WebSocketClient::onConnectionError()
 {
-    bool wasConnected = m_connected.exchange(false);
+    m_impl->wsi.store(nullptr);
+    m_connected = false;
     WebSocketClient::WebSocketEvent eventMsg
     {
         WebSocketClient::EventType::ERROR,
@@ -609,18 +616,6 @@ void WebSocketClient::onConnectionError()
     };
 
     pushEventMessage(eventMsg);
-
-    if(wasConnected)
-    {
-        WebSocketClient::WebSocketEvent disconnectEvent
-        {
-            WebSocketClient::EventType::DISCONNECTED,
-            "",
-            0
-        };
-
-        pushEventMessage(disconnectEvent);
-    }
 
     m_pingOutstanding = false;
     scheduleReconnect();
