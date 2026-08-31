@@ -1,7 +1,5 @@
 #pragma once
 
-#include "edge_server/robot/robot_manager.h"
-#include "edge_server/websocket/websocket_server.h"
 #include <memory>
 #include <thread>
 #include <atomic>
@@ -10,11 +8,14 @@
 namespace edge_server
 {
 
+class RobotManager;
+class TopicManager;
+
 class RobotListPublisher
 {
 
 public:
-    RobotListPublisher(const std::shared_ptr<RobotManager>& robot_manager, const std::shared_ptr<WebSocketServer>& websocket);
+    RobotListPublisher(const std::shared_ptr<RobotManager>& robot_manager, const std::shared_ptr<TopicManager>& topicManager);
     ~RobotListPublisher();
     
     void start(int period_ms);
@@ -25,7 +26,7 @@ private:
 
 private:
     std::shared_ptr<RobotManager> m_robot_manager;
-    std::shared_ptr<WebSocketServer> m_websocket;
+    std::shared_ptr<TopicManager> m_topicManager;
     std::thread m_thread;
     std::atomic<bool> m_running{false};
     int m_period_ms{1000};

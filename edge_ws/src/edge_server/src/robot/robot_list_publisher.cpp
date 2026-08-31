@@ -1,4 +1,6 @@
 #include "edge_server/robot/robot_list_publisher.h"
+#include "edge_server/robot/robot_manager.h"
+#include "edge_server/topic/topic_manager.h"
 #include "edge_server/common/json.hpp"
 #include <iostream>
 
@@ -6,8 +8,8 @@ using json = nlohmann::json;
 
 namespace edge_server
 {
-RobotListPublisher::RobotListPublisher(const std::shared_ptr<RobotManager> &robot_manager, const std::shared_ptr<WebSocketServer> &websocket)
-: m_robot_manager(robot_manager), m_websocket(websocket)
+RobotListPublisher::RobotListPublisher(const std::shared_ptr<RobotManager> &robot_manager, const std::shared_ptr<TopicManager> &topicManager)
+: m_robot_manager(robot_manager), m_topicManager(topicManager)
 {
 }
 
@@ -46,8 +48,8 @@ void RobotListPublisher::publish()
         std::vector<RobotInfo> robots = m_robot_manager->getRobotList();
         json msg;
 
-        msg["type"]="robot_list";
-        msg["robots"]=json::array();
+        msg["type"] = "robot_list";
+        msg["robots"] = json::array();
         for(auto& robot:robots)
         {
             json item;
@@ -59,7 +61,7 @@ void RobotListPublisher::publish()
             msg["robots"].push_back(item);
         }
 
-        // m_websocket->broadcast(msg.dump());
+        m_topicManager->publish("robot_list", msg.dump());
     }
     catch(const std::exception& e)
     {
