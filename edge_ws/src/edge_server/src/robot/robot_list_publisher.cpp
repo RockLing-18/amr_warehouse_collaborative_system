@@ -48,9 +48,10 @@ void RobotListPublisher::publish()
         std::vector<RobotInfo> robots = m_robot_manager->getRobotList();
         json msg;
 
-        msg["type"] = "robot_list";
+        msg["msgType"] = "subscribe";
+        msg["topic"] = "robot_list";
         msg["robots"] = json::array();
-        for(auto& robot:robots)
+        for(auto& robot : robots)
         {
             json item;
             item["robot_id"] = robot.robot_id;

@@ -1,5 +1,6 @@
 #include "edge_server/topic/topic_manager.h"
 #include "edge_server/websocket/websocket_server.h"
+#include <iostream>
 
 
 namespace edge_server
@@ -13,6 +14,7 @@ void TopicManager::subscribe(uint64_t clientId, const std::string& topic)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_subscribers[topic].insert(clientId);
+    std::cout << "clientId:" << clientId << " subscribe topic:" << topic << std::endl;
 }
 
 void TopicManager::unsubscribe(uint64_t clientId, const std::string& topic)
@@ -22,6 +24,7 @@ void TopicManager::unsubscribe(uint64_t clientId, const std::string& topic)
     if(iter != m_subscribers.end())
     {
         iter->second.erase(clientId);
+        std::cout << "clientId:" << clientId << " unsubscribe topic:" << topic << std::endl;
     }
 }
 
@@ -40,7 +43,14 @@ void TopicManager::publish(const std::string& topic, const std::string& message)
 
     for(auto id : clients)
     {
-        m_websocketServer->sendToWSClient(id, message);
+        if(m_websocketServer->sendToWSClient(id, message) == false)
+        {
+            unsubscribe(id, topic);
+        }
+        else
+        {
+             std::cout << " publish topic:" << topic <<  " to clientId:" << id << std::endl;
+        }
     }
 }
 

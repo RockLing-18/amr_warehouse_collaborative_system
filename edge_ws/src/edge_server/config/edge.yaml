@@ -2,4 +2,4 @@ edge_server:
   ros__parameters:
     websocket_host: "0.0.0.0"
     websocket_port: 9000
-    robot_list_period_ms: 1000
+    robot_list_period_ms: 5000
