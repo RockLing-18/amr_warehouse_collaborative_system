@@ -1,7 +1,7 @@
-#include "edge_server/websocket/websocket_message_router.h"
-#include "edge_server/topic/topic_manager.h"
-#include "edge_server/common/json.hpp"
-#include <iostream>
+#include "websocket/websocket_message_router.h"
+#include "topic/topic_manager.h"
+#include "nlohmann/json.hpp"
+#include "utils/LogDefine.h"
 
 namespace edge_server
 {
@@ -29,7 +29,7 @@ void WebSocketMessageRouter::onMessage(uint64_t clientId, const std::string& mes
     }
     catch(const std::exception& e)
     {
-        std::cerr << e.what();
+        LOG_ERROR("exception: ", e.what());
     }
 }
 
@@ -46,7 +46,7 @@ void WebSocketMessageRouter::handleSubscribe(uint64_t clientId, const std::strin
     }
     catch(const std::exception& e)
     {
-        std::cerr << e.what();
+        LOG_ERROR("exception: ", e.what());
     }
 }
 

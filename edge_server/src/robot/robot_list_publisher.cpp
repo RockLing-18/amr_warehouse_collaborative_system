@@ -1,8 +1,8 @@
-#include "edge_server/robot/robot_list_publisher.h"
-#include "edge_server/robot/robot_manager.h"
-#include "edge_server/topic/topic_manager.h"
-#include "edge_server/common/json.hpp"
-#include <iostream>
+#include "robot/robot_list_publisher.h"
+#include "robot/robot_manager.h"
+#include "topic/topic_manager.h"
+#include "nlohmann/json.hpp"
+#include "utils/LogDefine.h"
 
 using json = nlohmann::json;
 
@@ -21,24 +21,22 @@ RobotListPublisher::~RobotListPublisher()
 
 void RobotListPublisher::start(int period_ms)
 {
-    m_period_ms = period_ms;
-    m_running = true;
-    m_thread = std::thread(
-            [this]()
-            {
-                while(m_running)
-                {
-                    publish();
-                    std::this_thread::sleep_for(std::chrono::milliseconds(m_period_ms));
-                }
-            });
+    if(!m_timer)
+        m_timer = std::make_unique<Timer>();
+    
+    m_timer->start(std::chrono::milliseconds(period_ms),
+        [this]()
+        {
+            publish();
+        });
 }
 
 void RobotListPublisher::stop()
 {
-    m_running = false;
-    if(m_thread.joinable())
-        m_thread.join();
+    if(m_timer)
+    {
+        m_timer->stop();
+    }
 }
 
 void RobotListPublisher::publish()
@@ -71,7 +69,7 @@ void RobotListPublisher::publish()
     }
     catch(const std::exception& e)
     {
-        std::cerr << e.what();
+        LOG_ERROR("exception:{}", e.what());
     }
 }
 }

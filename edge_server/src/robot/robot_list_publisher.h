@@ -4,6 +4,7 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include "utils/timer.h"
 
 namespace edge_server
 {
@@ -27,9 +28,7 @@ private:
 private:
     std::shared_ptr<RobotManager> m_robot_manager;
     std::shared_ptr<TopicManager> m_topicManager;
-    std::thread m_thread;
-    std::atomic<bool> m_running{false};
-    int m_period_ms{1000};
+    std::unique_ptr<Timer> m_timer;
 };
 
 }

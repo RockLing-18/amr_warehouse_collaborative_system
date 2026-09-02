@@ -1,4 +1,4 @@
-#include "edge_server/websocket/websocket_session.h"
+#include "websocket/websocket_session.h"
 
 namespace edge_server
 {
@@ -11,9 +11,24 @@ WebSocketSession::WebSocketSession(struct lws* wsi, uint64_t id)
     m_lastPingTime.store(now);
 }
 
+uint64_t WebSocketSession::getClientId() const
+{
+    return m_clientSessionId;
+}
+
 lws* WebSocketSession::getWsi() const
 {
     return m_wsi.load();
+}
+
+void WebSocketSession::setClientIp(const std::string& ip)
+{
+    m_clientIp = ip;
+}
+
+std::string WebSocketSession::getClientIp() const
+{
+    return m_clientIp;
 }
 
 bool WebSocketSession::pushMessage(const std::string& message)

@@ -10,8 +10,7 @@
 #include <queue>
 #include <unordered_map>
 #include <condition_variable>
-#include "edge_server/websocket/websocket_session.h"
-#include "edge_server/common/identifierGenerator.h"
+#include "identifierGenerator.h"
 
 struct lws;
 
@@ -32,6 +31,8 @@ struct WebSocketServerOptions
     // LWS service timeout 
     int serviceTimeoutMs{100}; 
 };
+
+class WebSocketSession;
 
 class WebSocketServer
 {
@@ -71,7 +72,7 @@ private:
     void checkHeartbeat(); 
     void triggerHeartbeat(struct lws* wsi); 
     // Session
-    uint64_t addClientSession(struct lws* wsi);
+    std::shared_ptr<WebSocketSession> addClientSession(struct lws* wsi);
     std::shared_ptr<WebSocketSession> removeClientSession(uint64_t clientSessionId);
     std::shared_ptr<WebSocketSession> getClientSession(uint64_t clientSessionId); 
     // 删除并关闭Session 

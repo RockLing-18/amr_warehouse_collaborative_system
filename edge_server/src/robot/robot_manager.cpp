@@ -1,4 +1,4 @@
-#include "edge_server/robot/robot_manager.h"
+#include "robot/robot_manager.h"
 
 namespace edge_server
 {

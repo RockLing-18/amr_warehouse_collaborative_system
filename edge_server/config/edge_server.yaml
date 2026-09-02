@@ -1,5 +1,10 @@
-edge_server:
-  ros__parameters:
-    websocket_host: "0.0.0.0"
-    websocket_port: 9000
-    robot_list_period_ms: 5000
+websocket:
+  host: "0.0.0.0"
+  port: 9000
+  protocol: "robotList-protocol"
+
+robot:
+  list_period_ms: 5000
+
+log:
+  level: "trace"

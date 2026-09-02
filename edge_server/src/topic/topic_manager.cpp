@@ -1,6 +1,6 @@
-#include "edge_server/topic/topic_manager.h"
-#include "edge_server/websocket/websocket_server.h"
-#include <iostream>
+#include "topic/topic_manager.h"
+#include "websocket/websocket_server.h"
+#include "utils/LogDefine.h"
 
 
 namespace edge_server
@@ -12,9 +12,9 @@ TopicManager::TopicManager(const std::shared_ptr<WebSocketServer>& websocketServ
 
 void TopicManager::subscribe(uint64_t clientId, const std::string& topic)
 {
+    LOG_INFO("clientId:{} subscribe topic:{}", clientId, topic);
     std::lock_guard<std::mutex> lock(m_mutex);
     m_subscribers[topic].insert(clientId);
-    std::cout << "clientId:" << clientId << " subscribe topic:" << topic << std::endl;
 }
 
 void TopicManager::unsubscribe(uint64_t clientId, const std::string& topic)
@@ -24,7 +24,7 @@ void TopicManager::unsubscribe(uint64_t clientId, const std::string& topic)
     if(iter != m_subscribers.end())
     {
         iter->second.erase(clientId);
-        std::cout << "clientId:" << clientId << " unsubscribe topic:" << topic << std::endl;
+        LOG_INFO("clientId:{} unsubscribe topic:{}", clientId, topic);
     }
 }
 
@@ -49,7 +49,7 @@ void TopicManager::publish(const std::string& topic, const std::string& message)
         }
         else
         {
-             std::cout << " publish topic:" << topic <<  " to clientId:" << id << std::endl;
+            LOG_DEBUG("publish topic:{}  to clientId:{}", topic, id);
         }
     }
 }
@@ -60,6 +60,5 @@ bool TopicManager::hasSubscriber(const std::string& topic)
     auto iter = m_subscribers.find(topic);
     return iter != m_subscribers.end() && !iter->second.empty();
 }
-
 
 }

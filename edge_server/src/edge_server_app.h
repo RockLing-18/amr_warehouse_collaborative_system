@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include "config/config.h"
 
 namespace edge_server
 {
@@ -16,14 +17,14 @@ class EdgeServerApp
 public:
     EdgeServerApp();
 
-    void init();
+    bool init(const std::string& cfgPath);
 private:
     std::shared_ptr<RobotManager> m_robot_manager;
     std::shared_ptr<WebSocketServer> m_webSocketServer;
     std::shared_ptr<RobotListPublisher> m_robot_publisher;
     std::shared_ptr<TopicManager> m_topic_manager;
     std::shared_ptr<WebSocketMessageRouter> m_ws_router;
-    rclcpp::TimerBase::SharedPtr m_timer;
+    Config m_config;
 };
 
 }

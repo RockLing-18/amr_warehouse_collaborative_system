@@ -12,6 +12,7 @@ endif()
 
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 pkg_check_modules(
     LIBWEBSOCKETS
@@ -65,6 +66,7 @@ target_link_libraries(
     PRIVATE
     Threads::Threads
     ${LIBWEBSOCKETS_LIBRARIES}
+    yaml-cpp
 )
 
 file(COPY ${PROJECT_SOURCE_DIR}/config

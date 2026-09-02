@@ -19,7 +19,11 @@ public:
 public:
     explicit WebSocketSession(struct lws* wsi, uint64_t id);
 
+    uint64_t getClientId() const;
     lws* getWsi() const;
+
+    void setClientIp(const std::string& ip);
+    std::string getClientIp() const;
 
     // 业务发送队列
     bool pushMessage(const std::string& message);
@@ -39,6 +43,7 @@ public:
 private:
     std::atomic<struct lws*> m_wsi{nullptr};
     uint64_t m_clientSessionId{0};
+    std::string m_clientIp;
     std::mutex m_mutex;
     std::queue<std::string> m_sendQueue;
 

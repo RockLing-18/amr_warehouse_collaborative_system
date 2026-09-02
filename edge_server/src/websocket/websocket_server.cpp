@@ -1,9 +1,10 @@
-#include "edge_server/websocket/websocket_server.h"
-#include "edge_server/websocket/websocket_session.h"
+#include "websocket/websocket_server.h"
+#include "websocket/websocket_session.h"
 #include <libwebsockets.h>
 #include <iostream>
 #include <cstring>
 #include <algorithm>
+#include "utils/LogDefine.h"
 
 namespace edge_server
 {
@@ -140,7 +141,7 @@ bool WebSocketServer::start(const std::string &/*host*/, int port, const std::st
 
     if(!m_impl->context)
     {
-        std::cerr << "create websocket context failed" << std::endl;
+        LOG_ERROR("create websocket context failed");
         return false;
     }
 
@@ -253,13 +254,13 @@ void WebSocketServer::messageThread()
     }
 }
 
-uint64_t WebSocketServer::addClientSession(struct lws* wsi)
+std::shared_ptr<WebSocketSession> WebSocketServer::addClientSession(struct lws* wsi)
 {
     std::lock_guard<std::mutex> lock(m_sessionMutex);
     uint64_t id = m_idGenerator.generate();
     auto session = std::make_shared<WebSocketSession>(wsi, id);
     m_sessionById.emplace(id, session);
-    return id;
+    return session;
 }
 
 std::shared_ptr<WebSocketSession> WebSocketServer::removeClientSession(uint64_t clientSessionId)
@@ -400,12 +401,7 @@ void WebSocketServer::checkHeartbeat()
      */
     for(uint64_t clientId : timeoutClients)
     {
-        std::cerr
-            << "[WebSocketServer] "
-            << "heartbeat timeout, client="
-            << clientId
-            << std::endl;
-
+        LOG_WARN("[WebSocketServer] heartbeat timeout, client={}", clientId);
         cleanupSession(clientId);
     }
 }
@@ -431,9 +427,13 @@ void WebSocketServer::cleanupSession(uint64_t clientSessionId)
 
 uint64_t WebSocketServer::onConnected(struct lws *wsi)
 {
-    uint64_t clientSessionId = addClientSession(wsi);
-    std::cout << "client connected, id: " << clientSessionId << std::endl;
-    return clientSessionId;
+    auto session = addClientSession(wsi);
+    char peerIp[INET6_ADDRSTRLEN] = {0};
+    lws_get_peer_simple(wsi, peerIp, sizeof(peerIp));
+    std::string clientIp = stripIpv4MappedPrefix(peerIp);
+    session->setClientIp(clientIp);
+    LOG_INFO("client connected, clientIp:{} clientSessionId={}", clientIp, session->getClientId());
+    return session->getClientId();
 }
 
 void WebSocketServer::onDisconnected(uint64_t clientSessionId)
@@ -443,7 +443,7 @@ void WebSocketServer::onDisconnected(uint64_t clientSessionId)
         return;
 
     session->setWsiInvalid();
-    std::cout << "client disconnect, clientSessionId:" << clientSessionId << std::endl;
+    LOG_INFO("client disconnect, clientIp:{} clientSessionId={}", session->getClientIp(), clientSessionId);
 }
 
 void WebSocketServer::onWriteable(uint64_t clientSessionId)
@@ -459,7 +459,7 @@ void WebSocketServer::onWriteable(uint64_t clientSessionId)
         if(sendPingToClient(session->getWsi())) 
         { 
             session->markPingSent(); 
-            std::cout << "[WebSocketServer] ping client: " << clientSessionId << std::endl; 
+            LOG_INFO("[WebSocketServer] ping clientSessionId={}", clientSessionId);
         } 
 
         // Ping之后继续处理业务消息 
@@ -477,7 +477,7 @@ void WebSocketServer::onWriteable(uint64_t clientSessionId)
     { 
         if(!sendToWSClientInstance(session->getWsi(), msg)) 
         { 
-            std::cerr << "[WebSocketServer] " << "send message failed, client=" << clientSessionId << std::endl;
+            LOG_ERROR("[WebSocketServer] send message failed, clientSessionId={}", clientSessionId);
         } 
     } 
     
@@ -490,7 +490,7 @@ void WebSocketServer::onWriteable(uint64_t clientSessionId)
 
 void WebSocketServer::onReceive(uint64_t clientSessionId, const std::string& message)
 {
-    std::cout << "receive " << message << std::endl;
+    LOG_DEBUG("receive: {}", message);
     auto session = getClientSession(clientSessionId);
     if(session)
     {
@@ -507,10 +507,7 @@ void WebSocketServer::onPong(uint64_t clientSessionId)
     if(session)
     {
         session->updatePong();
-        std::cout
-            << "[WebSocketServer] pong client: "
-            << clientSessionId
-            << std::endl;
+        LOG_INFO("[WebSocketServer] client response pong, clientSessionId: {}", clientSessionId);
     }
 }
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "edge_server/common/types.h"
+#include "types.h"
 #include <vector>
 
 namespace edge_server
