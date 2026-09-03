@@ -9,7 +9,7 @@ Timer::~Timer()
     stop();
 }
 
-void Timer::start(std::chrono::milliseconds interval, Callback callback, bool repeat)
+void Timer::start(std::chrono::milliseconds interval, Callback callback, bool immediate, bool repeat)
 {
     if (m_thread.joinable()) 
     {
@@ -27,6 +27,7 @@ void Timer::start(std::chrono::milliseconds interval, Callback callback, bool re
         m_callback = std::move(callback);
         m_repeat = repeat;
         m_running = true;
+        m_immediate = immediate;
     }
     
     m_thread = std::thread(&Timer::runLoop, this);
@@ -56,6 +57,31 @@ void Timer::runLoop()
 {
     while (m_running)
     {
+        if(m_immediate)
+        {
+            m_immediate = false;
+
+            auto callback = m_callback;
+
+            if(callback)
+            {
+                try
+                {
+                    callback();
+                }
+                catch(...)
+                {
+
+                }
+            }
+
+            if(!m_repeat)
+            {
+                m_running=false;
+                break;
+            }
+        }
+
         std::unique_lock<std::mutex> lock(m_mutex);
         bool stopped = m_cv.wait_for(
                         lock,

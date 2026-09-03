@@ -4,6 +4,8 @@
 #include "websocket/websocket_server.h"
 #include "websocket/websocket_message_router.h"
 #include "topic/topic_manager.h"
+#include "mqtt/mqtt_client.h"
+#include "mqtt/mqtt_message_router.h"
 #include "utils/LogDefine.h"
 #include "config/config.h"
 
@@ -57,6 +59,26 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     else
     {
         LOG_INFO("WebSocket server started, port={}", m_config.websocket.port);
+    }
+
+    m_mqtt_client = std::make_shared<MqttClient>();
+    if(!m_mqtt_client->init(m_config.mqtt))
+    {
+        LOG_ERROR("mqtt init failed");
+        return false;
+    }
+
+    m_mqtt_router = std::make_shared<MqttMessageRouter>();
+    m_mqtt_client->setMessageCallback(
+        [this](const std::string& topic, const std::string& msg)
+        {
+            m_mqtt_router->onMessageProducer(topic, msg);
+        });
+
+    if(!m_mqtt_client->connect())
+    {
+        LOG_ERROR("mqtt connect failed");
+        return false;
     }
 
     LOG_INFO("edge server start");

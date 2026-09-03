@@ -13,13 +13,14 @@ endif()
 find_package(Threads REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(PahoMqttCpp REQUIRED)
 
 pkg_check_modules(
     LIBWEBSOCKETS
     REQUIRED
+    IMPORTED_TARGET
     libwebsockets
 )
-
 
 # ===============================
 # source files
@@ -55,7 +56,6 @@ target_include_directories(
     PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/third_party
-    ${LIBWEBSOCKETS_INCLUDE_DIRS}
 )
 
 # ===============================
@@ -65,8 +65,9 @@ target_link_libraries(
     edge_server
     PRIVATE
     Threads::Threads
-    ${LIBWEBSOCKETS_LIBRARIES}
+    PkgConfig::LIBWEBSOCKETS
     yaml-cpp
+    PahoMqttCpp::paho-mqttpp3
 )
 
 file(COPY ${PROJECT_SOURCE_DIR}/config

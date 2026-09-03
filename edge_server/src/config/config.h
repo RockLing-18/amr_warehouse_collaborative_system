@@ -22,11 +22,25 @@ struct LogCfg
     std::string level;
 };
 
+struct MqttCfg
+{
+    std::string url;
+    std::string client_id;
+    std::string user;
+    std::string pwd;
+    std::string ca_file;
+    int keepalive;
+    int reconnect_interval;
+    bool tls_enable{false};
+
+};
+
 struct Config
 {
     WebSocket websocket;
     Robot robot;
     LogCfg log;
+    MqttCfg mqtt;
 };
 
 
