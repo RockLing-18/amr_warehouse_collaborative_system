@@ -68,7 +68,7 @@ bool EdgeServerApp::init(const std::string& cfgPath)
         return false;
     }
 
-    m_mqtt_router = std::make_shared<MqttMessageRouter>();
+    m_mqtt_router = std::make_shared<MqttMessageRouter>(m_robot_manager, m_mqtt_client);
     m_mqtt_client->setMessageCallback(
         [this](const std::string& topic, const std::string& msg)
         {
