@@ -22,7 +22,7 @@ public:
     bool connect();
     void disconnect();
     bool subscribe(const std::string& topic, int qos = 1);
-    bool publish(const std::string& topic, const std::string& payload, int qos = 1);
+    bool publish(const std::string& topic, const std::string& payload, int qos = 1, bool retain = false);
     void setMessageCallback(MessageCallback cb);
 
 private:
@@ -36,6 +36,8 @@ private:
     mqtt::connect_options m_options;
     MessageCallback m_callback;
     std::string m_url;
+    MqttMessage m_will;
+    bool m_willEnable{false};
 };
 
 }

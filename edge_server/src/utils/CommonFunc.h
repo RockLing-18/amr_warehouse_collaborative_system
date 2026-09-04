@@ -4,9 +4,12 @@
 #include <unistd.h>
 #include <chrono>
 #include <string_view>
+#include <cstdint>
 
 namespace fs = std::filesystem;
 
+namespace utils
+{
 // 返回可执行文件所在目录，不带末尾 '/'
 inline std::string get_exe_dir()
 {
@@ -46,4 +49,11 @@ inline std::string stripIpv4MappedPrefix(const std::string& peer)
     }
 
     return peer;
+}
+
+inline int64_t getCurrentTimeMs()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
 }

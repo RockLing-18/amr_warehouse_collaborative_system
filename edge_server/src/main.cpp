@@ -24,7 +24,7 @@ int main(int argc,char** argv)
     }
     else
     {
-        auto bin_dir = get_exe_dir();
+        auto bin_dir = utils::get_exe_dir();
         config = bin_dir + "/config/edge_server.yaml";
     }
 

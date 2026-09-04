@@ -8,6 +8,7 @@
 #include "mqtt/mqtt_message_router.h"
 #include "utils/LogDefine.h"
 #include "config/config.h"
+#include "mqtt/mqtt_topic.h"
 
 namespace edge_server
 {
@@ -32,12 +33,6 @@ bool EdgeServerApp::init(const std::string& cfgPath)
 
     LOG_INFO("load config succeed, path:{}", cfgPath);
 
-    if(!ConfigLoader::load(cfgPath, m_config))
-    {
-        LOG_ERROR("load config failed, path:{}", cfgPath);
-        return false;
-    }
-
     m_robot_manager = std::make_shared<RobotManager>();
     m_webSocketServer = std::make_shared<WebSocketServer>();
     m_topic_manager = std::make_shared<TopicManager>(m_webSocketServer);
@@ -61,21 +56,25 @@ bool EdgeServerApp::init(const std::string& cfgPath)
         LOG_INFO("WebSocket server started, port={}", m_config.websocket.port);
     }
 
-    m_mqtt_client = std::make_shared<MqttClient>();
-    if(!m_mqtt_client->init(m_config.mqtt))
+    m_edge_amr_mqtt_client = std::make_shared<MqttClient>();
+    m_config.edge_amr_mqtt.will_msg_enable = true;
+    m_config.edge_amr_mqtt.will.topic = mqtt_topic::EDGE_SERVER_STATUS;
+    m_config.edge_amr_mqtt.will.payload = R"({"status":"offline"})";
+    if(!m_edge_amr_mqtt_client->init(m_config.edge_amr_mqtt))
     {
         LOG_ERROR("mqtt init failed");
         return false;
     }
 
-    m_mqtt_router = std::make_shared<MqttMessageRouter>(m_robot_manager, m_mqtt_client);
-    m_mqtt_client->setMessageCallback(
+    m_edge_amr_mqtt_msg_router = std::make_shared<MqttMessageRouter>(m_robot_manager, m_edge_amr_mqtt_client);
+    m_edge_amr_mqtt_msg_router->init();
+    m_edge_amr_mqtt_client->setMessageCallback(
         [this](const std::string& topic, const std::string& msg)
         {
-            m_mqtt_router->onMessageProducer(topic, msg);
+            m_edge_amr_mqtt_msg_router->onMessageProducer(topic, msg);
         });
 
-    if(!m_mqtt_client->connect())
+    if(!m_edge_amr_mqtt_client->connect())
     {
         LOG_ERROR("mqtt connect failed");
         return false;

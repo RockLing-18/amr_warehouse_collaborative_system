@@ -45,7 +45,7 @@ public:
         auto logger = spdlog::get("default_log");
         if(logger) return;
 
-        auto bin_dir = get_exe_dir();
+        auto bin_dir = utils::get_exe_dir();
         std::filesystem::create_directories(bin_dir + "/logs");
 
         // 固定启动日志文件，不受yaml控制，捕获启动阶段所有错误
@@ -70,7 +70,7 @@ public:
     {
         //spdlog::drop("default_log");
 
-        auto bin_dir = get_exe_dir();
+        auto bin_dir = utils::get_exe_dir();
         std::filesystem::create_directories(bin_dir + "/logs");
         
         auto log_level = string_to_log_level(logLevel);
@@ -114,7 +114,7 @@ public:
 
         if (!logger)
         {
-            std::string log_file = "logs/app_" + get_date_string() + ".log";
+            std::string log_file = "logs/app_" + utils::get_date_string() + ".log";
             // 1. 文件轮转 sink
             auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
                 log_file, 1024 * 1024 * 100, 20);
@@ -141,7 +141,7 @@ public:
     static void clean_old_logs(int keep_days = 15)
     {
         namespace fs = std::filesystem;
-        auto bin_dir = get_exe_dir();
+        auto bin_dir = utils::get_exe_dir();
         fs::path log_path = bin_dir + "/logs";
         if(!fs::exists(log_path)) return;
         auto now = fs::file_time_type::clock::now();

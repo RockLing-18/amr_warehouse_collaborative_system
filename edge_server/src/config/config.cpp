@@ -17,18 +17,18 @@ bool ConfigLoader::load(const std::string& file, Config& config)
 
         std::string mqttIp = yaml["mqtt"]["host"].as<std::string>();
         int mqttPort = yaml["mqtt"]["port"].as<int>();
-        config.mqtt.tls_enable = yaml["mqtt"]["tls_enable"].as<bool>();
-        if(config.mqtt.tls_enable)
-            config.mqtt.url =  "ssl://" + mqttIp + ":" + std::to_string(mqttPort);
+        config.edge_amr_mqtt.tls_enable = yaml["mqtt"]["tls_enable"].as<bool>();
+        if(config.edge_amr_mqtt.tls_enable)
+            config.edge_amr_mqtt.url =  "ssl://" + mqttIp + ":" + std::to_string(mqttPort);
         else
-            config.mqtt.url =  "tcp://" + mqttIp + ":" + std::to_string(mqttPort);
+            config.edge_amr_mqtt.url =  "tcp://" + mqttIp + ":" + std::to_string(mqttPort);
 
-        config.mqtt.user = yaml["mqtt"]["username"].as<std::string>();
-        config.mqtt.pwd = yaml["mqtt"]["password"].as<std::string>();
-        config.mqtt.client_id = yaml["mqtt"]["client_id"].as<std::string>();
-        config.mqtt.ca_file = yaml["mqtt"]["ca_file"].as<std::string>();
-        config.mqtt.keepalive = yaml["mqtt"]["keepalive"].as<int>();
-        config.mqtt.reconnect_interval = yaml["mqtt"]["reconnect_interval"].as<int>();
+        config.edge_amr_mqtt.user = yaml["mqtt"]["username"].as<std::string>();
+        config.edge_amr_mqtt.pwd = yaml["mqtt"]["password"].as<std::string>();
+        config.edge_amr_mqtt.client_id = yaml["mqtt"]["client_id"].as<std::string>();
+        config.edge_amr_mqtt.ca_file = yaml["mqtt"]["ca_file"].as<std::string>();
+        config.edge_amr_mqtt.keepalive = yaml["mqtt"]["keepalive"].as<int>();
+        config.edge_amr_mqtt.reconnect_interval = yaml["mqtt"]["reconnect_interval"].as<int>();
 
         return true;
     }

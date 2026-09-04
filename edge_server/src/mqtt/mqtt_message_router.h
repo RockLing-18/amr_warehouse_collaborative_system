@@ -9,15 +9,10 @@
 #include <functional>
 #include <unordered_map>
 #include <memory>
+#include "types.h"
 
 namespace edge_server
 {
-
-struct MqttMessage
-{
-    std::string topic;
-    std::string payload;
-};
 
 class RobotManager;
 class MqttClient;
@@ -30,9 +25,9 @@ public:
     MqttMessageRouter(const std::shared_ptr<RobotManager>& robotManager, const std::shared_ptr<MqttClient>& mqttClient);
     ~MqttMessageRouter();
     void onMessageProducer(const std::string& topic, const std::string& message);
+    void init();
 
 private:
-    void init(); 
     void messageConsumerThread();
     void messageParse(const std::string& topic, const std::string& message);
     void robotRegisterHandler(const std::string& messam_topicManagerge);

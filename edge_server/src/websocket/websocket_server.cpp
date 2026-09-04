@@ -430,7 +430,7 @@ uint64_t WebSocketServer::onConnected(struct lws *wsi)
     auto session = addClientSession(wsi);
     char peerIp[INET6_ADDRSTRLEN] = {0};
     lws_get_peer_simple(wsi, peerIp, sizeof(peerIp));
-    std::string clientIp = stripIpv4MappedPrefix(peerIp);
+    std::string clientIp = utils::stripIpv4MappedPrefix(peerIp);
     session->setClientIp(clientIp);
     LOG_INFO("client connected, clientIp:{} clientSessionId={}", clientIp, session->getClientId());
     return session->getClientId();

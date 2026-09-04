@@ -26,8 +26,8 @@ private:
     std::shared_ptr<RobotListPublisher> m_robot_publisher;
     std::shared_ptr<TopicManager> m_topic_manager;
     std::shared_ptr<WebSocketMessageRouter> m_ws_router;
-    std::shared_ptr<MqttClient> m_mqtt_client;
-    std::shared_ptr<MqttMessageRouter> m_mqtt_router;
+    std::shared_ptr<MqttClient> m_edge_amr_mqtt_client;
+    std::shared_ptr<MqttMessageRouter> m_edge_amr_mqtt_msg_router;
 
     Config m_config;
 };

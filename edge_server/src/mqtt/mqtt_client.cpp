@@ -1,5 +1,8 @@
 #include "mqtt/mqtt_client.h"
 #include "utils/LogDefine.h"
+#include "utils/CommonFunc.h"
+#include "spdlog/fmt/fmt.h"
+#include "mqtt/mqtt_topic.h"
 
 namespace edge_server
 {
@@ -11,7 +14,7 @@ MqttClient::MqttClient()
 
 MqttClient::~MqttClient()
 {
-    disconnect();
+    // disconnect();
 }
 
 
@@ -25,9 +28,22 @@ bool MqttClient::init(const MqttCfg& cfg)
         m_options.set_user_name(cfg.user);
         m_options.set_password(cfg.pwd);
         m_options.set_keep_alive_interval(cfg.keepalive);
-        m_options.set_automatic_reconnect(true);
-        m_options.set_automatic_reconnect(1, 30);
+        m_options.set_automatic_reconnect(1, cfg.reconnect_interval);
+        m_options.set_clean_session(false);
         m_url = cfg.url;
+        m_willEnable = cfg.will_msg_enable;
+        if(cfg.will_msg_enable)
+        {
+            mqtt::will_options will(
+                cfg.will.topic,
+                cfg.will.payload,
+                1,
+                true
+                );
+
+            m_options.set_will(will);
+            m_will = cfg.will;
+        }
 
         // ========= TLS 配置 =========
         if(cfg.tls_enable)
@@ -99,7 +115,12 @@ void MqttClient::disconnect()
     {
         try
         {
-            m_client->disconnect()->wait();
+            auto token = m_client->disconnect();
+            // 设置断开连接超时，5秒
+            if(!token->wait_for(std::chrono::seconds(5)))
+            {
+                LOG_ERROR("mqtt disconnect timeout");
+            }
         }
         catch(...)
         {
@@ -111,7 +132,7 @@ bool MqttClient::subscribe(const std::string& topic, int qos)
 {
     try
     {
-        m_client->subscribe(topic, qos)->wait();
+        m_client->subscribe(topic, qos);
 
         LOG_INFO("mqtt subscribe:{}", topic);
         return true;
@@ -122,12 +143,13 @@ bool MqttClient::subscribe(const std::string& topic, int qos)
     }
 }
 
-bool MqttClient::publish(const std::string& topic, const std::string& payload, int qos)
+bool MqttClient::publish(const std::string& topic, const std::string& payload, int qos, bool retain)
 {
     try
     {
         auto msg = mqtt::make_message(topic, payload);
         msg->set_qos(qos);
+        msg->set_retained(retain);
         m_client->publish(msg);
         return true;
     }
@@ -147,7 +169,15 @@ void MqttClient::connected(const std::string& cause)
 {
     LOG_INFO("mqtt connected success, cause:{}", cause);
 
+    if(m_willEnable)
+    {
+        std::string sPayload = R"({{"status":"online","timestamp":{}}})";
+        sPayload = fmt::format(sPayload, utils::getCurrentTimeMs());
+        publish(m_will.topic, sPayload, 1, true);
+    }
+
     // 恢复订阅
+    subscribe(mqtt_topic::ROBOT_REGISTER_REQ, 1);
 }
 
 void MqttClient::message_arrived(mqtt::const_message_ptr msg)
