@@ -132,9 +132,38 @@ bool MqttClient::subscribe(const std::string& topic, int qos)
 {
     try
     {
-        m_client->subscribe(topic, qos);
+        if(!m_client->is_connected())
+        {
+            return false;
+        }
 
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_subscriptionMap[topic] = qos;
+        }
+
+        m_client->subscribe(topic, qos);
         LOG_INFO("mqtt subscribe:{}", topic);
+        return true;
+    }
+    catch(...)
+    {
+        return false;
+    }
+}
+
+bool MqttClient::unsubscribe(const std::string& topic)
+{
+    try
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if(m_subscriptionMap.find(topic) != m_subscriptionMap.end())
+                m_subscriptionMap.erase(topic);
+        }
+
+        m_client->unsubscribe(topic);
+        LOG_INFO("mqtt unsubscribe:{}", topic);
         return true;
     }
     catch(...)
@@ -164,6 +193,12 @@ void MqttClient::setMessageCallback(MessageCallback cb)
     m_callback = cb;
 }
 
+void MqttClient::setSubscribe(const std::string& topic, int qos)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_subscriptionMap[topic] = qos;
+}
+
 // 新增回调：连接成功
 void MqttClient::connected(const std::string& cause)
 {
@@ -177,7 +212,7 @@ void MqttClient::connected(const std::string& cause)
     }
 
     // 恢复订阅
-    subscribe(mqtt_topic::ROBOT_REGISTER_REQ, 1);
+    restoreSubscriptions();
 }
 
 void MqttClient::message_arrived(mqtt::const_message_ptr msg)
@@ -199,6 +234,32 @@ void MqttClient::delivery_complete(mqtt::delivery_token_ptr tok)
 void MqttClient::connection_lost(const std::string& cause)
 {
     LOG_WARN("mqtt connection lost:{}", cause);
+}
+
+void MqttClient::restoreSubscriptions()
+{
+    std::vector<std::pair<std::string, int>> subscriptions;
+
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        for(const auto& item : m_subscriptionMap)
+        {
+            subscriptions.push_back(std::pair(item.first, item.second));
+        }
+    }
+
+    for(auto& sub : subscriptions)
+    {
+        try
+        {
+            m_client->subscribe(sub.first, sub.second);
+            LOG_INFO("mqtt restore subscribe topic={}", sub.first);
+        }
+        catch(const std::exception& e)
+        {
+            LOG_ERROR("restore subscribe failed topic={}, error={}", sub.first, e.what());
+        }
+    }
 }
 
 }

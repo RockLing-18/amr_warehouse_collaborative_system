@@ -4,16 +4,6 @@
 namespace edge_server
 {
 
-struct RobotInfo
-{
-    std::string robot_id;
-    std::string simulation_instance_id;
-    std::string register_timestamp;  // 注册的时间戳, 暂时以其作为instance_id
-    double x{0};
-    double y{0};
-    double yaw{0};
-};
-
 struct MqttMessage
 {
     std::string topic;
@@ -59,5 +49,42 @@ struct Config
     MqttCfg edge_amr_mqtt;
 };
 
+enum class RobotState
+{
+    UNKNOWN = 0,
+    IDLE,          // 空闲，可接任务
+    WORKING,       // 执行任务中
+    CHARGING,      // 充电
+    PAUSED,        // 暂停
+    ERROR,         // 故障
+};
+
+// 机器人位姿
+struct RobotPose
+{
+    double x;
+    double y;
+    double yaw;
+};
+
+struct RobotInfo
+{
+    std::string robot_id;
+    std::string simulation_instance_id;
+    std::string register_timestamp;  // 注册的时间戳, 暂时以其作为instance_id
+    RobotPose pose;
+};
+
+struct RobotStatus
+{
+    std::string robot_id;
+    RobotState state;
+    bool online;
+    uint64_t timestamp;
+    double battery;
+    RobotPose pose;
+    std::string task_id;
+    int error_code;
+};
 
 }

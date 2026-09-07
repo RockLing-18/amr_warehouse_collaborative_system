@@ -74,6 +74,11 @@ bool EdgeServerApp::init(const std::string& cfgPath)
             m_edge_amr_mqtt_msg_router->onMessageProducer(topic, msg);
         });
 
+    m_edge_amr_mqtt_client->setSubscribe(mqtt_topic::ROBOT_REGISTER_REQ, 1);
+    
+    std::string sAMRStatusTopic = fmt::format(mqtt_topic::ROBOT_STATUS, "+");
+    m_edge_amr_mqtt_client->setSubscribe(sAMRStatusTopic, 1);
+    
     if(!m_edge_amr_mqtt_client->connect())
     {
         LOG_ERROR("mqtt connect failed");
