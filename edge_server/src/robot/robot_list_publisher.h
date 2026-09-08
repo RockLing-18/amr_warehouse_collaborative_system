@@ -22,6 +22,8 @@ public:
     void start(int period_ms);
     void stop();
 
+    void triggerPublish();
+
 private:
     void publish();
 

@@ -56,4 +56,15 @@ inline int64_t getCurrentTimeMs()
     return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 }
 
+inline std::string ms_to_md_hms(int64_t ms_ts)
+{
+    time_t sec = ms_ts / 1000; // 丢弃毫秒
+    struct tm tm_buf{};
+    localtime_r(&sec, &tm_buf); // 本地时间；如果要UTC用 gmtime_r
+
+    char buf[32] = {0};
+    strftime(buf, sizeof(buf), "%m%d%H%M%S", &tm_buf);
+    return std::string(buf);
+}
+
 }

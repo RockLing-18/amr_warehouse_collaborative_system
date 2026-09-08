@@ -14,25 +14,19 @@
 namespace edge_server
 {
 
-class RobotManager;
-class MqttClient;
-
 class MqttMessageRouter
 {
 public:
     using Handler = std::function<void(const std::string&)>;
 public:
-    MqttMessageRouter(const std::shared_ptr<RobotManager>& robotManager, const std::shared_ptr<MqttClient>& mqttClient);
+    MqttMessageRouter();
     ~MqttMessageRouter();
     void onMessageProducer(const std::string& topic, const std::string& message);
-    void init();
+    void registerHandler(const std::string& topic, Handler handler);
 
 private:
     void messageConsumerThread();
-    void messageParse(const std::string& topic, const std::string& message);
-    void robotRegisterHandler(const std::string& messam_topicManagerge);
-    void mapDataReqHandler(const std::string& message);
-    void robotRightHandler(const std::string& message);
+    void messageRouter(const std::string& topic, const std::string& message);
 
 private:
     std::atomic<bool> m_running{false};
@@ -41,8 +35,6 @@ private:
     std::condition_variable m_cv;
     std::queue<MqttMessage> m_msgQueue;
     std::unordered_map<std::string, Handler> m_msgHandlers;
-    std::shared_ptr<RobotManager> m_robot_manager;
-    std::shared_ptr<MqttClient> m_mqtt_client;
 };
 
 }

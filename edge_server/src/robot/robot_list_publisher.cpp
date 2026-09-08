@@ -28,7 +28,8 @@ void RobotListPublisher::start(int period_ms)
         [this]()
         {
             publish();
-        });
+        },
+        false);
 }
 
 void RobotListPublisher::stop()
@@ -37,6 +38,11 @@ void RobotListPublisher::stop()
     {
         m_timer->stop();
     }
+}
+
+void RobotListPublisher::triggerPublish()
+{
+    publish();
 }
 
 void RobotListPublisher::publish()

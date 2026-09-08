@@ -2,10 +2,10 @@
 
 #include "types.h"
 #include <string>
-#include <memory>
 #include <unordered_map>
 #include <mutex>
 #include <vector>
+#include <functional>
 
 namespace edge_server
 {
@@ -13,10 +13,24 @@ namespace edge_server
 class RobotManager
 {
 public:
+    enum class RobotEvent
+    {
+        REGISTER,
+        STATUS_CHANGED,
+        POSE_CHANGED,
+        OFFLINE
+    };
+
+    using RobotEventCallback = std::function<void(RobotEvent)>;
+
+public:
     RobotManager() = default;
     ~RobotManager() = default;
 
+
 public:
+    void setEventCallback(RobotEventCallback cb);
+
     // 注册机器人
     bool registerRobot(const RobotInfo& robot);
 
@@ -29,8 +43,12 @@ public:
     // 获取所有机器人
     std::vector<RobotInfo> getRobotList();
 
+    // 获取机器人位置
+    RobotPose getRobotPose(const std::string& robot_id);
+
 private:
-    std::unordered_map<std::string, std::shared_ptr<RobotInfo>> m_robots;
+    RobotEventCallback m_callback;
+    std::unordered_map<std::string, RobotInfo> m_robots;
     std::mutex m_mutex;
 };
 

@@ -71,7 +71,7 @@ struct RobotInfo
 {
     std::string robot_id;
     std::string simulation_instance_id;
-    std::string register_timestamp;  // 注册的时间戳, 暂时以其作为instance_id
+    uint64_t register_timestamp;  // 注册的时间戳, 暂时以其作为instance_id
     RobotPose pose;
 };
 
