@@ -23,6 +23,7 @@ public:
     bool init(const std::string& cfgPath);
 private:
     void regiestHandler();
+    void setSubscribe();
 private:
     std::shared_ptr<RobotManager> m_robot_manager;
     std::shared_ptr<WebSocketServer> m_webSocketServer;

@@ -54,7 +54,7 @@ void RobotListPublisher::publish()
             return;
         }
 
-        std::vector<RobotInfo> robots = m_robot_manager->getRobotList();
+        std::vector<RobotInstanceInfo> robots = m_robot_manager->getRobotList();
         json msg;
 
         msg["msgType"] = "subscribe";

@@ -96,9 +96,6 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     }
 
     m_edge_amr_mqtt_msg_router = std::make_shared<MqttMessageRouter>();
-    m_robotService = std::make_shared<RobotService>(m_robot_manager, m_edge_amr_mqtt_client);
-    regiestHandler();
-
     std::weak_ptr<MqttMessageRouter> edge_amr_mqtt_msg_weak_router = m_edge_amr_mqtt_msg_router;
     m_edge_amr_mqtt_client->setMessageCallback(
         [edge_amr_mqtt_msg_weak_router](const std::string& topic, const std::string& msg)
@@ -110,11 +107,14 @@ bool EdgeServerApp::init(const std::string& cfgPath)
             }
         });
 
-    m_edge_amr_mqtt_client->setSubscribe(mqtt_topic::ROBOT_REGISTER_REQ, 1);
-    
-    std::string sAMRStatusTopic = fmt::format(mqtt_topic::ROBOT_STATUS, "+");
-    m_edge_amr_mqtt_client->setSubscribe(sAMRStatusTopic, 1);
-    
+    m_robotService = std::make_shared<RobotService>(m_robot_manager, m_edge_amr_mqtt_client);
+
+    // 注册处理函数
+    regiestHandler();
+
+    // 设置订阅
+    setSubscribe();
+
     if(!m_edge_amr_mqtt_client->connect())
     {
         LOG_ERROR("mqtt connect failed");
@@ -138,19 +138,54 @@ void EdgeServerApp::regiestHandler()
             }
         });
 
+    std::string sAMRStatusTopic = fmt::format(mqtt_topic::ROBOT_STATUS, "+");
     m_edge_amr_mqtt_msg_router->registerHandler(
-        mqtt_topic::MAP_REQUEST,
-        [this](const std::string& msg)
+        sAMRStatusTopic, [robotService_weakPtr](const std::string& msg)
         {
-            //m_mapService->mapDataReqHandler(msg);
+            auto service = robotService_weakPtr.lock();
+            if(service)
+            {
+                service->handleStatus(msg);
+            }
         });
 
+    std::string sAMRWillTopic = fmt::format(mqtt_topic::ROBOT_WILL, "+");
     m_edge_amr_mqtt_msg_router->registerHandler(
-        mqtt_topic::TRAFFIC_RIGHTS_REQ,
-        [this](const std::string& msg)
+        sAMRWillTopic, [robotService_weakPtr](const std::string& msg)
         {
-            //m_trafficService->robotRightHandler(msg);
+            auto service = robotService_weakPtr.lock();
+            if(service)
+            {
+                service->handleWill(msg);
+            }
         });
+
+
+    // m_edge_amr_mqtt_msg_router->registerHandler(
+    //     mqtt_topic::MAP_REQUEST,
+    //     [this](const std::string& msg)
+    //     {
+    //         //m_mapService->mapDataReqHandler(msg);
+    //     });
+
+    // m_edge_amr_mqtt_msg_router->registerHandler(
+    //     mqtt_topic::TRAFFIC_RIGHTS_REQ,
+    //     [this](const std::string& msg)
+    //     {
+    //         //m_trafficService->robotRightHandler(msg);
+    //     });
+}
+
+void EdgeServerApp::setSubscribe()
+{
+    // AMR 注册 edge server
+    m_edge_amr_mqtt_client->setSubscribe(mqtt_topic::ROBOT_REGISTER_REQ, 1);
+
+    // AMR 状态上报 (包含心跳功能)
+    std::string sAMRStatusTopic = fmt::format(mqtt_topic::ROBOT_STATUS, "+");
+    m_edge_amr_mqtt_client->setSubscribe(sAMRStatusTopic, 1);
+
+    
 }
 
 }

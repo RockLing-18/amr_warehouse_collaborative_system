@@ -39,20 +39,17 @@ void RobotService::handleRegister(const std::string& message)
             return;
         }
 
-        std::string robotId = root["robot_id"].get<std::string>();
-        uint64_t timestamp = root["timestamp"].get<uint64_t>();
+        RobotBaseInfo robot;
+        robot.robot_id = root["robot_id"].get<std::string>();
+        robot.register_timestamp = root["timestamp"].get<uint64_t>();
         std::string requestId = root["request_id"].get<std::string>();
-
-        RobotInfo robot;
-        robot.robot_id = robotId;
-        robot.register_timestamp = timestamp;
         if(!m_robotManager->registerRobot(robot))
         {
-            LOG_WARN("robot register failed id={}", robotId);
+            LOG_WARN("robot register failed id={}", robot.robot_id);
             return;
         }
 
-        sendRegisterResponse( robotId, requestId);
+        sendRegisterResponse(robot.robot_id, requestId);
     }
     catch(const std::exception& e)
     {
@@ -79,5 +76,72 @@ void RobotService::sendRegisterResponse(const std::string& robotId, const std::s
     LOG_INFO("register response robot={}, result={}", robotId, ok);
 }
 
+void RobotService::handleStatus(const std::string& message)
+{
+    try
+    {
+        auto root = json::parse(message);
+        if(!root.contains("robot_id"))
+        {
+            LOG_ERROR("missing robot_id");
+            return;
+        }
+
+        if(!root.contains("timestamp"))
+        {
+            LOG_ERROR("missing timestamp");
+            return;
+        }
+
+        if(!root.contains("state"))
+        {
+            LOG_ERROR("missing state");
+            return;
+        }
+
+        if(!root.contains("pose"))
+        {
+            LOG_ERROR("missing pose");
+            return;
+        }
+
+        RobotRunningStatus status;
+        std::string robotId = root["robot_id"].get<std::string>();
+        status.timestamp = root["timestamp"].get<uint64_t>();
+        status.state = RobotStateFromString(root["state"].get<std::string>());
+        status.online = true;
+        status.battery = root.value("battery", 0.0);
+        status.pose.x = root["pose"]["x"].get<double>();
+        status.pose.y = root["pose"]["y"].get<double>();
+        status.pose.yaw = root["pose"]["yaw"].get<double>();
+        status.task_id = root.value("task_id", "");
+
+        m_robotManager->updateRobotStatus(robotId, status);
+    }
+    catch(const std::exception& e)
+    {
+        LOG_ERROR("handleStatus exception:{}", e.what());
+    }
+}
+
+void RobotService::handleWill(const std::string& message)
+{
+    try
+    {
+        auto root = json::parse(message);
+        if(!root.contains("robot_id"))
+        {
+            LOG_ERROR("missing robot_id");
+            return;
+        }
+
+        std::string robotId = root["robot_id"].get<std::string>();
+        m_robotManager->markOffline(robotId);
+    }
+    catch(const std::exception& e)
+    {
+        LOG_ERROR("handleWill exception:{}", e.what());
+    }
+}
 
 }

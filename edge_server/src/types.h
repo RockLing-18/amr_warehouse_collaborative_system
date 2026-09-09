@@ -51,7 +51,8 @@ struct Config
 
 enum class RobotState
 {
-    UNKNOWN = 0,
+    OFFLINE = 0,
+    INITIALIZING,  // 正在初始化,不可接任务
     IDLE,          // 空闲，可接任务
     WORKING,       // 执行任务中
     CHARGING,      // 充电
@@ -60,31 +61,64 @@ enum class RobotState
 };
 
 // 机器人位姿
-struct RobotPose
+struct Pose2D
 {
     double x;
     double y;
     double yaw;
 };
 
-struct RobotInfo
+struct RobotBaseInfo
 {
     std::string robot_id;
     std::string simulation_instance_id;
     uint64_t register_timestamp;  // 注册的时间戳, 暂时以其作为instance_id
-    RobotPose pose;
 };
 
-struct RobotStatus
+struct RobotRunningStatus
 {
-    std::string robot_id;
     RobotState state;
     bool online;
     uint64_t timestamp;
     double battery;
-    RobotPose pose;
+    Pose2D pose;
     std::string task_id;
-    int error_code;
 };
+
+struct RobotInstanceInfo
+{
+    std::string robot_id;
+    std::string simulation_instance_id;
+    Pose2D pose;
+};
+
+// 字符串 -> 枚举（MQTT收到消息时调用）
+inline RobotState RobotStateFromString(const std::string& str)
+{
+    if(str == "OFFLINE") return RobotState::OFFLINE;
+    if(str == "INITIALIZING") return RobotState::INITIALIZING;
+    if(str == "IDLE") return RobotState::IDLE;
+    if(str == "WORKING") return RobotState::WORKING;
+    if(str == "CHARGING") return RobotState::CHARGING;
+    if(str == "PAUSED") return RobotState::PAUSED;
+    if(str == "ERROR") return RobotState::ERROR;
+    return RobotState::OFFLINE; // 非法字符串兜底
+}
+
+// 枚举 -> 字符串（上报MQTT、打印日志）
+inline std::string RobotStateToString(RobotState s)
+{
+    switch(s)
+    {
+        case RobotState::OFFLINE: return "UNKOFFLINENOWN";
+        case RobotState::INITIALIZING: return "INITIALIZING";
+        case RobotState::IDLE: return "IDLE";
+        case RobotState::WORKING: return "WORKING";
+        case RobotState::CHARGING: return "CHARGING";
+        case RobotState::PAUSED: return "PAUSED";
+        case RobotState::ERROR: return "ERROR";
+        default: return "OFFLINE";
+    }
+}
 
 }

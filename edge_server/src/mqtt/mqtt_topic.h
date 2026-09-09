@@ -10,6 +10,7 @@ namespace mqtt_topic
 constexpr char EDGE_SERVER_STATUS[] = "edge_server/status";
 
 constexpr char ROBOT_STATUS[] = "amr/{}/status";  // 需要使用robot_id, 通配符+
+constexpr char ROBOT_WILL[] = "amr/{}/will";  // 需要使用robot_id, 通配符+
 
 // AMR 向 edge server 注册相关
 constexpr char ROBOT_REGISTER_REQ[] = "amr/register/request";
