@@ -37,7 +37,7 @@ void GazeboClient::updateModels()
                 m_models.clear();
                 for (const auto& name : response->model_names)
                 {
-                    RCLCPP_INFO(m_node->get_logger(),"Gazebo model: %s", name.c_str());
+                    //RCLCPP_INFO(m_node->get_logger(),"Gazebo model: %s", name.c_str());
                     GazeboModelInfo info;
                     if (parseModelName(name, info))
                         m_models.push_back(info);

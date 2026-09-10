@@ -19,7 +19,7 @@ mqtt:
   reconnect_interval: 5
 
 robot:
-  list_period_ms: 5000
+  list_period_ms: 20000
 
 log:
   level: "trace"

@@ -46,10 +46,14 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     m_robot_manager->setEventCallback(
         [robot_publisher_weak](RobotManager::RobotEvent event)
         {
+            LOG_DEBUG("event:{}", (int)event);
             auto publisher = robot_publisher_weak.lock();
 
             if(!publisher)
+            {
+                LOG_DEBUG("publisher is empty");
                 return;
+            }
 
             switch(event)
             {

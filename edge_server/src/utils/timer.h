@@ -24,6 +24,9 @@ public:
     // repeat: 是否循环，false只执行一次
     void start(std::chrono::milliseconds interval, Callback callback, bool immediate = true, bool repeat = true);
 
+    // 中途可以调用，立即触发
+    void trigger();
+
     // 停止定时器
     void stop();
 
@@ -38,6 +41,7 @@ private:
     std::atomic<bool> m_repeat{false};
     std::atomic<bool> m_running{false};
     bool m_immediate{false};  // 是否立马执行
+    bool m_triggered{false};
     Callback m_callback;
     std::thread m_thread;
     std::mutex m_mutex;

@@ -28,9 +28,24 @@ void Timer::start(std::chrono::milliseconds interval, Callback callback, bool im
         m_repeat = repeat;
         m_running = true;
         m_immediate = immediate;
+        m_triggered = false;
     }
     
     m_thread = std::thread(&Timer::runLoop, this);
+}
+
+void Timer::trigger()
+{
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+
+        if(!m_running)
+            return;
+
+        m_triggered = true;
+    }
+
+    m_cv.notify_one();
 }
 
 void Timer::stop()
@@ -68,6 +83,7 @@ void Timer::runLoop()
                 try
                 {
                     callback();
+                    m_triggered = false;
                 }
                 catch(...)
                 {
@@ -83,18 +99,20 @@ void Timer::runLoop()
         }
 
         std::unique_lock<std::mutex> lock(m_mutex);
-        bool stopped = m_cv.wait_for(
-                        lock,
-                        m_interval,
-                        [this]()
-                        {
-                            return !m_running;
-                        });
+        m_cv.wait_for(
+            lock,
+            m_interval,
+            [this]()
+            {
+                return !m_running || m_triggered;
+            });
 
-        if(stopped)
+        if(!m_running)
             break;
         
         auto callback = m_callback;
+        // trigger() 唤醒
+        m_triggered = false;
         lock.unlock();
 
         if(callback)

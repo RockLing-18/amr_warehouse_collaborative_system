@@ -42,7 +42,10 @@ void RobotListPublisher::stop()
 
 void RobotListPublisher::triggerPublish()
 {
-    publish();
+    if(m_timer)
+    {
+        m_timer->trigger();
+    }
 }
 
 void RobotListPublisher::publish()
@@ -51,8 +54,11 @@ void RobotListPublisher::publish()
     {
         if(!m_topicManager->hasSubscriber("robot_list"))
         {
+            LOG_WARN("no one subscribe topic:robot_list");
             return;
         }
+
+        LOG_WARN(" publish topic:robot_list");
 
         std::vector<RobotInstanceInfo> robots = m_robot_manager->getRobotList();
         json msg;

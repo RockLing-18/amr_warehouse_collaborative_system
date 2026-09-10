@@ -19,6 +19,7 @@ public:
 public:
     explicit ControllerChecker(const rclcpp::Node::SharedPtr& node);
 
+    bool check(const std::string& robot_id, std::chrono::milliseconds timeout);
     void checkAsync(const std::string& robot_id, Callback callback);
 
 private:

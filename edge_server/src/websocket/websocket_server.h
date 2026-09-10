@@ -9,6 +9,7 @@
 #include <memory>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 #include <condition_variable>
 #include "identifierGenerator.h"
 
@@ -66,7 +67,6 @@ public:
 private:
     void serviceThread();
     void messageThread();
-    void triggerWritable(struct lws *wsi);
 
     // 心跳 
     void checkHeartbeat(); 
@@ -86,7 +86,8 @@ private:
     std::unique_ptr<Impl> m_impl;
     std::unordered_map<uint64_t, std::shared_ptr<WebSocketSession>> m_sessionById;
     std::mutex m_sessionMutex;
-
+    std::unordered_set<uint64_t> m_needSendClientSet;
+    std::mutex m_needSendSetMutex;
     std::queue<WebSocketMessage> m_receiveQueue;
     std::mutex  m_receiveMutex;
     std::condition_variable m_receiveCv;

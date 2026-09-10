@@ -45,7 +45,7 @@ bool EdgeClient::connect()
 bool EdgeClient::subscribe()
 {
     json msg;
-    msg["type"] = "subscribe";
+    msg["msgType"] = "subscribe";
     msg["topics"] = {
         "robot_list"
     };
@@ -129,10 +129,10 @@ void EdgeClient::handleMessage(const std::string& message)
     {
         auto j = json::parse(message);
 
-        if(!j.contains("type"))
+        if(!j.contains("msgType") || !j.contains("topic"))
             return;
 
-        if(j["type"]=="robot_list")
+        if(j["msgType"] == "subscribe" && j["topic"] == "robot_list")
         {
             handleRobotList(message);
         }

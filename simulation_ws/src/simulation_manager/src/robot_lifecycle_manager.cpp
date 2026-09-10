@@ -287,6 +287,10 @@ bool RobotLifecycleManager::waitGazeboModel(const RobotInfo& robot, std::chrono:
 
 bool RobotLifecycleManager::waitControllerReady(const RobotInfo& robot, std::chrono::seconds timeout)
 {
+    return m_controller_checker->check(
+        robot.robot_id,
+        timeout);
+
     std::atomic_bool ready = false;
 
     m_controller_checker->checkAsync(

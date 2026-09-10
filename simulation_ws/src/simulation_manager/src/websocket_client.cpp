@@ -290,6 +290,12 @@ void WebSocketClient::run()
         // LWS事件循环
         lws_service(context, m_options.serviceTimeoutMs);
 
+        auto* wsi = m_impl->wsi.load();
+        if(wsi && !isEmptyQueueMsg())
+        {
+            lws_callback_on_writable(wsi);
+        }
+
         // 心跳
         checkHeartbeat();
     }
@@ -309,6 +315,7 @@ void WebSocketClient::run()
 
 bool WebSocketClient::send(const std::string& message)
 {
+    std::cout << "send: " << message << std::endl;
     pushQueueMsg(message);
     auto* context = m_impl->context.load();
 

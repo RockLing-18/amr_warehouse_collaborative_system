@@ -181,23 +181,30 @@ bool WebSocketServer::sendToWSClient(uint64_t clientSessionId, const std::string
 {
     std::shared_ptr<WebSocketSession> session = pushSendMsg(clientSessionId, message);
     if (!session) 
-        return false;
-
-    struct lws* wsi = session->getWsi();  // 原子读取
-    if (wsi)
     {
-        triggerWritable(wsi);
-        return true;
+        LOG_ERROR("session is empty, clientSessionId:{}", clientSessionId);
+        return false;
     }
         
-    return false;
-}
 
-void WebSocketServer::triggerWritable(struct lws *wsi)
-{
-    lws_callback_on_writable(wsi);
+    // struct lws* wsi = session->getWsi();  // 原子读取
+    // if (wsi)
+    // {
+    //     triggerWritable(wsi);
+    //     return true;
+    // }
+
+    {
+        std::lock_guard<std::mutex> lock(m_needSendSetMutex);
+        m_needSendClientSet.insert(clientSessionId);
+    }
+    
     if(m_impl->context)
+    {
         lws_cancel_service(m_impl->context);
+    }
+        
+    return true;
 }
 
 void WebSocketServer::setMessageCallback(MessageCallback callback)
@@ -211,7 +218,25 @@ void WebSocketServer::serviceThread()
     
     while(m_running && m_impl->context) 
     { 
-        lws_service( m_impl->context, m_options.serviceTimeoutMs); 
+        lws_service(m_impl->context, m_options.serviceTimeoutMs); 
+        
+        std::unordered_set<uint64_t> needSendClients;
+        {
+            std::lock_guard<std::mutex> lock(m_needSendSetMutex);
+            needSendClients.swap(m_needSendClientSet);
+        }
+
+        for(const auto& item : needSendClients)
+        {
+            std::shared_ptr<WebSocketSession> session = getClientSession(item);
+            if(!session)
+                continue;
+            
+            struct lws* wsi = session->getWsi();  // 原子读取 
+            if(wsi)
+                lws_callback_on_writable(wsi);
+        }
+
         auto now = std::chrono::steady_clock::now(); 
         // 心跳检查1秒检查一次足够。 
         if(now - lastHeartbeatCheck >= std::chrono::seconds(5)) 
@@ -502,7 +527,6 @@ void WebSocketServer::onReceive(uint64_t clientSessionId, const std::string& mes
 
 void WebSocketServer::onPong(uint64_t clientSessionId)
 {
-    std::cout << " onPong .... " << std::endl;
     auto session = getClientSession(clientSessionId);
     if(session)
     {

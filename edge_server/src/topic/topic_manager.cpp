@@ -36,10 +36,15 @@ void TopicManager::publish(const std::string& topic, const std::string& message)
         std::lock_guard<std::mutex> lock(m_mutex);
         auto iter = m_subscribers.find(topic);
         if(iter == m_subscribers.end())
+        {
+            LOG_INFO("can not found clientId, topic:{}", topic);
             return;
-
+        }
+            
         clients.assign(iter->second.begin(), iter->second.end());
     }
+
+    LOG_DEBUG("clients num:{}", clients.size());
 
     for(auto id : clients)
     {
