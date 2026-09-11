@@ -4,10 +4,13 @@
 namespace edge_server
 {
 
-class ConfigLoader
+class ConfigManager
 {
 public:
-    static bool load(const std::string& file, Config& config);
+    bool load(const std::string& file);
+    Config getConfig() const;
+private:
+    Config m_config;
 };
 
 

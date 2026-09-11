@@ -41,12 +41,21 @@ struct MqttCfg
     MqttMessage will;
 };
 
+struct HttpCfg
+{
+    std::string host;
+    int port;
+    std::string ca_file;
+    bool tls_enable{false};
+};
+
 struct Config
 {
     WebSocket websocket;
     Robot robot;
     LogCfg log;
     MqttCfg edge_amr_mqtt;
+    HttpCfg http;
 };
 
 enum class RobotState

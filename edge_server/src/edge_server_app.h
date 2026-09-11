@@ -14,6 +14,9 @@ class WebSocketMessageRouter;
 class MqttClient;
 class MqttMessageRouter;
 class RobotService;
+class HttpServer;
+class ConfigManager;
+class BootstrapService;
 
 class EdgeServerApp
 {
@@ -33,8 +36,9 @@ private:
     std::shared_ptr<MqttClient> m_edge_amr_mqtt_client;
     std::shared_ptr<MqttMessageRouter> m_edge_amr_mqtt_msg_router;
     std::shared_ptr<RobotService> m_robotService;
-
-    Config m_config;
+    std::shared_ptr<HttpServer> m_httpServer;
+    std::shared_ptr<BootstrapService> m_bootstrapService;
+    std::shared_ptr<ConfigManager> m_configManager;
 };
 
 }
