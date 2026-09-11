@@ -1,4 +1,7 @@
 #include "simulation_manager/controller_checker.h"
+#include <future>
+#include <thread>
+#include <chrono>
 
 namespace simulation_manager
 {
@@ -9,16 +12,36 @@ ControllerChecker::ControllerChecker(const rclcpp::Node::SharedPtr& node)
 
 bool ControllerChecker::check(const std::string& robot_id, std::chrono::milliseconds timeout)
 {
-   const std::string service_name = "/" + robot_id + "/controller_manager/list_controllers";
+    const std::string service_name =
+        "/" + robot_id + "/controller_manager/list_controllers";
 
-    auto client = m_node->create_client< controller_manager_msgs::srv::ListControllers>(service_name);
-    const auto start_time = std::chrono::steady_clock::now();
+    RCLCPP_INFO(
+        m_node->get_logger(),
+        "Check controller robot=%s service=%s",
+        robot_id.c_str(),
+        service_name.c_str());
 
-    // 等待 controller_manager service 出现
+    auto client =
+        m_node->create_client<
+            controller_manager_msgs::srv::ListControllers>(
+                service_name);
+
+    const auto start_time =
+        std::chrono::steady_clock::now();
+
+    /*
+     * 1. 等待 controller_manager service
+     */
     while(rclcpp::ok())
     {
-        if(client->wait_for_service(std::chrono::milliseconds(200)))
+        if(client->wait_for_service(
+               std::chrono::milliseconds(200)))
         {
+            RCLCPP_INFO(
+                m_node->get_logger(),
+                "Controller service available robot=%s",
+                robot_id.c_str());
+
             break;
         }
 
@@ -28,88 +51,138 @@ bool ControllerChecker::check(const std::string& robot_id, std::chrono::millisec
 
         if(elapsed >= timeout)
         {
-            RCLCPP_WARN(
+            RCLCPP_ERROR(
                 m_node->get_logger(),
-                "Wait controller_manager service timeout, robot_id=%s",
-                robot_id.c_str());
+                "Controller service timeout robot=%s service=%s",
+                robot_id.c_str(),
+                service_name.c_str());
 
             return false;
         }
     }
 
-    // service 已经存在，开始检查 controller
+    /*
+     * 2. 循环检查 controller 状态
+     */
     while(rclcpp::ok())
     {
+        const auto now =
+            std::chrono::steady_clock::now();
+
         const auto elapsed =
             std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - start_time);
+                now - start_time);
 
         if(elapsed >= timeout)
         {
             RCLCPP_WARN(
                 m_node->get_logger(),
-                "Wait controller ready timeout, robot_id=%s",
+                "Controller ready timeout robot=%s",
                 robot_id.c_str());
 
             return false;
         }
 
+        /*
+         * 创建请求
+         */
         auto request =
             std::make_shared<
                 controller_manager_msgs::srv::ListControllers::Request>();
 
-        auto future = client->async_send_request(request);
+        /*
+         * 使用 promise 保存异步结果
+         */
+        auto promise =
+            std::make_shared<
+                std::promise<
+                    controller_manager_msgs::srv::ListControllers::Response::SharedPtr>>();
 
-        auto remaining = timeout - elapsed;
+        auto future = promise->get_future();
 
-        auto wait_time =
-            std::min(
-                std::chrono::milliseconds(200),
-                remaining);
-
-        auto result =
-            rclcpp::spin_until_future_complete(
-                m_node,
-                future,
-                wait_time);
-
-        if(result ==
-           rclcpp::FutureReturnCode::SUCCESS)
-        {
-            auto response = future.get();
-
-            if(isControllerReady(response))
+        /*
+         * 发送异步请求
+         *
+         * 注意：
+         * 这里绝对不要 spin_until_future_complete()
+         */
+        client->async_send_request(
+            request,
+            [promise](
+                rclcpp::Client<
+                    controller_manager_msgs::srv::ListControllers>::SharedFuture future)
             {
-                RCLCPP_INFO(
-                    m_node->get_logger(),
-                    "Controller ready, robot_id=%s",
-                    robot_id.c_str());
+                try
+                {
+                    promise->set_value(future.get());
+                }
+                catch(...)
+                {
+                    try
+                    {
+                        promise->set_exception(
+                            std::current_exception());
+                    }
+                    catch(...)
+                    {
+                    }
+                }
+            });
 
-                return true;
-            }
+        /*
+         * 等待 response
+         *
+         * ROS2 executor 会负责执行上面的 callback。
+         *
+         * 当前线程只是等待 future，
+         * 不负责 spin ROS2。
+         */
+        const auto result =
+            future.wait_for(
+                std::chrono::milliseconds(200));
 
-            RCLCPP_DEBUG(
-                m_node->get_logger(),
-                "Controller not ready yet, robot_id=%s",
-                robot_id.c_str());
-        }
-        else if(result ==
-                rclcpp::FutureReturnCode::TIMEOUT)
+        if(result == std::future_status::ready)
         {
-            RCLCPP_DEBUG(
-                m_node->get_logger(),
-                "ListControllers request timeout, robot_id=%s",
-                robot_id.c_str());
+            try
+            {
+                auto response = future.get();
+
+                if(isControllerReady(response))
+                {
+                    RCLCPP_INFO(
+                        m_node->get_logger(),
+                        "Controller ready robot=%s",
+                        robot_id.c_str());
+
+                    return true;
+                }
+
+                RCLCPP_DEBUG(
+                    m_node->get_logger(),
+                    "Controller not ready yet robot=%s",
+                    robot_id.c_str());
+            }
+            catch(const std::exception& e)
+            {
+                RCLCPP_WARN(
+                    m_node->get_logger(),
+                    "Controller check response failed "
+                    "robot=%s error=%s",
+                    robot_id.c_str(),
+                    e.what());
+            }
         }
         else
         {
-            RCLCPP_WARN(
+            RCLCPP_DEBUG(
                 m_node->get_logger(),
-                "ListControllers request failed, robot_id=%s",
+                "ListControllers response timeout robot=%s",
                 robot_id.c_str());
         }
 
-        // 等待一小段时间后再次检查
+        /*
+         * 3. 200ms 后重新检查
+         */
         std::this_thread::sleep_for(
             std::chrono::milliseconds(200));
     }

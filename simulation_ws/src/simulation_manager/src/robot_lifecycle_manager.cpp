@@ -164,7 +164,7 @@ bool RobotLifecycleManager::createRobot(const RobotInfo& robot)
     setState(robot.robot_id, RobotState::WAIT_GAZEBO_MODEL);
 
     // 等待Gazebo model
-    if(!waitGazeboModel(robot, std::chrono::seconds(5)))
+    if(!waitGazeboModel(robot, std::chrono::seconds(30)))
     {
         RCLCPP_ERROR( m_node->get_logger(), "Gazebo model timeout");
         cleanupRobot(robot);

@@ -52,6 +52,7 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
 
     // 获取AMR 位置, 1.充电点  2.最后的位置
     robotStatus.pose = getRobotPose(robotNew.robot_id);
+    robotEntity.updateStatus(robotStatus);
     m_robots[robotNew.robot_id] = robotEntity;
 
     LOG_INFO("robot register, robot_id={} simulation_instance_id={}", robotNew.robot_id, robotNew.simulation_instance_id);

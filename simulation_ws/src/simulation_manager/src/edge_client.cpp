@@ -159,6 +159,8 @@ void EdgeClient::handleRobotList(const std::string& message)
             robot.y = item["y"];
             robot.yaw = item["yaw"];
             robots.push_back(robot);
+            std::cout << "recive robot:"<<robot.robot_id<<" instance_id:"<<robot.instance_id \
+            << " x:"<<robot.x<<" y:"<<robot.y<<" yaw:"<< robot.yaw<<std::endl;
         }
 
         std::lock_guard<std::mutex> lock(m_mutex);
