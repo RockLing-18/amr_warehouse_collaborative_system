@@ -130,4 +130,39 @@ inline std::string RobotStateToString(RobotState s)
     }
 }
 
+struct MapPackage
+{
+    // 仓库ID
+    std::string warehouse_id;
+
+    // 地图版本
+    // 例如:
+    // v1.0
+    std::string version;
+
+    // 上传文件名称
+    // warehouse_01_package.zip
+    std::string package_name;
+
+    // zip存储路径
+    // /opt/amr/data/maps/warehouse_01/warehouse_01_package_v1.0.zip
+    std::string package_path;
+
+    // 文件大小 byte
+    uint64_t file_size = 0;
+
+    // md5/sha256
+    // 用于校验下载完整性
+    std::string checksum;
+
+    // 创建时间
+    std::string create_time;
+
+    // 上传时间
+    std::string upload_time;
+
+    // 是否有效
+    bool enabled = true;
+};
+
 }

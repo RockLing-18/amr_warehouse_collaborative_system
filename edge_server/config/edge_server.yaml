@@ -1,3 +1,9 @@
+edge:
+  id: "edge_server_001"
+
+warehouse:
+  id: "warehouse_01"
+
 http:
   host: "0.0.0.0"
   port: 8080
