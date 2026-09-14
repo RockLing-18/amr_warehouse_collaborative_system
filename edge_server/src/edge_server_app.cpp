@@ -11,8 +11,11 @@
 #include "mqtt/mqtt_topic.h"
 #include "http/http_server.h"
 
+#include "database/sqlite_db.h"
+
 #include "service/robot_service.h"
 #include "service/bootstrap_service.h"
+#include "service/map_service.h"
 
 namespace edge_server
 {
@@ -38,6 +41,13 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     Log::init_logger(config.log.level);
 
     LOG_INFO("load config succeed, path:{}", cfgPath);
+
+    auto& db = SQLiteDB::Instance();
+    if(!db.Open(config.sqlite.path)) 
+		return false;
+
+    if(!db.InitTables()) 
+		return false;
 
     m_robot_manager = std::make_shared<RobotManager>();
     m_webSocketServer = std::make_shared<WebSocketServer>();
@@ -127,7 +137,8 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     }
 
     m_bootstrapService = std::make_shared<BootstrapService>(m_configManager);
-    m_httpServer = std::make_shared<HttpServer>(m_bootstrapService);
+    m_mapService = std::make_shared<MapService>();
+    m_httpServer = std::make_shared<HttpServer>(m_bootstrapService, m_mapService);
     m_httpServer->start(config.http.host, config.http.port);
 
     LOG_INFO("edge server start");

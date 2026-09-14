@@ -17,6 +17,7 @@ class RobotService;
 class HttpServer;
 class ConfigManager;
 class BootstrapService;
+class MapService;
 
 class EdgeServerApp
 {
@@ -39,6 +40,7 @@ private:
     std::shared_ptr<HttpServer> m_httpServer;
     std::shared_ptr<BootstrapService> m_bootstrapService;
     std::shared_ptr<ConfigManager> m_configManager;
+    std::shared_ptr<MapService> m_mapService;
 };
 
 }

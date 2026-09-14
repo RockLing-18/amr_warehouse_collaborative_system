@@ -28,6 +28,7 @@ pkg_check_modules(
 file(GLOB_RECURSE SOURCES
     CONFIGURE_DEPENDS
     ${PROJECT_SOURCE_DIR}/src/*.cpp
+    ${PROJECT_SOURCE_DIR}/third_party/sqlite/sqlite3.c
 )
 
 message(STATUS "Sources:")

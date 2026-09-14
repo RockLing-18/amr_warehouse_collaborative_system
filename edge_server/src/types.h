@@ -27,6 +27,12 @@ struct LogCfg
     std::string level;
 };
 
+struct SqliteCfg
+{
+    std::string path;
+};
+
+
 struct MqttCfg
 {
     std::string url;
@@ -56,6 +62,7 @@ struct Config
     LogCfg log;
     MqttCfg edge_amr_mqtt;
     HttpCfg http;
+    SqliteCfg sqlite;
 };
 
 enum class RobotState
@@ -101,6 +108,61 @@ struct RobotInstanceInfo
     Pose2D pose;
 };
 
+
+struct MapPackage
+{
+    // 地图ID
+    int64_t id = 0;
+
+    // 所属仓库
+    std::string warehouse_id;
+
+    // 地图版本
+    // v1.0
+    std::string version;
+
+    // zip文件名称
+    // warehouse_01_package_v1.0.zip
+    std::string package_name;
+
+    // edge server存储路径
+    std::string package_path;
+
+    // 文件大小
+    uint64_t package_size = 0;
+
+    // edge server上传时间
+    std::string upload_time;
+
+    // 是否上传后立即启用
+    bool activate{false};
+};
+
+struct MapUploadRequest
+{
+    std::string warehouse_id;
+    std::string version;
+
+    /*
+     * 上传文件临时路径
+     *
+     * 例如:
+     *
+     * /tmp/upload/map.zip
+     */
+    std::string source_path;
+
+    /*
+     * 文件名称
+     */
+    std::string package_name;
+
+    bool activate{false};
+};
+
+
+
+
 // 字符串 -> 枚举（MQTT收到消息时调用）
 inline RobotState RobotStateFromString(const std::string& str)
 {
@@ -129,40 +191,5 @@ inline std::string RobotStateToString(RobotState s)
         default: return "OFFLINE";
     }
 }
-
-struct MapPackage
-{
-    // 仓库ID
-    std::string warehouse_id;
-
-    // 地图版本
-    // 例如:
-    // v1.0
-    std::string version;
-
-    // 上传文件名称
-    // warehouse_01_package.zip
-    std::string package_name;
-
-    // zip存储路径
-    // /opt/amr/data/maps/warehouse_01/warehouse_01_package_v1.0.zip
-    std::string package_path;
-
-    // 文件大小 byte
-    uint64_t file_size = 0;
-
-    // md5/sha256
-    // 用于校验下载完整性
-    std::string checksum;
-
-    // 创建时间
-    std::string create_time;
-
-    // 上传时间
-    std::string upload_time;
-
-    // 是否有效
-    bool enabled = true;
-};
 
 }

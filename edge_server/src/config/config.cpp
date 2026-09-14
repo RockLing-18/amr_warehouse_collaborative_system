@@ -38,6 +38,8 @@ bool ConfigManager::load(const std::string& file)
         m_config.http.host = yaml["http"]["host"].as<std::string>();
         m_config.http.port = yaml["http"]["port"].as<int>();
 
+        m_config.sqlite.path = yaml["sqlite_db"]["path"].as<std::string>();
+
         return true;
     }
     catch(const std::exception& e)

@@ -4,6 +4,9 @@ edge:
 warehouse:
   id: "warehouse_01"
 
+sqlite_db:
+  path: "/opt/amr/data/edge.db"
+
 http:
   host: "0.0.0.0"
   port: 8080

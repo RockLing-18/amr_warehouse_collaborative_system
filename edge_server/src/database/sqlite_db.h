@@ -22,16 +22,11 @@ public:
     // 初始化表
     bool InitTables();
 
-    // map
-    bool initMapTables();
-
-    bool InsertMapPackage(const MapPackage& package);
-
-    bool GetMapPackage(const std::string& version, MapPackage& package);
-
-    bool GetActiveMap(MapPackage& package);
-
-    bool SetActiveMap(const std::string& version);
+    // map 
+    bool UploadMapPackage(const MapPackage& package);
+    bool GetapPackage(const std::string& warehouse_id, const std::string& version, MapPackage& package);
+    bool GetActiveMap(const std::string& warehouse_id, MapPackage& package);
+    bool SetActiveMap(const std::string& warehouse_id, int64_t package_id, const std::string& version);
 
 private:
     SQLiteDB();
@@ -39,6 +34,18 @@ private:
 
     SQLiteDB(const SQLiteDB&) = delete;
     SQLiteDB& operator=(const SQLiteDB&) = delete;
+
+    bool InitMapTables();
+
+    /*
+     * 以下函数内部调用
+     * 不加锁
+     */
+    bool InsertMapPackageInternal(const MapPackage& package, int64_t& package_id);
+    bool SetActiveMapInternal(const std::string& warehouse_id, int64_t package_id, const std::string& version);
+    void BeginTransaction();
+    void Commit();
+    void Rollback();
 
 private:
     sqlite3* m_pDB = nullptr;
