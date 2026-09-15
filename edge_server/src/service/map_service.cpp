@@ -8,6 +8,10 @@ namespace fs = std::filesystem;
 
 namespace edge_server
 {
+MapService::MapService(const std::string& warehouseId)
+: m_warehouseId(warehouseId)
+{
+}
 
 bool MapService::uploadMap(const MapUploadRequest& request)
 {
@@ -23,7 +27,7 @@ bool MapService::uploadMap(const MapUploadRequest& request)
     }
 
     // 保存文件
-    if(!copyFile(request.source_path, target_path))
+    if(!copyFile(request.upload_file_path, target_path))
     {
         return false;
     }
@@ -53,12 +57,24 @@ bool MapService::uploadMap(const MapUploadRequest& request)
 
 bool MapService::getActiveMap(const std::string& warehouse_id, MapPackage& package)
 {
+    if(warehouse_id != m_warehouseId)
+    {
+        LOG_ERROR("warehouse id error");
+        return false;
+    }
+
     auto& db = SQLiteDB::Instance();
     return db.GetActiveMap(warehouse_id, package);
 }
 
 bool MapService::activateMap(const std::string& warehouse_id, const std::string& version)
 {
+    if(warehouse_id != m_warehouseId)
+    {
+        LOG_ERROR("warehouse id error");
+        return false;
+    }
+
     MapPackage package;
 
     // 查询版本
@@ -81,21 +97,27 @@ bool MapService::checkRequest(const MapUploadRequest& request)
         return false;
     }
 
+    if(request.warehouse_id != m_warehouseId)
+    {
+        LOG_ERROR("warehouse id error");
+        return false;
+    }
+
     if(request.version.empty())
     {
         LOG_ERROR("map version empty");
         return false;
     }
 
-    if(request.source_path.empty())
+    if(request.upload_file_path.empty())
     {
         LOG_ERROR("source path empty");
         return false;
     }
 
-    if(!fs::exists(request.source_path))
+    if(!fs::exists(request.upload_file_path))
     {
-        LOG_ERROR("map file not exist {}", request.source_path);
+        LOG_ERROR("map file not exist {}", request.upload_file_path);
         return false;
     }
 

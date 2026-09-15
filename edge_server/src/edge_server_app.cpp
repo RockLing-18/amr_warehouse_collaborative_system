@@ -137,7 +137,7 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     }
 
     m_bootstrapService = std::make_shared<BootstrapService>(m_configManager);
-    m_mapService = std::make_shared<MapService>();
+    m_mapService = std::make_shared<MapService>(config.warehouse.id);
     m_httpServer = std::make_shared<HttpServer>(m_bootstrapService, m_mapService);
     m_httpServer->start(config.http.host, config.http.port);
 

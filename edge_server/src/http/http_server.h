@@ -24,6 +24,10 @@ private:
     void registerRoutes();
     void registerBootstrapRoutes();
     void registerMapRoutes();
+    void registerUploadMapRoute();
+    void registerDownloadActiveMapRoute();
+    void registerGetActiveMapRoute();
+    void registerActivateMapRoute();
 
 private:
     httplib::Server m_server;

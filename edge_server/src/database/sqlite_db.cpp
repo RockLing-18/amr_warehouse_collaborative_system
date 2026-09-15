@@ -33,6 +33,8 @@ bool SQLiteDB::Open(const std::string& dbPath)
         return false;
     }
 
+    LOG_INFO("path:{}", dbPath);
+
     // 开启 WAL 模式
     char* errMsg = nullptr;
     if(sqlite3_exec(m_pDB, "PRAGMA journal_mode=WAL;", nullptr, nullptr, &errMsg) != SQLITE_OK)
@@ -120,11 +122,9 @@ bool SQLiteDB::UploadMapPackage(const MapPackage& package)
     BeginTransaction();
     int64_t package_id = 0;
 
-
     // 1.插入地图包
     if(!InsertMapPackageInternal(package, package_id))
     {
-
         Rollback();
         return false;
     }
@@ -143,7 +143,7 @@ bool SQLiteDB::UploadMapPackage(const MapPackage& package)
     Commit();
 
     LOG_INFO(
-        "upload map success warehouse:{} version:{} id:{} enable:{}",
+        "upload map success warehouse:{} version:{} id:{} activate:{}",
         package.warehouse_id,
         package.version,
         package_id,
@@ -290,6 +290,13 @@ void SQLiteDB::Commit()
         nullptr,
         nullptr,
         nullptr);
+
+    sqlite3_exec(
+        m_pDB,
+        "PRAGMA wal_checkpoint(PASSIVE);",
+        nullptr,
+        nullptr,
+        nullptr);
 }
 
 void SQLiteDB::Rollback()
@@ -378,6 +385,12 @@ bool SQLiteDB::SetActiveMap(const std::string& warehouse_id, int64_t package_id,
     }
 
     sqlite3_finalize(stmt);
+    sqlite3_exec(
+        m_pDB,
+        "PRAGMA wal_checkpoint(PASSIVE);",
+        nullptr,
+        nullptr,
+        nullptr);
     return result;
 }
 

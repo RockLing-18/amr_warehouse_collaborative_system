@@ -10,7 +10,7 @@ namespace edge_server
 class MapService
 {
 public:
-
+    MapService(const std::string& warehouseId);
     /*
      * 上传地图
      *
@@ -30,6 +30,9 @@ private:
     bool checkRequest(const MapUploadRequest& request);
     bool prepareMapDirectory(const std::string& warehouse_id, const std::string& version, std::string& target_path);
     bool copyFile(const std::string& src, const std::string& dst);
+
+private:
+    std::string m_warehouseId;
 };
 
 

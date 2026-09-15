@@ -10,6 +10,9 @@ bool ConfigManager::load(const std::string& file)
     try
     {
         auto yaml = YAML::LoadFile(file);
+        m_config.edge_server.id = yaml["edge"]["id"].as<std::string>();
+        m_config.warehouse.id = yaml["warehouse"]["id"].as<std::string>();
+
         m_config.websocket.host = yaml["websocket"]["host"].as<std::string>();
         m_config.websocket.port = yaml["websocket"]["port"].as<int>();
         m_config.websocket.protocol = yaml["websocket"]["protocol"].as<std::string>();

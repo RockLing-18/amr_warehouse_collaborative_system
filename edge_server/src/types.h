@@ -4,6 +4,16 @@
 namespace edge_server
 {
 
+struct EdgeServer
+{
+    std::string id;
+};
+
+struct Warehouse
+{
+    std::string id;
+};
+
 struct MqttMessage
 {
     std::string topic;
@@ -57,6 +67,8 @@ struct HttpCfg
 
 struct Config
 {
+    EdgeServer edge_server;
+    Warehouse warehouse;
     WebSocket websocket;
     Robot robot;
     LogCfg log;
@@ -144,20 +156,21 @@ struct MapUploadRequest
     std::string version;
 
     /*
+     * 文件名称
+     */
+    std::string package_name;
+    int64_t package_size = 0;
+
+    bool activate{false};
+
+    /*
      * 上传文件临时路径
      *
      * 例如:
      *
      * /tmp/upload/map.zip
      */
-    std::string source_path;
-
-    /*
-     * 文件名称
-     */
-    std::string package_name;
-
-    bool activate{false};
+    std::string upload_file_path;
 };
 
 
