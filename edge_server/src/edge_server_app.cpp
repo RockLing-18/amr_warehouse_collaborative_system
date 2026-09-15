@@ -1,4 +1,5 @@
 #include "edge_server_app.h"
+#include "context/edge_server_context.h"
 #include "robot/robot_manager.h"
 #include "robot/robot_list_publisher.h"
 #include "websocket/websocket_server.h"
@@ -29,14 +30,16 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     Log::init_console();
 
     LOG_INFO("start load config");
-    m_configManager = std::make_shared<ConfigManager>();
-    if(!m_configManager->load(cfgPath))
+    m_edgeServerContext = std::make_shared<EdgeServerContext>();
+    m_edgeServerContext->init();
+    auto configManager = m_edgeServerContext->getConfigManager();
+    if(!configManager->load(cfgPath))
     {
         LOG_ERROR("load config failed, path:{}", cfgPath);
         return false;
     }
     
-    const auto& config = m_configManager->getConfig();
+    const auto& config = configManager->getConfig();
     // 初始化日志
     Log::init_logger(config.log.level);
 
@@ -49,8 +52,7 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     if(!db.InitTables()) 
 		return false;
 
-    m_robot_manager = std::make_shared<RobotManager>();
-    m_webSocketServer = std::make_shared<WebSocketServer>();
+
     m_topic_manager = std::make_shared<TopicManager>(m_webSocketServer);
     m_ws_router = std::make_shared<WebSocketMessageRouter>(m_topic_manager);
     m_robot_publisher = std::make_shared<RobotListPublisher>(m_robot_manager, m_topic_manager);
