@@ -79,7 +79,7 @@ bool MapService::activateMap(const std::string& warehouse_id, const std::string&
 
     // 查询版本
     auto& db = SQLiteDB::Instance();
-    if(!db.GetapPackage(warehouse_id, version, package))
+    if(!db.GetMapPackage(warehouse_id, version, package))
     {
         LOG_ERROR("map version not found {} {}", warehouse_id,  version);
         return false;
@@ -153,6 +153,31 @@ bool MapService::copyFile( const std::string& src, const std::string& dst)
     {
         LOG_ERROR( "copy map failed:{}", e.what());
         return false;
+    }
+
+    return true;
+}
+
+bool MapService::checkMapUpdate(const std::string& warehouse_id, const std::string& robot_version, MapUpdateInfo& info)
+{
+    if(warehouse_id != m_warehouseId)
+    {
+        LOG_ERROR("warehouse id error");
+        return false;
+    }
+    
+    MapPackage package;
+    auto& db = SQLiteDB::Instance();
+    if(!db.GetActiveMap(warehouse_id, package))
+    {
+        return false;
+    }
+
+    if(package.version != robot_version)
+    {
+        info.need_update = true;
+        info.version = package.version;
+        info.download_url = "/api/maps/download";
     }
 
     return true;

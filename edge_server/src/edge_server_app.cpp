@@ -122,7 +122,8 @@ bool EdgeServerApp::init(const std::string& cfgPath)
             }
         });
 
-    m_robotService = std::make_shared<RobotService>(m_robot_manager, m_edge_amr_mqtt_client);
+    m_mapService = std::make_shared<MapService>(config.warehouse.id);
+    m_robotService = std::make_shared<RobotService>(m_robot_manager, m_edge_amr_mqtt_client, m_mapService);
 
     // 注册处理函数
     regiestHandler();
@@ -137,7 +138,7 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     }
 
     m_bootstrapService = std::make_shared<BootstrapService>(m_configManager);
-    m_mapService = std::make_shared<MapService>(config.warehouse.id);
+    
     m_httpServer = std::make_shared<HttpServer>(m_bootstrapService, m_mapService);
     m_httpServer->start(config.http.host, config.http.port);
 

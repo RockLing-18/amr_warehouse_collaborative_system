@@ -152,7 +152,7 @@ bool SQLiteDB::UploadMapPackage(const MapPackage& package)
     return true;
 }
 
-bool SQLiteDB::GetapPackage(const std::string& warehouse_id, const std::string& version, MapPackage& package)
+bool SQLiteDB::GetMapPackage(const std::string& warehouse_id, const std::string& version, MapPackage& package)
 {
     std::lock_guard<std::mutex> lock(m_Mu);
     const char* sql=R"(

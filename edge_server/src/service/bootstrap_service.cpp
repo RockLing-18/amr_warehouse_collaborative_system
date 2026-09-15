@@ -20,6 +20,7 @@ std::string BootstrapService::getBootstrap(const std::string& robot_id)
     const auto& config = m_configManager->getConfig();
     json root;
     root["code"] = 0;
+    root["data"]["warehouse_id"] = config.warehouse.id;
     root["data"]["mqtt"]["url"] = config.edge_amr_mqtt.url;
     root["data"]["mqtt"]["client_id"] = robot_id;
     root["data"]["mqtt"]["username"] = config.edge_amr_mqtt.user;

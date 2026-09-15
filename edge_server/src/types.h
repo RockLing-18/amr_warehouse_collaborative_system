@@ -100,7 +100,9 @@ struct RobotBaseInfo
 {
     std::string robot_id;
     std::string simulation_instance_id;
-    uint64_t register_timestamp;  // 注册的时间戳, 暂时以其作为instance_id
+    std::string warehouse_id;
+    std::string map_version;
+    uint64_t register_timestamp;  // 注册的时间戳, 暂时以其作为instance_i
 };
 
 struct RobotRunningStatus
@@ -173,6 +175,12 @@ struct MapUploadRequest
     std::string upload_file_path;
 };
 
+struct MapUpdateInfo
+{
+    bool need_update=false;
+    std::string version;
+    std::string download_url;
+};
 
 
 

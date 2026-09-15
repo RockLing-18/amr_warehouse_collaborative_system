@@ -26,6 +26,8 @@ public:
     // 激活指定版本
     bool activateMap( const std::string& warehouse_id, const std::string& version);
 
+    bool checkMapUpdate(const std::string& warehouse_id, const std::string& robot_version, MapUpdateInfo& info);
+
 private:
     bool checkRequest(const MapUploadRequest& request);
     bool prepareMapDirectory(const std::string& warehouse_id, const std::string& version, std::string& target_path);

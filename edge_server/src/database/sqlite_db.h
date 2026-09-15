@@ -24,7 +24,7 @@ public:
 
     // map 
     bool UploadMapPackage(const MapPackage& package);
-    bool GetapPackage(const std::string& warehouse_id, const std::string& version, MapPackage& package);
+    bool GetMapPackage(const std::string& warehouse_id, const std::string& version, MapPackage& package);
     bool GetActiveMap(const std::string& warehouse_id, MapPackage& package);
     bool SetActiveMap(const std::string& warehouse_id, int64_t package_id, const std::string& version);
 

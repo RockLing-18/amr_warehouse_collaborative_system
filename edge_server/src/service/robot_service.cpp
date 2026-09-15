@@ -5,14 +5,15 @@
 
 #include "nlohmann/json.hpp"
 #include "utils/LogDefine.h"
+#include "service/map_service.h"
 
 using json=nlohmann::json;
 
 namespace edge_server
 {
 
-RobotService::RobotService(const std::shared_ptr<RobotManager>& robotManager, const std::shared_ptr<MqttClient>& edgeAmrMqttClient)
-: m_robotManager(robotManager), m_edgeAmrMqttClient(edgeAmrMqttClient)
+RobotService::RobotService(const std::shared_ptr<RobotManager>& robotManager, const std::shared_ptr<MqttClient>& edgeAmrMqttClient, const std::shared_ptr<MapService>& mapService)
+: m_robotManager(robotManager), m_edgeAmrMqttClient(edgeAmrMqttClient), m_mapService(mapService)
 {
 }
 
@@ -33,23 +34,43 @@ void RobotService::handleRegister(const std::string& message)
             return;
         }
 
-        if(!root.contains("request_id"))
+        if(!root.contains("warehouse_id"))
         {
-            LOG_ERROR("register missing request_id");
+            LOG_ERROR("register missing warehouse_id");
+            return;
+        }
+
+        if(!root.contains("warehouse_id"))
+        {
+            LOG_ERROR("register missing warehouse_id");
+            return;
+        }
+
+        if(!root.contains("map_version"))
+        {
+            LOG_ERROR("register missing map_version");
             return;
         }
 
         RobotBaseInfo robot;
-        robot.robot_id = root["robot_id"].get<std::string>();
-        robot.register_timestamp = root["timestamp"].get<uint64_t>();
-        std::string requestId = root["request_id"].get<std::string>();
+        robot.robot_id = root.value("robot_id", "");
+        robot.register_timestamp = root.value("timestamp", 0);
+        robot.warehouse_id = root.value("warehouse_id", "");
+        robot.map_version = root.value("map_version", "");
+        std::string requestId = root.value("request_id", "");
         if(!m_robotManager->registerRobot(robot))
         {
             LOG_WARN("robot register failed id={}", robot.robot_id);
             return;
         }
 
-        sendRegisterResponse(robot.robot_id, requestId);
+        MapUpdateInfo mapInfo;
+        if(!m_mapService->checkMapUpdate(robot.warehouse_id, robot.map_version, mapInfo))
+        {
+            LOG_WARN("check map failed");
+        }
+
+        sendRegisterResponse(robot.robot_id, requestId, mapInfo);
     }
     catch(const std::exception& e)
     {
@@ -57,7 +78,7 @@ void RobotService::handleRegister(const std::string& message)
     }
 }
 
-void RobotService::sendRegisterResponse(const std::string& robotId, const std::string& requestId)
+void RobotService::sendRegisterResponse(const std::string& robotId, const std::string& requestId, MapUpdateInfo& info)
 {
     if(!m_edgeAmrMqttClient)
     {
@@ -70,7 +91,9 @@ void RobotService::sendRegisterResponse(const std::string& robotId, const std::s
     json rsp;
     rsp["robot_id"] = robotId;
     rsp["request_id"] = requestId;
-    rsp["map_download_url"] = "http://192.168.1.95/map/data";
+    rsp["map_update"] = info.need_update;
+    rsp["map_version"] = info.version,
+    rsp["map_download_url"] = info.download_url;
 
     bool ok = m_edgeAmrMqttClient->publish(topic, rsp.dump());
     LOG_INFO("register response robot={}, result={}", robotId, ok);
