@@ -65,7 +65,7 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
 
 bool RobotManager::unregisterRobot(const std::string& robot_id)
 {
-
+    return true;
 }
 
 bool RobotManager::markOffline(const std::string& robot_id)

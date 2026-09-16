@@ -9,9 +9,13 @@ namespace edge_server
 using json=nlohmann::json;
 
 
-BootstrapService::BootstrapService(const std::shared_ptr<ConfigManager>& configManager)
-: m_configManager(configManager)
+BootstrapService::BootstrapService()
 {
+}
+
+void BootstrapService::init(const std::shared_ptr<ConfigManager>& configManager)
+{
+    m_configManager = configManager;
 }
 
 

@@ -11,21 +11,23 @@ class RobotManager;
 class MqttClient;
 class MapService;
 
+struct RobotServiceRuntime
+{
+    std::shared_ptr<RobotManager> robotManager;
+    std::shared_ptr<MapService> mapService;
+};
 
 class RobotService
 {
 public:
-    RobotService(const std::shared_ptr<RobotManager>& robotManager, const std::shared_ptr<MqttClient>& edgeAmrMqttClient, const std::shared_ptr<MapService>& mapService);
-    void handleRegister(const std::string& message);
-    void handleStatus(const std::string& message);
-    void handleWill(const std::string& message);
-
-private:
-    void sendRegisterResponse(const std::string& robotId, const std::string& requestId, MapUpdateInfo& info);
+    RobotService();
+    void init(const RobotServiceRuntime& info);
+    bool handleRegister(const RobotRegisterRequest& req, RobotRegisterResponse& resp);
+    void handleStatus(const RobotRunningStatus& status);
+    void handleWill(const std::string& robotId);
 
 private:
     std::shared_ptr<RobotManager> m_robotManager;
-    std::shared_ptr<MqttClient> m_edgeAmrMqttClient;
     std::shared_ptr<MapService> m_mapService;
 };
 

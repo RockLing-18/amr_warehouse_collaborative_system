@@ -8,9 +8,14 @@ namespace fs = std::filesystem;
 
 namespace edge_server
 {
-MapService::MapService(const std::string& warehouseId)
-: m_warehouseId(warehouseId)
+MapService::MapService()
+: m_warehouseId(0)
 {
+}
+
+void MapService::init(const std::string& warehouseId)
+{
+    m_warehouseId = warehouseId;
 }
 
 bool MapService::uploadMap(const MapUploadRequest& request)
@@ -165,7 +170,7 @@ bool MapService::checkMapUpdate(const std::string& warehouse_id, const std::stri
         LOG_ERROR("warehouse id error");
         return false;
     }
-    
+
     MapPackage package;
     auto& db = SQLiteDB::Instance();
     if(!db.GetActiveMap(warehouse_id, package))

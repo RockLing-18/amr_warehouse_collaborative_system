@@ -10,7 +10,8 @@ namespace edge_server
 class MapService
 {
 public:
-    MapService(const std::string& warehouseId);
+    MapService();
+    void init(const std::string& warehouseId);
     /*
      * 上传地图
      *

@@ -9,7 +9,8 @@ class ConfigManager;
 class BootstrapService
 {
 public:
-    BootstrapService(const std::shared_ptr<ConfigManager>& configManager);
+    BootstrapService();
+    void init(const std::shared_ptr<ConfigManager>& configManager);
     std::string getBootstrap(const std::string& robot_id);
 
 private:

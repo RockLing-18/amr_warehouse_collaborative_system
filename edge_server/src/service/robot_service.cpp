@@ -12,159 +12,61 @@ using json=nlohmann::json;
 namespace edge_server
 {
 
-RobotService::RobotService(const std::shared_ptr<RobotManager>& robotManager, const std::shared_ptr<MqttClient>& edgeAmrMqttClient, const std::shared_ptr<MapService>& mapService)
-: m_robotManager(robotManager), m_edgeAmrMqttClient(edgeAmrMqttClient), m_mapService(mapService)
+RobotService::RobotService()
 {
 }
 
-void RobotService::handleRegister(const std::string& message)
+void RobotService::init(const RobotServiceRuntime& info)
 {
-    try
-    {
-        auto root = json::parse(message);
-        if(!root.contains("robot_id"))
-        {
-            LOG_ERROR("register missing robot_id");
-            return;
-        }
-
-        if(!root.contains("timestamp"))
-        {
-            LOG_ERROR("register missing timestamp");
-            return;
-        }
-
-        if(!root.contains("warehouse_id"))
-        {
-            LOG_ERROR("register missing warehouse_id");
-            return;
-        }
-
-        if(!root.contains("warehouse_id"))
-        {
-            LOG_ERROR("register missing warehouse_id");
-            return;
-        }
-
-        if(!root.contains("map_version"))
-        {
-            LOG_ERROR("register missing map_version");
-            return;
-        }
-
-        RobotBaseInfo robot;
-        robot.robot_id = root.value("robot_id", "");
-        robot.register_timestamp = root.value("timestamp", 0);
-        robot.warehouse_id = root.value("warehouse_id", "");
-        robot.map_version = root.value("map_version", "");
-        std::string requestId = root.value("request_id", "");
-        if(!m_robotManager->registerRobot(robot))
-        {
-            LOG_WARN("robot register failed id={}", robot.robot_id);
-            return;
-        }
-
-        MapUpdateInfo mapInfo;
-        if(!m_mapService->checkMapUpdate(robot.warehouse_id, robot.map_version, mapInfo))
-        {
-            LOG_WARN("check map failed");
-        }
-
-        sendRegisterResponse(robot.robot_id, requestId, mapInfo);
-    }
-    catch(const std::exception& e)
-    {
-        LOG_ERROR("robot register exception:{}", e.what());
-    }
+    m_mapService = info.mapService;
+    m_robotManager = info.robotManager;
 }
 
-void RobotService::sendRegisterResponse(const std::string& robotId, const std::string& requestId, MapUpdateInfo& info)
+bool RobotService::handleRegister(const RobotRegisterRequest& req, RobotRegisterResponse& resp)
 {
-    if(!m_edgeAmrMqttClient)
+    RobotBaseInfo robot;
+    robot.robot_id = req.robot_id;
+    robot.register_timestamp = req.register_timestamp;
+    robot.warehouse_id = req.warehouse_id;
+    robot.map_version = req.map_version;
+
+    resp.robot_id = req.robot_id;
+    resp.request_id = req.request_id;
+
+    if(!m_robotManager->registerRobot(robot))
     {
-        LOG_ERROR("mqtt client null");
-        return;
+        LOG_WARN("robot register failed id={}", robot.robot_id);
+        resp.code = -1;
+        resp.message = "register failed";
+        return false;
     }
 
-    std::string topic = mqtt_topic::ROBOT_REGISTER_RSP_PREFIX + robotId;
+    MapUpdateInfo mapInfo;
+    if(m_mapService->checkMapUpdate(robot.warehouse_id, robot.map_version, mapInfo))
+    {
+        resp.map_update = mapInfo.need_update;
+        resp.map_version = mapInfo.version;
+        resp.map_download_url = mapInfo.download_url;
+        resp.code = 0;
+    }
+    else
+    {
+        LOG_WARN("check map failed");
+        resp.code = -1;
+        resp.message = "check map failed";
+    }
 
-    json rsp;
-    rsp["robot_id"] = robotId;
-    rsp["request_id"] = requestId;
-    rsp["map_update"] = info.need_update;
-    rsp["map_version"] = info.version,
-    rsp["map_download_url"] = info.download_url;
-
-    bool ok = m_edgeAmrMqttClient->publish(topic, rsp.dump());
-    LOG_INFO("register response robot={}, result={}", robotId, ok);
+    return true;
 }
 
-void RobotService::handleStatus(const std::string& message)
+void RobotService::handleStatus(const RobotRunningStatus& status)
 {
-    try
-    {
-        auto root = json::parse(message);
-        if(!root.contains("robot_id"))
-        {
-            LOG_ERROR("missing robot_id");
-            return;
-        }
-
-        if(!root.contains("timestamp"))
-        {
-            LOG_ERROR("missing timestamp");
-            return;
-        }
-
-        if(!root.contains("state"))
-        {
-            LOG_ERROR("missing state");
-            return;
-        }
-
-        if(!root.contains("pose"))
-        {
-            LOG_ERROR("missing pose");
-            return;
-        }
-
-        RobotRunningStatus status;
-        std::string robotId = root["robot_id"].get<std::string>();
-        status.timestamp = root["timestamp"].get<uint64_t>();
-        status.state = RobotStateFromString(root["state"].get<std::string>());
-        status.online = true;
-        status.battery = root.value("battery", 0.0);
-        status.pose.x = root["pose"]["x"].get<double>();
-        status.pose.y = root["pose"]["y"].get<double>();
-        status.pose.yaw = root["pose"]["yaw"].get<double>();
-        status.task_id = root.value("task_id", "");
-
-        m_robotManager->updateRobotStatus(robotId, status);
-    }
-    catch(const std::exception& e)
-    {
-        LOG_ERROR("handleStatus exception:{}", e.what());
-    }
+    m_robotManager->updateRobotStatus(status.robot_id, status);
 }
 
-void RobotService::handleWill(const std::string& message)
+void RobotService::handleWill(const std::string& robotId)
 {
-    try
-    {
-        auto root = json::parse(message);
-        if(!root.contains("robot_id"))
-        {
-            LOG_ERROR("missing robot_id");
-            return;
-        }
-
-        std::string robotId = root["robot_id"].get<std::string>();
-        m_robotManager->markOffline(robotId);
-    }
-    catch(const std::exception& e)
-    {
-        LOG_ERROR("handleWill exception:{}", e.what());
-    }
+    m_robotManager->markOffline(robotId);
 }
 
 }
