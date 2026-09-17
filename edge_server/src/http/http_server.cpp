@@ -53,7 +53,7 @@ void HttpServer::registerBootstrapRoutes()
     /*
      * AMR启动获取配置
      * GET
-     * /api/v1/bootstrap?robot_id=robot001
+     * /api/amr/bootstrap?robot_id=robot001
      *
      */
     std::weak_ptr<BootstrapService> bootstrapService_weakPtr = m_bootstrapService;
