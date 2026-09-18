@@ -72,7 +72,7 @@ void HttpServer::registerBootstrapRoutes()
             if(robot_id.empty())
             {
                 res.status = 400;
-                res.set_content(R"({"code":400,"msg":"robot_id empty"})", "application/json");
+                res.set_content(R"({"code":-1,"msg":"robot_id empty"})", "application/json");
                 return;
             }
 

@@ -3,9 +3,10 @@
 #include "httplib/httplib.h"
 #include <memory>
 #include <stdexcept>
-#include "utils/LogDefine.h"
+// #include "utils/LogDefine.h"
 
 namespace amr_agent
+{
 
 HttpClient::HttpClient(const std::string& host, int port):m_host(host), m_port(port)
 {}
@@ -42,7 +43,7 @@ HttpResponseRet HttpClient::request(const std::string& method,
 	cli.set_read_timeout(3, 0);
 	cli.set_write_timeout(3, 0);
 
-	LOG_DEBUG("request http, ip:{},  port:{}, path:{}", m_host, m_port, path);
+	// LOG_DEBUG("request http, ip:{},  port:{}, path:{}", m_host, m_port, path);
 
 	httplib::Result res;
 
@@ -94,59 +95,30 @@ HttpResponseRet HttpClient::request(const std::string& method,
 	return resRet;
 }
 
-HttpResponseRet HttpClient::download(
-        const std::string& path)
+HttpResponseRet HttpClient::download(const std::string& path)
 {
-
-    httplib::Client cli(
-        m_host,
-        m_port);
-
-
+    httplib::Client cli(m_host, m_port);
     cli.set_connection_timeout(5,0);
     cli.set_read_timeout(30,0);
 
-
     HttpResponseRet ret;
 
-
-    auto res = cli.Get(
-        path.c_str());
-
-
+    auto res = cli.Get(path.c_str());
     if(!res)
     {
-        ret.errMsg =
-            httplib::to_string(res.error());
-
+        ret.errMsg = httplib::to_string(res.error());
         return ret;
     }
 
-
-    if(res->status < 200 ||
-       res->status >=300)
+    if(res->status < 200 || res->status >=300)
     {
-        ret.errMsg =
-            "http status:"
-            + std::to_string(res->status);
-
+        ret.errMsg =  "http status:" + std::to_string(res->status);
         return ret;
     }
-
 
     ret.succeed = true;
-
-
-    ret.content_type =
-        res->get_header_value(
-            "Content-Type");
-
-
-    ret.data.assign(
-        res->body.begin(),
-        res->body.end());
-
-
+    ret.content_type = res->get_header_value("Content-Type");
+    ret.data.assign(res->body.begin(), res->body.end());
     return ret;
 }
 

@@ -1,0 +1,9 @@
+robot:
+  id: "robot01"
+
+edge_server:
+  host: "192.168.1.100"
+  port: 8080
+
+map:
+  path: "/opt/amr/data/arm_runtime/map"

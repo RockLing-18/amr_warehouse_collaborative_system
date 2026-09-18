@@ -46,38 +46,3 @@ private:
 };
 
 }
-
-/*
-try
-{
-	HttpsClient client("192.168.1.124", 5443);
-
-	//std::string res2 = client.post("/api/upload", R"({"name":"test"})");
-	//std::cout << "POST result: " << res2 << std::endl;
-
-	ResponseRet res3 = client.put("/my/0818.txt", R"({"value":123})");
-	if (res3.succeed)
-		std::cout << "PUT result: " << res3.body << " " << std::endl;
-	else
-		std::cout << "PUT err: " << res3.errMsg << std::endl;
-
-	ResponseRet res4 = client.get("/my/0818.txt");
-	if (res4.succeed)
-		std::cout << "GET result: " << res4.body << " " << std::endl;
-	else
-		std::cout << "GET err: " << res4.errMsg << std::endl;
-
-	ResponseRet res5 = client.get("/my/0819.txt");
-	if (res5.succeed)
-		std::cout << "GET result: " << res5.body << " " << std::endl;
-	else
-		std::cout << "GET err: " << res5.errMsg << std::endl;
-
-	//std::string res4 = client.del("/api/delete/1");
-	//std::cout << "DELETE result: " << res4 << std::endl;
-}
-catch (const std::exception& ex)
-{
-	std::cerr << "Error: " << ex.what() << std::endl;
-}
-*/
