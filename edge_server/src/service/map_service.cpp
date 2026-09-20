@@ -9,7 +9,6 @@ namespace fs = std::filesystem;
 namespace edge_server
 {
 MapService::MapService()
-: m_warehouseId(0)
 {
 }
 

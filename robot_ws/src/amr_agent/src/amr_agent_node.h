@@ -8,7 +8,7 @@ class AmrAgentNode : public rclcpp::Node
 {
 public:
     explicit AmrAgentNode();
-    void init();
+    bool init();
 
 private:
     //void onTimerUpdateRobotModels();

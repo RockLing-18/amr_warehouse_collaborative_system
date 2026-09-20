@@ -155,7 +155,7 @@ bool Bootstrap::loadMapMetadata(const rclcpp::Logger& logger, BootstrapInfo& inf
     }
     catch(const std::exception& e)
     {
-        RCLCPP_ERROR(logger, "load config exception:%s", e.what());
+        RCLCPP_WARN(logger, "load config exception:%s", e.what());
         return false;
     }
 

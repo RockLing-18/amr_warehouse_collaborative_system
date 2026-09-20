@@ -8,25 +8,32 @@ namespace amr_agent
 AmrAgentNode::AmrAgentNode()
 : Node("amr_agent")
 {
-
+    this->declare_parameter<std::string>("cfg_path","");
 }
 
 
-void AmrAgentNode::init()
+bool AmrAgentNode::init()
 {
-    std::string cfgPath = "";
+    std::string cfgPath;
+    this->get_parameter("cfg_path", cfgPath);
+    if(cfgPath.empty())
+    {
+        cfgPath = "/opt/amr/config/amr_config.yaml";
+    }
+    
     Bootstrap bootstrap;
     BootstrapInfo info;
     if(!bootstrap.run(get_logger(), cfgPath, info))
     {
         RCLCPP_ERROR(get_logger(), "bootstrap failed");
-        return;
+        return false;
     }
 
     // m_bootstrapInfo = info;
     // initMqtt(info.mqtt);
     // initMap(info);
 
+    return true;
 }
 
 }

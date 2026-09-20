@@ -33,9 +33,9 @@ bool MessageCodec::decodeBootstrapInfo(const rclcpp::Logger& logger, const std::
             return false;
         }
 
-        RCLCPP_ERROR(
+        RCLCPP_INFO(
             logger, 
-            "bootstrap success robot:%s warehouse:%s mqtt:%s",
+            "bootstrap success get robot:%s warehouse:%s mqtt:%s",
             info.robot_id.c_str(),
             info.warehouse_id.c_str(),
             info.mqtt.url.c_str());

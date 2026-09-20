@@ -70,4 +70,9 @@ target_link_libraries(
     # PahoMqttCpp::paho-mqttpp3
 )
 
+install(TARGETS
+  amr_agent
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()
