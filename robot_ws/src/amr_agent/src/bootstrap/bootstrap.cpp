@@ -4,30 +4,32 @@
 #include <fstream>
 #include "yaml-cpp/yaml.h"
 #include "message/message_codec.h"
+#include "utils/ros_logger.h"
+
 
 namespace amr_agent
 {
 
-bool Bootstrap::run(const rclcpp::Logger& logger, const std::string& cfgPath, BootstrapInfo& info)
+bool Bootstrap::run(const std::string& cfgPath, BootstrapInfo& info)
 {
     // 1. 加载本地配置
-    if(!loadLocalConfig(logger, cfgPath, info))
+    if(!loadLocalConfig(cfgPath, info))
     {
-        RCLCPP_ERROR(logger, "load local config failed");
+        LOG_ERROR("load local config failed");
         return false;
     }
 
     // 2. 请求edge server bootstrap
-    if(!requestBootstrap(logger, info))
+    if(!requestBootstrap(info))
     {
-        RCLCPP_ERROR(logger, "request bootstrap failed");
+        LOG_ERROR("request bootstrap failed");
         return false;
     }
 
     return true;
 }
 
-bool Bootstrap::loadLocalConfig(const rclcpp::Logger& logger, const std::string& cfgPath, BootstrapInfo& info)
+bool Bootstrap::loadLocalConfig(const std::string& cfgPath, BootstrapInfo& info)
 {
     try
     {
@@ -57,25 +59,24 @@ bool Bootstrap::loadLocalConfig(const rclcpp::Logger& logger, const std::string&
             {
                 info.map.path = config["map"]["path"].as<std::string>();
                 
-                if(!loadMapMetadata(logger, info))
+                if(!loadMapMetadata(info))
                     info.map.version = "";
             }
         }
 
         if(m_robotId.empty())
         {
-            RCLCPP_ERROR(logger, "robot id empty");
+            LOG_ERROR("robot id empty");
             return false;
         }
 
         if(m_edgeHost.empty())
         {
-            RCLCPP_ERROR(logger, "edge host empty");
+            LOG_ERROR("edge host empty");
             return false;
         }
 
-        RCLCPP_INFO(
-            logger,
+        LOG_INFO(
             "load config success robot_id:%s edge:%s:%d",
             m_robotId.c_str(),
             m_edgeHost.c_str(),
@@ -83,14 +84,14 @@ bool Bootstrap::loadLocalConfig(const rclcpp::Logger& logger, const std::string&
     }
     catch(const std::exception& e)
     {
-        RCLCPP_ERROR(logger, "load config exception:%s", e.what());
+        LOG_ERROR("load config exception:%s", e.what());
         return false;
     }
 
     return true;
 }
 
-bool Bootstrap::loadMapMetadata(const rclcpp::Logger& logger, BootstrapInfo& info)
+bool Bootstrap::loadMapMetadata(BootstrapInfo& info)
 {
     try
     {
@@ -130,24 +131,23 @@ bool Bootstrap::loadMapMetadata(const rclcpp::Logger& logger, BootstrapInfo& inf
             {
                 info.map.path = config["map"]["path"].as<std::string>();
 
-                loadMapMetadata(logger, info);
+                loadMapMetadata(info);
             }
         }
 
         if(m_robotId.empty())
         {
-            RCLCPP_ERROR(logger, "robot id empty");
+            LOG_ERROR("robot id empty");
             return false;
         }
 
         if(m_edgeHost.empty())
         {
-            RCLCPP_ERROR(logger, "edge host empty");
+            LOG_ERROR("edge host empty");
             return false;
         }
 
-        RCLCPP_INFO(
-            logger,
+        LOG_INFO(
             "load config success robot_id:%s edge:%s:%d",
             m_robotId.c_str(),
             m_edgeHost.c_str(),
@@ -155,14 +155,14 @@ bool Bootstrap::loadMapMetadata(const rclcpp::Logger& logger, BootstrapInfo& inf
     }
     catch(const std::exception& e)
     {
-        RCLCPP_WARN(logger, "load config exception:%s", e.what());
+        LOG_WARN("load config exception:%s", e.what());
         return false;
     }
 
     return true;
 }
 
-bool Bootstrap::requestBootstrap(const rclcpp::Logger& logger, BootstrapInfo& info)
+bool Bootstrap::requestBootstrap(BootstrapInfo& info)
 {
     HttpClient client(m_edgeHost, m_edgePort);
 
@@ -170,11 +170,11 @@ bool Bootstrap::requestBootstrap(const rclcpp::Logger& logger, BootstrapInfo& in
     auto response =  client.get(path);
     if(!response.succeed)
     {
-        RCLCPP_ERROR(logger, "bootstrap http failed:%s", response.errMsg.c_str());
+        LOG_ERROR("bootstrap http failed:%s", response.errMsg.c_str());
         return false;
     }
 
-    return MessageCodec::decodeBootstrapInfo(logger, response.body, info);
+    return MessageCodec::decodeBootstrapInfo(response.body, info);
 }
 
 }

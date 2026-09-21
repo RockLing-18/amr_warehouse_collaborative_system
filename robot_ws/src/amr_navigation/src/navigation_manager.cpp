@@ -2,10 +2,10 @@
 
 namespace amr_navigation
 {
-NavigationManager::NavigationManager(rclcpp::Node::SharedPtr node) : m_node(node)
+NavigationManager::NavigationManager(rclcpp::Node::SharedPtr node) : m_logger(node->get_logger())
 {
     m_action_client = rclcpp_action::create_client<NavigateToPose>(
-        m_node,
+        node,
         "navigate_to_pose"
         );
 }
@@ -15,7 +15,7 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
     NavigationResponse resp;
     if(!m_action_client->wait_for_action_server(std::chrono::seconds(5)))
     {
-        RCLCPP_ERROR(m_node->get_logger(), "Nav2 Action服务未启动");
+        RCLCPP_ERROR(m_logger, "Nav2 Action服务未启动");
         resp.accepted = false;
         resp.message = "nav2 action server not available";
         return resp;
@@ -27,12 +27,12 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
         resp.accepted = false;
         resp.state = m_state;
         resp.message = "robot busy";
-        RCLCPP_WARN(m_node->get_logger(), "robot already navigating");
+        RCLCPP_WARN(m_logger, "robot already navigating");
         return resp;
     }
 
     RCLCPP_INFO(
-    m_node->get_logger(),
+    m_logger,
     "Send goal frame=%s x=%.2f y=%.2f",
     req.goal.header.frame_id.c_str(),
     req.goal.pose.position.x,
@@ -68,7 +68,7 @@ void NavigationManager::goalResponseCallback(GoalHandle::SharedPtr goal_handle)
 {
     if(!goal_handle)
     {
-        RCLCPP_ERROR(m_node->get_logger(), "导航目标被拒绝");
+        RCLCPP_ERROR(m_logger, "导航目标被拒绝");
         m_state = NavigationExecutionState::IDLE;
         m_goal_handle.reset();
 
@@ -80,7 +80,7 @@ void NavigationManager::goalResponseCallback(GoalHandle::SharedPtr goal_handle)
 
     m_state = NavigationExecutionState::NAVIGATING;
     m_goal_handle = goal_handle;
-    RCLCPP_INFO(m_node->get_logger(), "导航目标已接受");
+    RCLCPP_INFO(m_logger, "导航目标已接受");
 }
 
 void NavigationManager::feedbackCallback(GoalHandle::SharedPtr, const std::shared_ptr<const NavigateToPose::Feedback> feedback)
@@ -88,7 +88,7 @@ void NavigationManager::feedbackCallback(GoalHandle::SharedPtr, const std::share
     auto pose = feedback->current_pose;
 
     RCLCPP_INFO(
-        m_node->get_logger(),
+        m_logger,
         "current(%.2f %.2f), remain %.2f",
         pose.pose.position.x,
         pose.pose.position.y,
@@ -115,7 +115,7 @@ void NavigationManager::feedbackCallback(GoalHandle::SharedPtr, const std::share
 void NavigationManager::resultCallback(const GoalHandle::WrappedResult &result)
 {
     RCLCPP_INFO(
-        m_node->get_logger(),
+        m_logger,
         "导航结束 result code=%d",
         static_cast<int>(result.code)
     );
@@ -124,15 +124,15 @@ void NavigationManager::resultCallback(const GoalHandle::WrappedResult &result)
     switch(result.code)
     {
         case rclcpp_action::ResultCode::SUCCEEDED:
-            RCLCPP_INFO(m_node->get_logger(), "导航成功");
+            RCLCPP_INFO(m_logger, "导航成功");
             state = NavigationExecutionState::SUCCEEDED;
             break;
         case rclcpp_action::ResultCode::ABORTED:
-            RCLCPP_ERROR(m_node->get_logger(), "导航失败");
+            RCLCPP_ERROR(m_logger, "导航失败");
             state = NavigationExecutionState::FAILED;
             break;
         case rclcpp_action::ResultCode::CANCELED:
-            RCLCPP_WARN(m_node->get_logger(), "导航取消");
+            RCLCPP_WARN(m_logger, "导航取消");
             state = NavigationExecutionState::CANCELED;
             break;
         default:
@@ -152,7 +152,7 @@ void NavigationManager::cancelNavigation()
     {
         m_state = NavigationExecutionState::CANCELING;
         m_action_client->async_cancel_goal(m_goal_handle);
-        RCLCPP_INFO(m_node->get_logger(), "cancel request sent");
+        RCLCPP_INFO(m_logger, "cancel request sent");
     }
 }
 

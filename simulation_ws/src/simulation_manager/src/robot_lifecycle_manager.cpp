@@ -9,7 +9,7 @@ RobotLifecycleManager::RobotLifecycleManager(
     const rclcpp::Node::SharedPtr& node,
     const std::shared_ptr<GazeboClient>& gazebo_client,
     const std::shared_ptr<AmrProcessManager>& process_manager)
-: m_node(node), m_gazebo_client(gazebo_client), m_process_manager(process_manager)
+: m_logger(node->get_logger()), m_gazebo_client(gazebo_client), m_process_manager(process_manager)
 {
     m_controller_checker = std::make_shared<ControllerChecker>(node);
 
@@ -32,7 +32,7 @@ void RobotLifecycleManager::requestCreate(const RobotInfo& robot)
         if(m_robots.at(robot.robot_id).state != RobotState::FAILED)
         {
             RCLCPP_WARN(
-                m_node->get_logger(),
+                m_logger,
                 "Robot already managed id=%s state=%d",
                 robot.robot_id.c_str(),
                 static_cast<int>(m_robots.at(robot.robot_id).state));
@@ -42,7 +42,7 @@ void RobotLifecycleManager::requestCreate(const RobotInfo& robot)
     }
 
     RCLCPP_INFO(
-        m_node->get_logger(),
+        m_logger,
         "Queue create robot=%s instance=%s",
         robot.robot_id.c_str(),
         robot.instance_id.c_str());
@@ -70,7 +70,7 @@ void RobotLifecycleManager::requestDelete(const GazeboModelInfo& model)
     m_cv.notify_one();
 
     RCLCPP_INFO(
-        m_node->get_logger(),
+        m_logger,
         "Queue delete robot=%s instance=%s",
         model.robot_id.c_str(),
         model.instance_id.c_str());
@@ -87,7 +87,7 @@ void RobotLifecycleManager::requestReplace(const RobotInfo& robot, const GazeboM
     m_cv.notify_one();
 
     RCLCPP_INFO(
-        m_node->get_logger(),
+        m_logger,
         "Queue replace robot=%s old=%s new=%s",
         robot.robot_id.c_str(),
         old_model.instance_id.c_str(),
@@ -150,14 +150,14 @@ void RobotLifecycleManager::processRequest(const LifecycleRequest& request)
 
 bool RobotLifecycleManager::createRobot(const RobotInfo& robot)
 {
-    RCLCPP_INFO(m_node->get_logger(), "Start create robot=%s", robot.robot_id.c_str());
+    RCLCPP_INFO(m_logger, "Start create robot=%s", robot.robot_id.c_str());
 
     setState(robot.robot_id, RobotState::LAUNCHING);
 
     // 启动ros2 launch
     if(!m_process_manager->spawn(robot))
     {
-        RCLCPP_ERROR(m_node->get_logger(), "Launch failed robot=%s", robot.robot_id.c_str());
+        RCLCPP_ERROR(m_logger, "Launch failed robot=%s", robot.robot_id.c_str());
         return false;
     }
 
@@ -166,7 +166,7 @@ bool RobotLifecycleManager::createRobot(const RobotInfo& robot)
     // 等待Gazebo model
     if(!waitGazeboModel(robot, std::chrono::seconds(30)))
     {
-        RCLCPP_ERROR( m_node->get_logger(), "Gazebo model timeout");
+        RCLCPP_ERROR( m_logger, "Gazebo model timeout");
         cleanupRobot(robot);
         return false;
     }
@@ -176,21 +176,21 @@ bool RobotLifecycleManager::createRobot(const RobotInfo& robot)
     // controller active
     if(!waitControllerReady(robot, std::chrono::seconds(6)))
     {
-        RCLCPP_ERROR(m_node->get_logger(), "Controller timeout");
+        RCLCPP_ERROR(m_logger, "Controller timeout");
         cleanupRobot(robot);
         return false;
     }
 
     setState(robot.robot_id, RobotState::ACTIVE);
 
-    RCLCPP_INFO(m_node->get_logger(), "Robot active=%s", robot.robot_id.c_str());
+    RCLCPP_INFO(m_logger, "Robot active=%s", robot.robot_id.c_str());
     return true;
 }
 
 bool RobotLifecycleManager::deleteRobot(const GazeboModelInfo& model)
 {
     RCLCPP_INFO(
-        m_node->get_logger(),
+        m_logger,
         "Delete robot=%s instance=%s",
         model.robot_id.c_str(),
         model.instance_id.c_str());
@@ -207,13 +207,13 @@ bool RobotLifecycleManager::deleteRobot(const GazeboModelInfo& model)
         {
             if(success)
             {
-                RCLCPP_INFO( m_node->get_logger(), "Robot deleted=%s", model.robot_id.c_str());
+                RCLCPP_INFO( m_logger, "Robot deleted=%s", model.robot_id.c_str());
                 std::lock_guard<std::mutex> lock(m_mutex);
                 m_robots.erase(model.robot_id);
             }
             else
             {
-                RCLCPP_ERROR(m_node->get_logger(), "Delete failed=%s", model.robot_id.c_str());
+                RCLCPP_ERROR(m_logger, "Delete failed=%s", model.robot_id.c_str());
             }
 
         });
@@ -224,7 +224,7 @@ bool RobotLifecycleManager::deleteRobot(const GazeboModelInfo& model)
 bool RobotLifecycleManager::replaceRobot(const RobotInfo& robot, const GazeboModelInfo& old_model)
 {
     RCLCPP_INFO(
-        m_node->get_logger(),
+        m_logger,
         "Replace robot=%s old=%s new=%s",
         robot.robot_id.c_str(),
         old_model.instance_id.c_str(),
@@ -240,7 +240,7 @@ bool RobotLifecycleManager::replaceRobot(const RobotInfo& robot, const GazeboMod
     //     {
     //         if(!success)
     //         {
-    //             RCLCPP_ERROR(m_node->get_logger(), "Replace delete failed");
+    //             RCLCPP_ERROR(m_logger, "Replace delete failed");
     //             return;
     //         }
 
@@ -251,7 +251,7 @@ bool RobotLifecycleManager::replaceRobot(const RobotInfo& robot, const GazeboMod
     // 删除gazebo
     if(!m_gazebo_client->deleteModel(old_model.model_name))
     {
-        RCLCPP_ERROR(m_node->get_logger(), "Delete old robot failed");
+        RCLCPP_ERROR(m_logger, "Delete old robot failed");
         return false;
     }
 
@@ -275,7 +275,7 @@ bool RobotLifecycleManager::waitGazeboModel(const RobotInfo& robot, std::chrono:
 
         if(std::chrono::steady_clock::now() - start > timeout)
         {
-            RCLCPP_INFO(m_node->get_logger(), "Get robot model timeout robot=%s instance=%s", robot.robot_id.c_str(), robot.instance_id.c_str());
+            RCLCPP_INFO(m_logger, "Get robot model timeout robot=%s instance=%s", robot.robot_id.c_str(), robot.instance_id.c_str());
             return false;
         }
 
@@ -308,7 +308,7 @@ bool RobotLifecycleManager::waitControllerReady(const RobotInfo& robot, std::chr
 
         if(std::chrono::steady_clock::now() - start > timeout)
         {
-            RCLCPP_INFO(m_node->get_logger(), "Get robot controller_manager status timeout robot=%s instance=%s", robot.robot_id.c_str(), robot.instance_id.c_str());
+            RCLCPP_INFO(m_logger, "Get robot controller_manager status timeout robot=%s instance=%s", robot.robot_id.c_str(), robot.instance_id.c_str());
             return false;
         }
 
@@ -320,7 +320,7 @@ bool RobotLifecycleManager::waitControllerReady(const RobotInfo& robot, std::chr
 
 void RobotLifecycleManager::cleanupRobot( const RobotInfo& robot)
 {
-    RCLCPP_WARN( m_node->get_logger(), "Cleanup robot=%s", robot.robot_id.c_str());
+    RCLCPP_WARN( m_logger, "Cleanup robot=%s", robot.robot_id.c_str());
 
     m_process_manager->stop(robot.robot_id, robot.instance_id);
 
@@ -331,7 +331,7 @@ void RobotLifecycleManager::cleanupRobot( const RobotInfo& robot)
         [this, model_name](bool success)
         {
             if(!success)
-                RCLCPP_INFO(m_node->get_logger(), "deleteModel failed! model.model_name:%s", model_name.c_str());
+                RCLCPP_INFO(m_logger, "deleteModel failed! model.model_name:%s", model_name.c_str());
         });
 }
 

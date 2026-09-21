@@ -1,6 +1,7 @@
 #include "amr_agent_node.h"
 #include "types.h"
 #include "bootstrap/bootstrap.h"
+#include "utils/ros_logger.h"
 
 namespace amr_agent
 {
@@ -14,6 +15,8 @@ AmrAgentNode::AmrAgentNode()
 
 bool AmrAgentNode::init()
 {
+    GlobalRosLogger::init(this->get_logger(), rclcpp::Logger::Level::Debug);
+
     std::string cfgPath;
     this->get_parameter("cfg_path", cfgPath);
     if(cfgPath.empty())
@@ -23,9 +26,9 @@ bool AmrAgentNode::init()
     
     Bootstrap bootstrap;
     BootstrapInfo info;
-    if(!bootstrap.run(get_logger(), cfgPath, info))
+    if(!bootstrap.run(cfgPath, info))
     {
-        RCLCPP_ERROR(get_logger(), "bootstrap failed");
+        LOG_ERROR("bootstrap failed");
         return false;
     }
 

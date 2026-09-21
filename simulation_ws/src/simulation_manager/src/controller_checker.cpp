@@ -6,7 +6,7 @@
 namespace simulation_manager
 {
 ControllerChecker::ControllerChecker(const rclcpp::Node::SharedPtr& node) 
-: m_node(node)
+: m_node(node), m_logger(node->get_logger())
 {
 }
 
@@ -16,13 +16,17 @@ bool ControllerChecker::check(const std::string& robot_id, std::chrono::millisec
         "/" + robot_id + "/controller_manager/list_controllers";
 
     RCLCPP_INFO(
-        m_node->get_logger(),
+        m_logger,
         "Check controller robot=%s service=%s",
         robot_id.c_str(),
         service_name.c_str());
 
+    auto node = m_node.lock();
+    if(!node)
+        return false;
+    
     auto client =
-        m_node->create_client<
+        node->create_client<
             controller_manager_msgs::srv::ListControllers>(
                 service_name);
 
@@ -38,7 +42,7 @@ bool ControllerChecker::check(const std::string& robot_id, std::chrono::millisec
                std::chrono::milliseconds(200)))
         {
             RCLCPP_INFO(
-                m_node->get_logger(),
+                m_logger,
                 "Controller service available robot=%s",
                 robot_id.c_str());
 
@@ -52,7 +56,7 @@ bool ControllerChecker::check(const std::string& robot_id, std::chrono::millisec
         if(elapsed >= timeout)
         {
             RCLCPP_ERROR(
-                m_node->get_logger(),
+                m_logger,
                 "Controller service timeout robot=%s service=%s",
                 robot_id.c_str(),
                 service_name.c_str());
@@ -76,7 +80,7 @@ bool ControllerChecker::check(const std::string& robot_id, std::chrono::millisec
         if(elapsed >= timeout)
         {
             RCLCPP_WARN(
-                m_node->get_logger(),
+                m_logger,
                 "Controller ready timeout robot=%s",
                 robot_id.c_str());
 
@@ -150,7 +154,7 @@ bool ControllerChecker::check(const std::string& robot_id, std::chrono::millisec
                 if(isControllerReady(response))
                 {
                     RCLCPP_INFO(
-                        m_node->get_logger(),
+                        m_logger,
                         "Controller ready robot=%s",
                         robot_id.c_str());
 
@@ -158,14 +162,14 @@ bool ControllerChecker::check(const std::string& robot_id, std::chrono::millisec
                 }
 
                 RCLCPP_DEBUG(
-                    m_node->get_logger(),
+                    m_logger,
                     "Controller not ready yet robot=%s",
                     robot_id.c_str());
             }
             catch(const std::exception& e)
             {
                 RCLCPP_WARN(
-                    m_node->get_logger(),
+                    m_logger,
                     "Controller check response failed "
                     "robot=%s error=%s",
                     robot_id.c_str(),
@@ -175,7 +179,7 @@ bool ControllerChecker::check(const std::string& robot_id, std::chrono::millisec
         else
         {
             RCLCPP_DEBUG(
-                m_node->get_logger(),
+                m_logger,
                 "ListControllers response timeout robot=%s",
                 robot_id.c_str());
         }
@@ -195,16 +199,20 @@ void ControllerChecker::checkAsync(const std::string& robot_id, Callback callbac
     const std::string service = "/" + robot_id + "/controller_manager/list_controllers";
 
     RCLCPP_INFO(
-    m_node->get_logger(),
+    m_logger,
     "ControllerChecker checkAsync robot=%s service=%s",
     robot_id.c_str(),
     service.c_str());
 
-    auto client = m_node->create_client<controller_manager_msgs::srv::ListControllers>(service);
+    auto node = m_node.lock();
+    if(!node)
+        return;
+    
+    auto client = node->create_client<controller_manager_msgs::srv::ListControllers>(service);
     if(!client->wait_for_service(std::chrono::seconds(1)))
     {
         RCLCPP_ERROR(
-        m_node->get_logger(),
+        m_logger,
         "Controller service unavailable robot=%s service=%s",
         robot_id.c_str(),
         service.c_str());
@@ -214,7 +222,7 @@ void ControllerChecker::checkAsync(const std::string& robot_id, Callback callbac
 
     
     RCLCPP_INFO(
-    m_node->get_logger(),
+    m_logger,
     "Controller service available robot=%s",
     robot_id.c_str());
 
@@ -232,7 +240,7 @@ void ControllerChecker::checkAsync(const std::string& robot_id, Callback callbac
             try
             {
                 RCLCPP_INFO(
-                m_node->get_logger(),
+                m_logger,
                 "ControllerChecker response callback robot=%s",
                 robot_id.c_str());
 
@@ -243,7 +251,7 @@ void ControllerChecker::checkAsync(const std::string& robot_id, Callback callbac
             catch(const std::exception& e)
             {
                 RCLCPP_ERROR(
-                    m_node->get_logger(),
+                    m_logger,
                     "Controller check failed robot=%s error=%s",
                     robot_id.c_str(),
                     e.what());
@@ -259,7 +267,7 @@ bool ControllerChecker::isControllerReady(const controller_manager_msgs::srv::Li
     for(const auto& controller : response->controller)
     {
         RCLCPP_DEBUG(
-            m_node->get_logger(),
+            m_logger,
             "controller=%s state=%s",
             controller.name.c_str(),
             controller.state.c_str());

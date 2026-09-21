@@ -1,5 +1,4 @@
-#pragma once 
-#include <rclcpp/rclcpp.hpp>
+#pragma once
 #include <string>
 #include "types.h"
 
@@ -9,12 +8,12 @@ namespace amr_agent
 class Bootstrap
 {
 public:
-    bool run(const rclcpp::Logger& logger, const std::string& cfgPath, BootstrapInfo& info);
+    bool run(const std::string& cfgPath, BootstrapInfo& info);
 
 private:
-    bool loadLocalConfig(const rclcpp::Logger& logger, const std::string& cfgPath, BootstrapInfo& info);
-    bool requestBootstrap(const rclcpp::Logger& logger, BootstrapInfo& info);
-    bool loadMapMetadata(const rclcpp::Logger& logger, BootstrapInfo& info);
+    bool loadLocalConfig(const std::string& cfgPath, BootstrapInfo& info);
+    bool requestBootstrap( BootstrapInfo& info);
+    bool loadMapMetadata(BootstrapInfo& info);
 
 private:
     std::string m_robotId;

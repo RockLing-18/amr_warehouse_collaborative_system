@@ -84,7 +84,7 @@ private:
     void setState(const std::string& robot_id, RobotState state);
 
 private:
-    rclcpp::Node::SharedPtr m_node;
+    rclcpp::Logger m_logger;
     std::shared_ptr<GazeboClient> m_gazebo_client;
     std::shared_ptr<AmrProcessManager> m_process_manager;
     std::shared_ptr<ControllerChecker> m_controller_checker;

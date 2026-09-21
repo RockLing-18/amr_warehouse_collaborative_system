@@ -4,18 +4,18 @@
 
 namespace simulation_manager
 {
-GazeboClient::GazeboClient(const rclcpp::Node::SharedPtr& node) : m_node(node)
+GazeboClient::GazeboClient(const rclcpp::Node::SharedPtr& node) : m_logger(node->get_logger())
 {
     // m_get_world_properties_client = m_node->create_client<gazebo_msgs::srv::GetWorldProperties>("/gazebo/get_world_properties");
-    m_get_model_list_client = m_node->create_client<gazebo_msgs::srv::GetModelList>("/get_model_list");
-    m_delete_entity_client = m_node->create_client<gazebo_msgs::srv::DeleteEntity>("/delete_entity");
+    m_get_model_list_client = node->create_client<gazebo_msgs::srv::GetModelList>("/get_model_list");
+    m_delete_entity_client = node->create_client<gazebo_msgs::srv::DeleteEntity>("/delete_entity");
 }
 
 void GazeboClient::updateModels()
 {
     if (!m_get_model_list_client->service_is_ready())
     {
-        RCLCPP_WARN( m_node->get_logger(), "Gazebo get_model_list service is not ready");
+        RCLCPP_WARN( m_logger, "Gazebo get_model_list service is not ready");
         return;
     }
 
@@ -29,7 +29,7 @@ void GazeboClient::updateModels()
                 const auto response = future.get();
                 if (!response->success)
                 {
-                    RCLCPP_ERROR(m_node->get_logger(), "Gazebo get_model_list failed");
+                    RCLCPP_ERROR(m_logger, "Gazebo get_model_list failed");
                     return;
                 }
                 
@@ -37,7 +37,7 @@ void GazeboClient::updateModels()
                 m_models.clear();
                 for (const auto& name : response->model_names)
                 {
-                    //RCLCPP_INFO(m_node->get_logger(),"Gazebo model: %s", name.c_str());
+                    //RCLCPP_INFO(m_logger,"Gazebo model: %s", name.c_str());
                     GazeboModelInfo info;
                     if (parseModelName(name, info))
                         m_models.push_back(info);
@@ -45,7 +45,7 @@ void GazeboClient::updateModels()
             }
             catch (const std::exception& e)
             {
-                RCLCPP_ERROR(m_node->get_logger(), "Exception while getting Gazebo models: %s", e.what());
+                RCLCPP_ERROR(m_logger, "Exception while getting Gazebo models: %s", e.what());
             }
         });
 }
@@ -72,7 +72,7 @@ void GazeboClient::deleteModelAsync(const std::string& model_name, std::function
 {
     if (!m_delete_entity_client->service_is_ready())
     {
-        RCLCPP_WARN(m_node->get_logger(), "Gazebo delete_entity service is not ready");
+        RCLCPP_WARN(m_logger, "Gazebo delete_entity service is not ready");
         callback(false);
         return;
     }
@@ -88,17 +88,17 @@ void GazeboClient::deleteModelAsync(const std::string& model_name, std::function
                 const auto response = future.get();
                 if (!response->success)
                 {
-                    RCLCPP_ERROR(m_node->get_logger(),"Gazebo failed to delete model: %s, status=%s", model_name.c_str(), response->status_message.c_str());
+                    RCLCPP_ERROR(m_logger,"Gazebo failed to delete model: %s, status=%s", model_name.c_str(), response->status_message.c_str());
                     callback(false);
                     return;
                 }
 
-                RCLCPP_INFO(m_node->get_logger(),"Gazebo model deleted: %s", model_name.c_str());
+                RCLCPP_INFO(m_logger,"Gazebo model deleted: %s", model_name.c_str());
                 callback(true);
             }
             catch (const std::exception& e)
             {
-                RCLCPP_ERROR(m_node->get_logger(), "Exception while deleting Gazebo model %s: %s", model_name.c_str(), e.what());
+                RCLCPP_ERROR(m_logger, "Exception while deleting Gazebo model %s: %s", model_name.c_str(), e.what());
                 callback(false);
             }
         });

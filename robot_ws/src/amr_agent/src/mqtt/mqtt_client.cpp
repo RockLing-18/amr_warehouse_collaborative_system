@@ -1,10 +1,12 @@
 #include "mqtt/mqtt_client.h"
-#include "utils/LogDefine.h"
-#include "utils/CommonFunc.h"
-#include "spdlog/fmt/fmt.h"
 #include "mqtt/mqtt_topic.h"
+#include "utils/ros_logger.h"
+#include "utils/CommonFunc.h"
+#include "nlohmann/json.hpp"
 
-namespace edge_server
+using json=nlohmann::json;
+
+namespace amr_agent
 {
 
 MqttClient::MqttClient()
@@ -18,7 +20,7 @@ MqttClient::~MqttClient()
 }
 
 
-bool MqttClient::init(const MqttCfg& cfg)
+bool MqttClient::init(const MqttConfig& cfg)
 {
     try
     {
@@ -64,7 +66,7 @@ bool MqttClient::init(const MqttCfg& cfg)
     }
     catch(const std::exception& e)
     {
-        LOG_ERROR("mqtt connect failed:{}", e.what());
+        LOG_ERROR("mqtt connect failed:%s", e.what());
         return false;
     }
 }
@@ -95,16 +97,16 @@ bool MqttClient::connect()
 
         if(token->get_return_code() != MQTTASYNC_SUCCESS)
         {
-            LOG_ERROR("mqtt connect code={}", token->get_return_code());
+            LOG_ERROR("mqtt connect code=%d", token->get_return_code());
             return false;
         }
 
-        LOG_INFO("mqtt connect ok:{}", m_url);
+        LOG_INFO("mqtt connect ok:%s", m_url.c_str());
         return true;
     }
     catch(const std::exception& e)
     {
-        LOG_ERROR("mqtt connect failed:{}", e.what());
+        LOG_ERROR("mqtt connect failed:%s", e.what());
         return false;
     }
 }
@@ -143,7 +145,7 @@ bool MqttClient::subscribe(const std::string& topic, int qos)
         }
 
         m_client->subscribe(topic, qos);
-        LOG_INFO("mqtt subscribe:{}", topic);
+        LOG_INFO("mqtt subscribe:%s", topic.c_str());
         return true;
     }
     catch(...)
@@ -163,7 +165,7 @@ bool MqttClient::unsubscribe(const std::string& topic)
         }
 
         m_client->unsubscribe(topic);
-        LOG_INFO("mqtt unsubscribe:{}", topic);
+        LOG_INFO("mqtt unsubscribe:%s", topic.c_str());
         return true;
     }
     catch(...)
@@ -202,13 +204,14 @@ void MqttClient::setSubscribe(const std::string& topic, int qos)
 // 新增回调：连接成功
 void MqttClient::connected(const std::string& cause)
 {
-    LOG_INFO("mqtt connected success, cause:{}", cause);
+    LOG_INFO("mqtt connected success, cause:%s", cause.c_str());
 
     if(m_willEnable)
     {
-        std::string sPayload = R"({{"status":"online","timestamp":{}}})";
-        sPayload = fmt::format(sPayload, utils::getCurrentTimeMs());
-        publish(m_will.topic, sPayload, 1, true);
+        json msg;
+        msg["status"] = "online";
+        msg["timestamp"] = utils::getCurrentTimeMs();
+        publish(m_will.topic, msg.dump(), 1, true);
     }
 
     // 恢复订阅
@@ -227,13 +230,13 @@ void MqttClient::delivery_complete(mqtt::delivery_token_ptr tok)
 {
     if(tok)
     {
-        LOG_DEBUG("mqtt message delivered id={}", tok->get_message_id());
+        LOG_DEBUG("mqtt message delivered id=%d", tok->get_message_id());
     }
 }
 
 void MqttClient::connection_lost(const std::string& cause)
 {
-    LOG_WARN("mqtt connection lost:{}", cause);
+    LOG_WARN("mqtt connection lost:%s", cause.c_str());
 }
 
 void MqttClient::restoreSubscriptions()
@@ -253,11 +256,11 @@ void MqttClient::restoreSubscriptions()
         try
         {
             m_client->subscribe(sub.first, sub.second);
-            LOG_INFO("mqtt restore subscribe topic={}", sub.first);
+            LOG_INFO("mqtt restore subscribe topic=%s", sub.first.c_str());
         }
         catch(const std::exception& e)
         {
-            LOG_ERROR("restore subscribe failed topic={}, error={}", sub.first, e.what());
+            LOG_ERROR("restore subscribe failed topic=%s, error=%s", sub.first.c_str(), e.what());
         }
     }
 }

@@ -20,7 +20,8 @@ public:
     void setFeedbackCallback(FeedbackCallback callback);
     bool cancel();
 private:
-    rclcpp::Node::SharedPtr m_node;
+    rclcpp::Node::WeakPtr m_node;
+    rclcpp::Logger m_logger;
     rclcpp_action::Client<FollowWaypoints>::SharedPtr m_client;
     GoalHandle::SharedPtr m_goal_handle;// 当前导航任务句柄
     FeedbackCallback m_feedback_callback;

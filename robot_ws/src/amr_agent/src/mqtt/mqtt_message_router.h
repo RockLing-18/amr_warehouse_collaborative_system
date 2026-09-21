@@ -11,7 +11,7 @@
 #include <memory>
 #include "types.h"
 
-namespace edge_server
+namespace amr_agent
 {
 
 class MqttMessageRouter

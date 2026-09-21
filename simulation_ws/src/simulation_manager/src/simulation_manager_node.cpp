@@ -29,7 +29,7 @@ void SimulationManagerNode::init()
     m_gazebo_client = std::make_shared<GazeboClient>(shared_from_this());
     m_process_manager = std::make_shared<AmrProcessManager>();
     m_lifecycle_manager = std::make_shared<RobotLifecycleManager>(shared_from_this(), m_gazebo_client, m_process_manager);
-    m_sync_manager = std::make_shared<RobotSyncManager>(shared_from_this(), m_gazebo_client, m_lifecycle_manager);
+    m_sync_manager = std::make_shared<RobotSyncManager>(m_gazebo_client, m_lifecycle_manager);
     m_edge_client = std::make_shared<EdgeClient>(websocket_url);
 
     RCLCPP_INFO(this->get_logger(), "simulation_manager started");

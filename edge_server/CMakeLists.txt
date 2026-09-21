@@ -57,6 +57,7 @@ target_include_directories(
     PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/third_party
+    ${PROJECT_SOURCE_DIR}/../common
 )
 
 # ===============================

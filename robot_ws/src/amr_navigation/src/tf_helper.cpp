@@ -6,9 +6,9 @@
 namespace amr_navigation
 {
 
-TFHelper::TFHelper(rclcpp::Node::SharedPtr node): m_node(node)
+TFHelper::TFHelper(rclcpp::Node::SharedPtr node): m_node(node), m_logger(node->get_logger())
 {
-    m_buffer = std::make_unique<tf2_ros::Buffer>(m_node->get_clock());
+    m_buffer = std::make_unique<tf2_ros::Buffer>(node->get_clock());
     m_listener = std::make_shared<tf2_ros::TransformListener>(*m_buffer);
 }
 
@@ -50,9 +50,13 @@ bool TFHelper::getRobotPose(RobotPose &pose)
     }
     catch (const tf2::TransformException &ex)
     {
+        auto node = m_node.lock();
+        if(!node)
+            return false;
+
         RCLCPP_WARN_THROTTLE(
-            m_node->get_logger(),
-            *m_node->get_clock(),
+            m_logger,
+            *node->get_clock(),
             5000,
             "TF lookup failed: %s",
             ex.what());

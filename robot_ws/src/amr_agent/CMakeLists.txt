@@ -13,7 +13,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 # find_package(std_msgs REQUIRED)
 find_package(yaml-cpp REQUIRED)
-# find_package(PahoMqttCpp REQUIRED)
+find_package(PahoMqttCpp REQUIRED)
+find_package(fmt REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -54,6 +55,7 @@ target_include_directories(
     PRIVATE
     ${PROJECT_SOURCE_DIR}/src
     ${PROJECT_SOURCE_DIR}/third_party
+    ${PROJECT_SOURCE_DIR}/../../../common
 )
 
 
@@ -67,7 +69,8 @@ ament_target_dependencies(
 target_link_libraries(
     amr_agent
     yaml-cpp
-    # PahoMqttCpp::paho-mqttpp3
+    PahoMqttCpp::paho-mqttpp3
+    fmt::fmt
 )
 
 install(TARGETS

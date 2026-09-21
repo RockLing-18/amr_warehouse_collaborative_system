@@ -8,7 +8,7 @@ namespace amr_agent
 class MessageCodec
 {
 public:
-    static bool decodeBootstrapInfo(const rclcpp::Logger& logger, const std::string& msg, BootstrapInfo& info);
+    static bool decodeBootstrapInfo(const std::string& msg, BootstrapInfo& info);
     //static std::string encodeRegisterResp(const RobotRegisterResponse& resp);
 };
 }

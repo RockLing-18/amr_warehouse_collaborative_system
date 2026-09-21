@@ -4,11 +4,11 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include "config/config.h"
 #include <unordered_map>
 #include <mutex>
+#include "types.h"
 
-namespace edge_server
+namespace amr_agent
 {
 class MqttClient : public virtual mqtt::callback
 {
@@ -19,7 +19,7 @@ public:
     MqttClient();
     ~MqttClient();
 
-    bool init(const MqttCfg& cfg);
+    bool init(const MqttConfig& cfg);
     bool connect();
     void disconnect();
     bool subscribe(const std::string& topic, int qos = 1);

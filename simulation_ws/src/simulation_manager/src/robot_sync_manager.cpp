@@ -3,8 +3,8 @@
 
 namespace simulation_manager
 {
-RobotSyncManager::RobotSyncManager(const rclcpp::Node::SharedPtr& node, const std::shared_ptr<GazeboClient>& gazebo_client, const std::shared_ptr<RobotLifecycleManager>& lifecycle)
-: m_node(node), m_gazebo_client(gazebo_client),  m_lifecycle_manager(lifecycle)
+RobotSyncManager::RobotSyncManager(const std::shared_ptr<GazeboClient>& gazebo_client, const std::shared_ptr<RobotLifecycleManager>& lifecycle)
+: m_gazebo_client(gazebo_client),  m_lifecycle_manager(lifecycle)
 {
 }
 

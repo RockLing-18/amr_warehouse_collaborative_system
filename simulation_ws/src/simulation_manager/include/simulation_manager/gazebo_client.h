@@ -30,7 +30,7 @@ public:
 private:
     bool parseModelName(const std::string& model_name, GazeboModelInfo& info);
 private:
-    rclcpp::Node::SharedPtr m_node;
+    rclcpp::Logger m_logger;
     // rclcpp::Client<gazebo_msgs::srv::GetWorldProperties>::SharedPtr m_get_world_properties_client;
     rclcpp::Client<gazebo_msgs::srv::GetModelList>::SharedPtr m_get_model_list_client;
     rclcpp::Client<gazebo_msgs::srv::DeleteEntity>::SharedPtr m_delete_entity_client;

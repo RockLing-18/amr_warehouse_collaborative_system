@@ -83,7 +83,7 @@ private:
     void resultCallback(const GoalHandle::WrappedResult &result);
 
 private:
-    rclcpp::Node::SharedPtr m_node;
+    rclcpp::Logger m_logger;
     rclcpp_action::Client<NavigateToPose>::SharedPtr m_action_client;
     GoalHandle::SharedPtr m_goal_handle;
     FeedbackCallback m_feedback_callback;

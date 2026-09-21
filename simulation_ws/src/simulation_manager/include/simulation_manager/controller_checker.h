@@ -26,7 +26,9 @@ private:
     bool isControllerReady(const controller_manager_msgs::srv::ListControllers::Response::SharedPtr& response);
 
 private:
-    rclcpp::Node::SharedPtr m_node;
+    rclcpp::Node::WeakPtr m_node;
+    // std::weak_ptr<rclcpp::Node> m_node;
+    rclcpp::Logger m_logger;
 };
 
 

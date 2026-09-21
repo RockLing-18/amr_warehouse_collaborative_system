@@ -28,7 +28,8 @@ public:
     bool getRobotPose(RobotPose &pose);
 
 private:
-    rclcpp::Node::SharedPtr m_node;
+    rclcpp::Node::WeakPtr m_node;
+    rclcpp::Logger m_logger;
     std::unique_ptr<tf2_ros::Buffer> m_buffer;
     std::shared_ptr<tf2_ros::TransformListener> m_listener;
 };
