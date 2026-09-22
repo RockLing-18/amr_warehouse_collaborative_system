@@ -73,7 +73,7 @@ void EdgeCommunication::registerHandler()
         mqtt_topic::EDGE_SERVER_STATUS, 
         [this](const std::string& msg)
         {
-            //robotRegisterReqHandler(msg);
+            edgeSvrStatusHandler(msg);
         });
     
     {
@@ -82,7 +82,7 @@ void EdgeCommunication::registerHandler()
         topic,
         [this](const std::string& msg)
         {
-            //robotStatusHandler(msg);
+            robotRegisterRespHandler(msg);
         });
     }
     
@@ -109,40 +109,39 @@ void EdgeCommunication::registerHandler()
 //     //     });
 }
 
-// void EdgeCommunication::robotRegisterReqHandler(const std::string& msg)
-// {
-//     RobotRegisterRequest req;
-//     RobotRegisterResponse resp;
-//     bool bRet = MessageCodec::decodeRegisterReq(msg, req);
-//     if(!bRet)
-//     {
-//         LOG_ERROR("decodeRegisterReq failed");
-//         return;
-//     }
+void EdgeCommunication::robotRegisterRespHandler(const std::string& msg)
+{
+    RobotRegisterResponse resp;
+    bool bRet = MessageCodec::decodeRobotRegisterResp(msg, resp);
+    if(!bRet)
+    {
+        LOG_ERROR("decodeRegisterReq failed");
+        return;
+    }
 
-//     bRet = m_context->getRobotService()->handleRegister(req, resp);
-//     if(!bRet)
-//     {
-//         LOG_ERROR("robot register failed");
-//     }
+    // bRet = m_context->getRobotService()->handleRegister(req, resp);
+    // if(!bRet)
+    // {
+    //     LOG_ERROR("robot register failed");
+    // }
 
-//     std::string payload = MessageCodec::encodeRegisterResp(resp);
-//     std::string topic = mqtt_topic::ROBOT_REGISTER_RSP_PREFIX + req.robot_id;
-//     m_mqtt->publish(topic, payload);
-// }
+    // std::string payload = MessageCodec::encodeRegisterResp(resp);
+    // std::string topic = mqtt_topic::ROBOT_REGISTER_RSP_PREFIX + req.robot_id;
+    // m_mqtt->publish(topic, payload);
+}
 
-// void EdgeCommunication::robotStatusHandler(const std::string& msg)
-// {
-//     RobotRunningStatus status;
-//     bool bRet =  MessageCodec::decodeRobotRunningStatus(msg, status);
-//     if(!bRet)
-//     {
-//         LOG_ERROR("robotStatusHandler failed");
-//         return;
-//     }
+void EdgeCommunication::edgeSvrStatusHandler(const std::string& msg)
+{
+    bool online = false;
+    bool bRet =  MessageCodec::decodeEdgeSvrStatus(msg, online);
+    if(!bRet)
+    {
+        LOG_ERROR("edgeSvrStatusHandler failed");
+        return;
+    }
 
-//     m_context->getRobotService()->handleStatus(status);
-// }
+    //m_context->getRobotService()->handleStatus(status);
+}
 
 // void EdgeCommunication::robotWillHandler(const std::string& msg)
 // {

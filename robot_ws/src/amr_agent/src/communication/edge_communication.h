@@ -22,8 +22,9 @@ public:
 private:
     void setSubscribe();
     void registerHandler();
-    // void robotRegisterReqHandler(const std::string& msg);
-    // void robotStatusHandler(const std::string& msg);
+    void edgeSvrStatusHandler(const std::string& msg);
+    void robotRegisterRespHandler(const std::string& msg);
+    
     // void robotWillHandler(const std::string& msg);
 
 private:

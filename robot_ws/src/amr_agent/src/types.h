@@ -42,4 +42,16 @@ struct BootstrapInfo
     MqttConfig mqtt;
     MapConfig map;
 };
+
+struct RobotRegisterResponse
+{
+    int code = -1;
+    std::string message;
+    std::string robot_id;
+    std::string request_id;
+    std::string map_version;
+    std::string map_download_url;
+    bool map_update = false;
+};
+
 }

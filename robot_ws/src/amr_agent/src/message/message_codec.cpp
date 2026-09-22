@@ -49,6 +49,51 @@ bool MessageCodec::decodeBootstrapInfo(const std::string& msg, BootstrapInfo& in
     return true;
 }
 
+bool MessageCodec::decodeEdgeSvrStatus(const std::string& msg, bool& online)
+{
+    try
+    {
+        auto root = json::parse(msg);
+        std::string status = root.value("status", "offline");
+        if(status == "online")
+            online = true;
+        else
+            online = false;
+    }
+    catch(const std::exception& e)
+    {
+        LOG_ERROR("parse edgeSvrStatus failed:%s", e.what());
+        return false;
+    }
+
+    return true;
+}
+
+bool MessageCodec::decodeRobotRegisterResp(const std::string& msg, RobotRegisterResponse& resp)
+{
+    try
+    {
+        auto root = json::parse(msg);
+        if(root.value("code", -1) != 0)
+        {
+            LOG_ERROR("RobotRegister response code error");
+            return false;
+        }
+
+        resp.request_id = root.value("request_id", "");
+        resp.map_version = root.value("map_version", "");
+        resp.map_update = root.value("map_update", false);
+        resp.map_download_url = root.value("map_download_url", "");
+    }
+    catch(const std::exception& e)
+    {
+        LOG_ERROR("parse RobotRegister response failed:%s", e.what());
+        return false;
+    }
+
+    return true;
+}
+
 // std::string MessageCodec::encodeRegisterResp(const RobotRegisterResponse& resp)
 // {
 //     json rsp;
