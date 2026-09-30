@@ -4,6 +4,13 @@
 namespace amr_agent
 {
 
+class EdgeCommunication;
+class MapManager;
+class TaskBridge;
+class EdgeStateBridge;
+class StatusManager;
+class TrafficBridge;
+
 class AmrAgentNode : public rclcpp::Node
 {
 public:
@@ -14,11 +21,12 @@ private:
     //void onTimerUpdateRobotModels();
 
 private:
-    // std::shared_ptr<EdgeClient> m_edge_client;
-    // std::shared_ptr<GazeboClient> m_gazebo_client;
-    // std::shared_ptr<AmrProcessManager> m_process_manager;
-    // std::shared_ptr<RobotSyncManager> m_sync_manager;
-    // std::shared_ptr<RobotLifecycleManager> m_lifecycle_manager;
+    std::shared_ptr<EdgeCommunication> m_communication;
+    std::shared_ptr<MapManager> m_mapManager;
+    std::shared_ptr<TaskBridge> m_taskBridge;
+    std::shared_ptr<EdgeStateBridge> m_edgeStateBridge;
+    std::shared_ptr<StatusManager> m_statusManager;
+
     // rclcpp::TimerBase::SharedPtr m_timer;
 };
 

@@ -32,9 +32,8 @@ bool AmrAgentNode::init()
         return false;
     }
 
-    // m_bootstrapInfo = info;
-    // initMqtt(info.mqtt);
-    // initMap(info);
+    m_communication = std::make_shared<EdgeCommunication>();
+    m_mapManager =  std::make_shared<MapManager>();
 
     return true;
 }
