@@ -26,6 +26,7 @@ private:
     std::shared_ptr<TaskBridge> m_taskBridge;
     std::shared_ptr<EdgeStateBridge> m_edgeStateBridge;
     std::shared_ptr<StatusManager> m_statusManager;
+    std::shared_ptr<TrafficBridge> m_trafficBridge;
 
     // rclcpp::TimerBase::SharedPtr m_timer;
 };

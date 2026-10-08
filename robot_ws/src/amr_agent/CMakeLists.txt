@@ -15,6 +15,7 @@ find_package(rclcpp REQUIRED)
 find_package(yaml-cpp REQUIRED)
 find_package(PahoMqttCpp REQUIRED)
 find_package(fmt REQUIRED)
+find_package(amr_common REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

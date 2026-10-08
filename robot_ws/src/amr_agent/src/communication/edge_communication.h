@@ -11,7 +11,6 @@ namespace amr_agent
 
 class MqttClient;
 class MqttMessageRouter;
-class ServiceContext;
 
 class EdgeCommunication
 {
@@ -27,11 +26,21 @@ private:
     
     // void robotWillHandler(const std::string& msg);
 
+    using RegisterResponseCallback = std::function<void(const RobotRegisterResponse&)>;
+    void setRegisterResponseCallback(RegisterResponseCallback callback);
+private:
+    RegisterResponseCallback m_registerResponseCallback;
+    
+
+//     using TrafficResponseCallback = std::function<void(const TrafficResponse&)>;
+//     void setTrafficResponseCallback(TrafficResponseCallback callback);
+// private:
+//     TrafficResponseCallback m_trafficResponseCallback;
+
 private:
     std::string m_robotId;
     std::unique_ptr<MqttClient> m_mqtt;
     std::unique_ptr<MqttMessageRouter> m_router;
-    std::shared_ptr<ServiceContext> m_context;
 };
 
 

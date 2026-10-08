@@ -119,15 +119,10 @@ void EdgeCommunication::robotRegisterRespHandler(const std::string& msg)
         return;
     }
 
-    // bRet = m_context->getRobotService()->handleRegister(req, resp);
-    // if(!bRet)
-    // {
-    //     LOG_ERROR("robot register failed");
-    // }
-
-    // std::string payload = MessageCodec::encodeRegisterResp(resp);
-    // std::string topic = mqtt_topic::ROBOT_REGISTER_RSP_PREFIX + req.robot_id;
-    // m_mqtt->publish(topic, payload);
+    if(m_registerResponseCallback)
+    {
+        m_registerResponseCallback(resp);
+    }
 }
 
 void EdgeCommunication::edgeSvrStatusHandler(const std::string& msg)
