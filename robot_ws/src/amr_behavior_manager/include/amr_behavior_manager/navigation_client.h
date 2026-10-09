@@ -13,7 +13,7 @@
 #include "amr_interfaces/srv/get_robot_pose.hpp"
 #include "amr_interfaces/msg/robot_pose.hpp"
 
-namespace amr_manager
+namespace amr_behavior_manager
 {
 
 // amr_navigation 客户端统一封装

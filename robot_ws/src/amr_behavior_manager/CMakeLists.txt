@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(amr_manager)
+project(amr_behavior_manager)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -14,22 +14,22 @@ find_package(amr_interfaces REQUIRED)
 
 
 # ============================
-# Manager Node
+# Behavior Manager Node
 # ============================
 add_executable(
-    amr_manager_node
-    src/amr_manager_node.cpp
+    amr_behavior_manager_node
+    src/amr_behavior_manager_node.cpp
     src/navigation_client.cpp
 )
 
 target_include_directories(
-    amr_manager_node
+    amr_behavior_manager_node
     PUBLIC
     include
 )
 
 ament_target_dependencies(
-    amr_manager_node
+    amr_behavior_manager_node
     rclcpp
     rclcpp_action
     geometry_msgs
@@ -41,7 +41,7 @@ ament_target_dependencies(
 # ============================
 install(
     TARGETS
-    amr_manager_node
+    amr_behavior_manager_node
     DESTINATION
     lib/${PROJECT_NAME}
 )

@@ -1,5 +1,5 @@
 # NavigationState
-# 导航状态常量 + 状态字段（供 amr_navigation / amr_manager 复用）
+# 导航状态常量 + 状态字段（供 amr_navigation / amr_behavior_manager 复用）
 # C++ 引用常量：amr_interfaces::msg::NavigationState::STATE_NAVIGATING
 
 uint8 IDLE=0

@@ -1,5 +1,5 @@
-// amr_manager_node.cpp
-// amr_manager 入口节点
+// amr_behavior_manager_node.cpp
+// amr_behavior_manager 入口节点
 //
 // 发布（相对名）: robot_status / task_status
 // 对接 amr_navigation 服务（接口类型来自 amr_interfaces，相对名）:
@@ -13,20 +13,20 @@
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
-#include "amr_manager/navigation_client.h"
+#include "amr_behavior_manager/navigation_client.h"
 #include "amr_interfaces/msg/robot_status.hpp"
 #include "amr_interfaces/msg/task_status.hpp"
 
-namespace amr_manager
+namespace amr_behavior_manager
 {
 
-class AmrManagerNode : public rclcpp::Node
+class AmrBehaviorManagerNode : public rclcpp::Node
 {
 public:
     using RobotStatus = amr_interfaces::msg::RobotStatus;
     using TaskStatus = amr_interfaces::msg::TaskStatus;
 
-    AmrManagerNode() : Node("amr_manager")
+    AmrBehaviorManagerNode() : Node("amr_behavior_manager")
     {
         this->declare_parameter<std::string>("robot_id", "robot_01");
         this->declare_parameter<double>("status_publish_rate_hz", 1.0);
@@ -56,9 +56,9 @@ public:
         double rate = this->get_parameter("status_publish_rate_hz").as_double();
         m_status_timer = this->create_wall_timer(
             std::chrono::duration<double>(1.0 / rate),
-            std::bind(&AmrManagerNode::publishStatus, this));
+            std::bind(&AmrBehaviorManagerNode::publishStatus, this));
 
-        RCLCPP_INFO(this->get_logger(), "amr_manager_node init done");
+        RCLCPP_INFO(this->get_logger(), "amr_behavior_manager_node init done");
     }
 
 private:
@@ -105,7 +105,7 @@ private:
 int main(int argc, char ** argv)
 {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<amr_manager::AmrManagerNode>();
+    auto node = std::make_shared<amr_behavior_manager::AmrBehaviorManagerNode>();
     node->init();
     rclcpp::spin(node);
     rclcpp::shutdown();

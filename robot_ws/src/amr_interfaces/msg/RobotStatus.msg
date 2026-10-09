@@ -1,5 +1,5 @@
 # RobotStatus
-# amr_manager 聚合发布的机器人状态（每机器人 namespace 下 topic: robot_status）
+# amr_behavior_manager 聚合发布的机器人状态（每机器人 namespace 下 topic: robot_status）
 
 string robot_id
 

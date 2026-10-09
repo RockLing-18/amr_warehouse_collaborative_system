@@ -1,5 +1,5 @@
 # AmrNavigateToPose
-# amr_manager -> amr_navigation 单点导航 Action（按坐标导航，纯能力接口）
+# amr_behavior_manager -> amr_navigation 单点导航 Action（按坐标导航，纯能力接口）
 # 状态常量见 amr_interfaces/msg/NavigationState.msg
 
 # ===== Goal =====

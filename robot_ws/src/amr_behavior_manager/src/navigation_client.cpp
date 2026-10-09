@@ -1,6 +1,6 @@
-#include "amr_manager/navigation_client.h"
+#include "amr_behavior_manager/navigation_client.h"
 
-namespace amr_manager
+namespace amr_behavior_manager
 {
 
 NavigationClient::NavigationClient(rclcpp::Node::SharedPtr node)

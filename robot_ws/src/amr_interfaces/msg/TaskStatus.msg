@@ -1,5 +1,5 @@
 # TaskStatus
-# amr_manager 发布的当前任务状态（每机器人 namespace 下 topic: task_status）
+# amr_behavior_manager 发布的当前任务状态（每机器人 namespace 下 topic: task_status）
 
 string task_id
 string type                     # INBOUND / OUTBOUND
