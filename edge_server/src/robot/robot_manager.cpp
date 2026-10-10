@@ -24,16 +24,16 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
     if(iter != m_robots.end())
     {
         // 存在消息重复的可能, 避免重复
-        if (iter->second.getInstanceInfo().simulation_instance_id == instanceId)
+        if (iter->second.getInstanceInfo().instance_id == instanceId)
             return false;
 
         // // 已存在，可以理解为重新上线
         // RobotBaseInfo robotNew;
         // robotNew = robot;
-        // robotNew.simulation_instance_id = instanceId;
+        // robotNew.instance_id = instanceId;
         // iter->second.updateBaseInfo(robotNew);
 
-        // LOG_INFO("robot re-register, robot_id={} simulation_instance_id={}", robot.robot_id, instanceId);
+        // LOG_INFO("robot re-register, robot_id={} instance_id={}", robot.robot_id, instanceId);
 
         // if(m_callback)
         //     m_callback(RobotEvent::REGISTER);
@@ -43,7 +43,7 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
 
     RobotEntity robotEntity;
     RobotBaseInfo robotNew(robot);
-    robotNew.simulation_instance_id = instanceId;
+    robotNew.instance_id = instanceId;
     robotEntity.updateBaseInfo(robotNew);
     RobotRunningStatus robotStatus;
     robotStatus.state = RobotState::INITIALIZING;
@@ -55,7 +55,7 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
     robotEntity.updateStatus(robotStatus);
     m_robots[robotNew.robot_id] = robotEntity;
 
-    LOG_INFO("robot register, robot_id={} simulation_instance_id={}", robotNew.robot_id, robotNew.simulation_instance_id);
+    LOG_INFO("robot register, robot_id={} instance_id={}", robotNew.robot_id, robotNew.instance_id);
 
     if(m_callback)
         m_callback(RobotEvent::REGISTER);

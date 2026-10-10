@@ -1,5 +1,9 @@
 # AMR Internal Architecture
 
+**Status:** Partial
+
+V1 modules are partially implemented. `amr_traffic_manager` and `amr_power_manager` are Planned for V2.
+
 ## 1. Overview
 
 AMR is a ROS2-based autonomous mobile robot system.
@@ -12,11 +16,14 @@ Communication with the Edge Server is handled by `amr_agent` through
 - HTTP
 - MQTT
 
-The main AMR modules are
+The V1 AMR modules are:
 
 - `amr_agent`
-- `amr_behavior_manager` 
+- `amr_behavior_manager`
 - `amr_navigation`
+
+Future modules, not part of V1:
+
 - `amr_traffic_manager`
 - `amr_power_manager`
 
@@ -30,8 +37,8 @@ architecture-beta
         service agent(server)[amr_agent] in amr
         service behavior(server)[amr_behavior_manager] in amr
         service navigation(server)[amr_navigation] in amr
-        service traffic(server)[amr_traffic_manager] in amr
-        service power(server)[amr_power_manager] in amr
+        service traffic(server)[amr_traffic_manager (V2)] in amr
+        service power(server)[amr_power_manager (V2)] in amr
 
     group edge(cloud)[Edge Server]
 
@@ -39,18 +46,19 @@ architecture-beta
         service edge_mqtt(server)[MQTT Broker] in edge
 
 
-    agentR -- Ledge_http
-    agentR -- Ledge_mqtt
+    agent:R -- L:edge_http
+    agent:R -- L:edge_mqtt
 
-    agentB -- Tbehavior
+    agent:B -- T:behavior
 
-    behaviorB -- Tnavigation
-    behaviorR -- Ltraffic
-    behaviorR -- Lpower
-	
-3. Module Responsibilities
-3.1 amr_agent
+    behavior:B -- T:navigation
+    behavior:R -- L:traffic
+    behavior:R -- L:power
+```
 
+## 3. Module Responsibilities
+
+### 3.1 amr_agent
 amr_agent is the AMR external communication and system integration module.
 
 Responsibilities:
@@ -72,7 +80,7 @@ Navigation algorithms
 Task behavior orchestration
 Traffic decision logic
 Battery management logic
-3.2 amr_behavior_manager
+### 3.2 amr_behavior_manager
 
 amr_behavior_manager is responsible for task execution orchestration.
 
@@ -97,7 +105,7 @@ Battery hardware management
 
 These responsibilities belong to dedicated modules.
 
-3.3 amr_navigation
+### 3.3 amr_navigation
 
 amr_navigation provides autonomous navigation capabilities based on Nav2.
 
@@ -122,7 +130,9 @@ Why the robot should move to that position.
 
 That decision belongs to the behavior/task layer.
 
-3.4 amr_traffic_manager
+### 3.4 amr_traffic_manager (V2 / Planned)
+
+amr_traffic_manager is a future module. It is not part of V1.
 
 amr_traffic_manager manages traffic-related coordination between AMRs.
 
@@ -136,7 +146,9 @@ Coordinating with the behavior manager when movement must wait or resume
 
 The traffic manager does not determine the overall task sequence.
 
-3.5 amr_power_manager
+### 3.5 amr_power_manager (V2 / Planned)
+
+amr_power_manager is a future module. It is not part of V1.
 
 amr_power_manager manages AMR power and battery state.
 
@@ -150,7 +162,7 @@ Providing power-related state to the behavior manager
 
 The power manager does not determine the overall task sequence.
 
-4. Module Collaboration
+## 4. Module Collaboration
 
 The AMR follows a layered responsibility model:
 
@@ -171,10 +183,11 @@ The responsibilities are intentionally separated:
 amr_agent handles external communication and system integration.
 amr_behavior_manager handles task orchestration and decision flow.
 amr_navigation handles robot navigation execution.
-amr_traffic_manager handles traffic coordination.
-amr_power_manager handles battery and charging state.
-5. Communication
-AMR ↔ Edge Server
+amr_traffic_manager will handle traffic coordination in V2.
+amr_power_manager will handle battery and charging state in V2.
+
+## 5. Communication
+### AMR ↔ Edge Server
 
 The AMR communicates with the Edge Server using:
 
@@ -190,7 +203,7 @@ amr_agent
     ├── HTTP ──────► Edge HTTP Server
     │
     └── MQTT ──────► Edge MQTT Broker
-AMR Internal Communication
+### AMR Internal Communication
 
 AMR modules communicate through ROS2.
 
@@ -202,7 +215,7 @@ Action
 
 The specific interfaces are defined in amr_interfaces.
 
-6. Design Principles
+## 6. Design Principles
 Single Responsibility
 
 Each module has a clearly defined responsibility.

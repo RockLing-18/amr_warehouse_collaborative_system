@@ -99,7 +99,7 @@ struct Pose2D
 struct RobotBaseInfo
 {
     std::string robot_id;
-    std::string simulation_instance_id;
+    std::string instance_id;
     std::string warehouse_id;
     std::string map_version;
     uint64_t register_timestamp;  // 注册的时间戳, 暂时以其作为instance_i
@@ -119,7 +119,7 @@ struct RobotRunningStatus
 struct RobotInstanceInfo
 {
     std::string robot_id;
-    std::string simulation_instance_id;
+    std::string instance_id;
     Pose2D pose;
 };
 
@@ -191,7 +191,7 @@ struct MapUpdateInfo
 struct RobotRegisterRequest
 {
     std::string robot_id;
-    std::string simulation_instance_id;
+    std::string instance_id;
     std::string warehouse_id;
     std::string map_version;
     std::string request_id;

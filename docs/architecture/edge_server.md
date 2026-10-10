@@ -1,5 +1,9 @@
 # Edge Server Architecture
 
+**Status:** Partial
+
+Bootstrap, Map, and Robot services are partially implemented. Task Service and Cloud-side communication are Planned for later versions.
+
 ## 1. Overview
 
 The Edge Server is the local coordination and service layer for a warehouse.
@@ -8,17 +12,21 @@ It is implemented as a standalone C++ application and does not depend on ROS2.
 
 The Edge Server provides communication and services for:
 
-- Cloud Platform
-- AMR fleet
-- Simulation Manager
+- AMR fleet (V1)
+- Simulation Manager (V1)
+- Cloud Platform (V2 / Planned)
 
-The Edge Server acts as:
+Current V1 responsibilities:
 
-- HTTP Server for Cloud requests
-- HTTP Client for Cloud APIs when Edge initiates requests
-- MQTT Client for Cloud-side MQTT communication
+- HTTP Server for AMR Bootstrap and map APIs
 - MQTT Client for AMR-side MQTT communication
 - WebSocket Server for Simulation Manager
+
+Planned for later versions:
+
+- HTTP Client for Cloud APIs
+- MQTT Client for Cloud-side MQTT communication
+- Task Service
 
 The Edge Server also manages local warehouse data and business services.
 
@@ -32,19 +40,19 @@ architecture-beta
     group edge(cloud)[Edge Server]
 
         service http_server(server)[HTTP Server] in edge
-        service http_client(server)[HTTP Client] in edge
+        service http_client(server)[HTTP Client (V2)] in edge
         service mqtt_client(server)[MQTT Client] in edge
         service websocket(server)[WebSocket Server] in edge
 
         service bootstrap(server)[Bootstrap Service] in edge
         service map(server)[Map Service] in edge
         service robot(server)[Robot Service] in edge
-        service task(server)[Task Service] in edge
+        service task(server)[Task Service (Planned)] in edge
 
         service database(database)[SQLite] in edge
 
 
-    group cloud(cloud)[Cloud Platform]
+    group cloud(cloud)[Cloud Platform (V2)]
 
         service cloud_api(server)[Cloud API] in cloud
         service cloud_mqtt(server)[Cloud MQTT] in cloud
@@ -91,12 +99,13 @@ architecture-beta
     map:R -- L:database
     robot:R -- L:database
     task:R -- L:database
-	
-3. Communication Architecture
+```
+
+## 3. Communication Architecture
 
 The Edge Server participates in three external communication domains.
 
-3.1 Cloud HTTP
+### 3.1 Cloud HTTP (V2 / Planned)
 
 The Edge Server exposes HTTP APIs to the Cloud Platform.
 
@@ -121,7 +130,7 @@ Edge HTTP Client
     │ HTTP
     ▼
 Cloud API
-3.2 Cloud MQTT
+### 3.2 Cloud MQTT (V2 / Planned)
 
 Cloud and Edge use a dedicated MQTT infrastructure.
 
@@ -137,7 +146,7 @@ The Cloud MQTT broker is independent from the MQTT broker used by AMRs.
 
 The Edge Server connects to the Cloud EMQX as an MQTT Client.
 
-3.3 AMR MQTT
+### 3.3 AMR MQTT (V1)
 
 The Edge Server communicates with AMRs through a separate MQTT infrastructure.
 
@@ -160,7 +169,7 @@ AMR-related event handling
 
 AMRs do not communicate with the Cloud MQTT broker directly.
 
-3.4 Simulation WebSocket
+### 3.4 Simulation WebSocket (V1)
 
 The Simulation Manager connects to the Edge Server through WebSocket.
 
@@ -174,7 +183,7 @@ This channel is primarily used for simulation-related robot synchronization and 
 
 Simulation Manager communicates directly with Gazebo and does not use MQTT for simulation control.
 
-4. Internal Architecture
+## 4. Internal Architecture
 
 The Edge Server contains several business services.
 
@@ -198,8 +207,9 @@ Business services are responsible for domain logic.
 
 The database layer is responsible for local persistence.
 
-5. Communication Components
-5.1 HTTP Server
+## 5. Communication Components
+
+### 5.1 HTTP Server (V1)
 
 The HTTP Server exposes REST-style APIs for external clients.
 
@@ -225,7 +235,7 @@ Business Service
      │
      ▼
 SQLite / File System
-5.2 HTTP Client
+### 5.2 HTTP Client (V2 / Planned)
 
 The HTTP Client is used when Edge needs to actively communicate with Cloud services.
 
@@ -239,7 +249,7 @@ Error handling
 
 Business services should not directly depend on the HTTP library.
 
-5.3 MQTT Client
+### 5.3 MQTT Client (V1 for AMR MQTT; Cloud MQTT planned)
 
 The MQTT communication layer handles MQTT connections and messages.
 
@@ -256,7 +266,7 @@ Protocol-specific logic should remain inside the communication layer.
 
 Business services should process decoded domain objects rather than raw MQTT messages.
 
-5.4 WebSocket Server
+### 5.4 WebSocket Server (V1)
 
 The WebSocket Server provides the communication channel for Simulation Manager.
 
@@ -270,8 +280,9 @@ Message routing
 
 Simulation-specific business logic should remain outside the WebSocket transport layer.
 
-6. Business Services
-6.1 Bootstrap Service
+## 6. Business Services
+
+### 6.1 Bootstrap Service (V1)
 
 The Bootstrap Service handles AMR bootstrap requests.
 
@@ -293,7 +304,7 @@ Bootstrap Service
  ├── Warehouse information
  ├── MQTT configuration
  └── Bootstrap response
-6.2 Map Service
+### 6.2 Map Service (V1)
 
 The Map Service manages warehouse map packages.
 
@@ -310,7 +321,7 @@ Map files are stored on the Edge file system.
 
 Map metadata is stored in SQLite.
 
-6.3 Robot Service
+### 6.3 Robot Service (V1)
 
 The Robot Service manages AMR-related information.
 
@@ -321,9 +332,11 @@ Robot status
 Robot lifecycle state
 Robot information persistence
 Robot communication state
-6.4 Task Service
+### 6.4 Task Service (Planned)
 
-The Task Service manages task-related business data.
+The Task Service is part of the target architecture but is not implemented in V1 yet.
+
+The Task Service will manage task-related business data.
 
 Responsibilities:
 
@@ -337,7 +350,7 @@ The Task Service does not directly control AMR navigation.
 
 The AMR is responsible for executing the task locally.
 
-7. Data Storage
+## 7. Data Storage
 
 The Edge Server uses SQLite for local persistent data.
 
@@ -360,7 +373,7 @@ Edge Server
     │
     └── File System
           └── Map packages
-8. Responsibility Boundaries
+## 8. Responsibility Boundaries
 
 The Edge Server follows a layered responsibility model.
 
@@ -407,7 +420,7 @@ SQLite
 
 The Robot Service should not need to know whether the request originated from MQTT, HTTP, or WebSocket.
 
-9. Design Principles
+## 9. Design Principles
 Protocol and Business Logic Separation
 
 Communication components handle protocols.

@@ -1,5 +1,9 @@
 # Simulation Architecture
 
+**Status:** Partial
+
+Core `simulation_manager` components are partially implemented.
+
 ## 1. Overview
 
 The Simulation subsystem provides the simulation environment for the AMR system.
@@ -39,7 +43,21 @@ architecture-beta
 
     simulation_manager:R -- L:edge_ws
     simulation_manager:B -- T:gazebo
-````
+```
+
+## 2.1 Status
+
+V1 implemented components:
+
+- `simulation_manager`
+- `AmrProcessManager`
+- `RobotLifecycleManager`
+- `RobotSyncManager`
+- `GazeboClient`
+- `ControllerChecker`
+- `WebSocketClient`
+
+The WebSocket `robot_list` protocol uses `instance_id` as the simulation instance field.
 
 ### Communication
 

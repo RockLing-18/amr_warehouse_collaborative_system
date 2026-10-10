@@ -16,7 +16,7 @@ public:
     {
         RobotInstanceInfo info;
         info.robot_id = m_info.robot_id;
-        info.simulation_instance_id = m_info.simulation_instance_id;
+        info.instance_id = m_info.instance_id;
         info.pose = m_status.pose;
         return info;
     }

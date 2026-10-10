@@ -70,7 +70,7 @@ void RobotListPublisher::publish()
         {
             json item;
             item["robot_id"] = robot.robot_id;
-            item["instance_id"] = robot.simulation_instance_id;
+            item["instance_id"] = robot.instance_id;
             item["x"] = robot.pose.x;
             item["y"] = robot.pose.y;
             item["yaw"] = robot.pose.yaw;

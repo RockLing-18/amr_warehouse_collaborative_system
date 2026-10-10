@@ -2,10 +2,10 @@
 
 **项目名称：** AMR 云边协同多机器人协调系统
 **英文名称：** Warehouse AMR Cloud-Edge Collaborative System
-**文档版本：** V0.3
+**文档版本：** V0.12
 **当前开发基线：** V1
 **文档状态：** Draft（已按当前代码基线校对）
-**最后更新：** 2026-10-09
+**最后更新：** 2026-10-10
 **运行环境：** Ubuntu 22.04、ROS2 Humble、Gazebo 11
 
 ---
@@ -28,7 +28,7 @@ Cloud Platform 负责上层业务管理和任务创建；Edge Server 负责仓�
 
 1. 建立 Cloud、Edge、AMR、Simulation 之间职责清晰的系统架构。
 2. 实现 AMR 启动初始化、Edge 注册、地图同步和通信建立。
-3. 实现由 Cloud 创建任务、Edge 下发任务、AMR 执行任务并反馈结果的完整业务闭环。
+3. 实现由 Edge 侧任务注入创建任务、Edge 下发任务、AMR 执行任务并反馈结果的 V1 业务闭环；Cloud 创建任务作为后续版本目标。
 4. 使用 ROS2 和 Nav2 实现机器人内部模块协作及自主导航。
 5. 使用 HTTP、MQTT 和 WebSocket 实现不同子系统之间的通信。
 6. 使用 Gazebo 构建可重复运行的仓储 AMR 仿真环境。
@@ -49,16 +49,52 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 | Cloud Platform | 负责业务管理、运输任务创建和结果查询的上层平台。 |
 | Edge Server | 仓库侧独立 C++ 服务，负责 AMR 接入、地图管理、任务下发及状态汇聚。 |
 | Simulation Manager | 负责 Gazebo 仿真 AMR 进程、模型及生命周期管理的组件。 |
-| `robot_id` | 机器人业务身份，用于 Edge、Cloud 和 AMR 之间关联机器人。 |
-| `simulation_instance_id` | 一次仿真运行中的实例标识，用于区分进程或 Gazebo 模型实例，不应与 `robot_id` 混淆。 |
+| `robot_id` | 机器人业务身份，用于 Edge 和 AMR 之间关联机器人；后续 Cloud 版本复用。 |
+| `instance_id` | 一次仿真运行中的实例标识，用于区分进程或 Gazebo 模型实例，不应与 `robot_id` 混淆。 |
 | `warehouse_id` | 仓库标识，用于关联 Edge Server、地图包和机器人所属仓库。 |
-| `task_id` | 运输任务唯一标识，跨 Cloud、Edge、AMR 关联同一任务。 |
+| `task_id` | 运输任务唯一标识，跨任务注入调用方、Edge、AMR 关联同一任务。 |
 | QoS | MQTT 或 ROS2 的服务质量策略。 |
 | Bootstrap | AMR 启动时从 Edge Server 获取 MQTT 等接入配置的过程。 |
 
 本文档中的“任务管理模块 / 行为编排模块”在 V1 代码包中对应 `amr_behavior_manager`。为避免文档与实现不一致，后续需求统一使用 `amr_behavior_manager` 作为该模块名称。
 
 需求优先级采用 Must / Should / Could 进行区分。Must 为 V1 必须交付的核心能力，Should 为应尽量满足但可说明例外，Could 为可选能力。
+
+### 1.5 V1 已确认决策
+
+| 决策编号 | 决策内容 | 状态 |
+| --- | --- | --- |
+| D-001 | 需求权威文档为 `docs/requirements/srs.md`。 | Confirmed |
+| D-002 | README 采用“V1 当前范围 + 未来愿景”的结构。 | Confirmed |
+| D-003 | V1 暂不实现 Cloud Platform，采用 Edge 侧任务注入完成运输任务闭环。 | Confirmed |
+| D-004 | 仿真实例字段统一使用 `instance_id`。 | Confirmed |
+| D-005 | `amr_traffic_manager`、`amr_power_manager` 属于后续版本，V1 不作为交付项。 | Confirmed |
+| D-006 | V1 Edge 任务注入使用 HTTP API；后续 Cloud 保留该接口并通过 MQTT 发布任务。 | Confirmed |
+| D-007 | 任务 MQTT Topic 使用 `warehouse/{warehouse_id}/task` 和 `warehouse/{warehouse_id}/task/status`，QoS 1。 | Confirmed |
+| D-008 | 任务消息 JSON 使用 `snake_case`；任务状态枚举与 SRS 一致。 | Confirmed |
+| D-009 | AMR 内部 ROS2 Topic/Service/Action 名称统一定义在 `amr_common`。 | Confirmed |
+| D-010 | Cloud/Edge/AMR 相关 MQTT Topic 统一定义在 `common/mqtt/mqtt_topic.h`。 | Confirmed |
+| D-011 | Cloud → Edge 任务消息使用 `robot_ids` 表示参与搬运的 AMR 列表。 | Confirmed |
+| D-012 | Edge → AMR 任务下发 Topic 使用 `amr/{robot_id}/task`，任务消息只下发总量和货物列表，不做按 AMR 平均分配。 | Confirmed |
+| D-013 | Edge → AMR 任务共享状态 Topic 使用 `warehouse/{warehouse_id}/task/{task_id}/state`。 | Confirmed |
+| D-014 | Edge → AMR 任务共享状态必须包含 `goods_status`，按货物拆分搬运进度。 | Confirmed |
+| D-015 | `robot_ids` 不能为空；V1 暂不支持 Edge 自动选择参与 AMR。 | Confirmed |
+| D-016 | AMR 每次搬运前通过 `amr/{robot_id}/task/goods/request` 申请货物和数量，等待响应成功后才能开始。 | Confirmed |
+| D-017 | 正在搬运货物的 AMR 列表属于 Edge 内部状态，不下发给 AMR。 | Confirmed |
+| D-018 | AMR 通过 `amr/{robot_id}/task/status` 定时上报任务状态，并复用该 Topic 上报 `CARRY_COMPLETED` 和 `CARRY_ABORTED`。 | Confirmed |
+| D-019 | AMR 任务状态消息中的货物使用 `goods` 数组表示，支持同一趟搬运包含多类货物。 | Confirmed |
+| D-020 | 仅当参与任务的全部 AMR 异常时，Edge 向 Cloud 上报任务级 `INTERRUPTED`。 | Confirmed |
+| D-021 | `CARRY_COMPLETED` 对 `goods` 数组逐项将 `in_progress_quantity` 转为 `completed_quantity`；`CARRY_ABORTED` 对 `goods` 数组逐项将 `in_progress_quantity` 回退为 `pending_quantity`。 | Confirmed |
+| D-022 | Edge 任务注入 HTTP API 无鉴权，允许局域网内调用，统一使用 `code + msg + data` 响应结构。 | Confirmed |
+| D-023 | AMR 任务状态每 5 秒上报一次；Edge 5 分钟未收到更新即视为异常。 | Confirmed |
+| D-024 | AMR 申请货物使用 `goods` 数组，并参考 Edge 最新 `goods_status` 的 `pending_quantity`，不得超量申请。 | Confirmed |
+| D-025 | 目的地不直接下发，由 `goods_id + task_type` 映射到装货区、卸载区或存储区；完成上报暂不包含 `from/to/station_id`。 | Confirmed |
+| D-026 | V1 第一验收闭环包括任务创建、货物申请、完成上报和导航验证；抓取动作暂以数据变化代替。 | Confirmed |
+| D-027 | Edge 异常时，AMR 完成当前已获批搬运后停止下一行动，不进行本地平均分配。 | Confirmed |
+| D-028 | AMR 本地待补报结果持久化到 `pending_task_reports.json`，采用原子写入。 | Confirmed |
+| D-029 | Edge 恢复后从 SQLite 恢复任务状态，按幂等和时间戳合并 AMR 待补报结果。 | Confirmed |
+
+详细接口结构、消息字段和幂等规则见 `docs/requirements/interface-contract.md` 和 `docs/architecture/adr/`。
 
 ---
 
@@ -68,7 +104,7 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 
 | 子系统                    | 主要职责                           |
 | ---------------------- | ------------------------------ |
-| Cloud Platform         | 上层业务管理、运输任务创建、任务状态查询及云边协同      |
+| Cloud Platform         | 目标架构中的上层业务管理、运输任务创建、任务状态查询及云边协同；V1 不交付      |
 | Edge Server            | 仓库级服务、AMR 接入、任务下发、地图管理、机器人状态管理 |
 | AMR Application        | 机器人初始化、任务接收、行为编排、导航执行、任务状态管理   |
 | Simulation Environment | Gazebo 仿真、模拟 AMR 生命周期管理、仿真状态同步 |
@@ -77,13 +113,11 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 
 #### 2.2.1 Cloud Platform
 
-Cloud Platform 是上层业务管理和运输任务创建入口。
+Cloud Platform 是上层业务管理和运输任务创建入口，属于系统目标架构的一部分。
 
-V1 中，Cloud Platform 负责创建运输任务，并将任务信息交给 Edge Server。Edge Server 根据目标 AMR 和任务信息执行任务下发。
+V1 已确认暂不实现 Cloud Platform，改用 Edge 侧任务注入完成运输任务闭环。因此，Cloud Platform 不作为 V1 的交付和验收条件。
 
-Cloud Platform 应能够获取任务的执行状态及最终结果。
-
-V1 不要求实现完整的 WMS 对接、复杂的全局调度算法或完整的 Web 管理界面。
+后续版本再实现完整的 Cloud Platform，以及完整的 WMS 对接、全局调度算法和 Web 管理界面。
 
 #### 2.2.2 Edge Server
 
@@ -92,13 +126,13 @@ Edge Server 是独立运行的 C++ 服务程序，不依赖 ROS2。
 主要职责包括：
 
 * 提供 HTTP API。
-* 通过 Cloud-side MQTT Broker 与 Cloud Platform 通信。
+* 后续版本通过 Cloud-side MQTT Broker 与 Cloud Platform 通信。
 * 通过 Edge-side MQTT Broker 与 AMR 通信。
 * 提供 AMR Bootstrap 和注册相关服务。
 * 管理地图包的上传、下载、查询及激活。
 * 接收、保存和下发运输任务。
 * 管理 AMR 的基本信息、连接状态和任务状态。
-* 接收 AMR 任务结果，并向 Cloud Platform 提供结果查询或状态同步能力。
+* 接收 AMR 任务结果，并向 Edge 侧任务注入调用方提供结果查询或状态同步能力。
 * 通过 WebSocket 与 Simulation Manager 通信。
 * 使用本地数据库和文件系统保存必要的数据。
 
@@ -154,14 +188,14 @@ V1 的目标是完成一个可运行、可验证的基本运输任务闭环。
 2. AMR 建立 MQTT 通信并完成注册。
 3. AMR 检查本地地图版本，并在必要时同步地图。
 4. AMR 完成导航初始化并达到可执行任务的状态。
-5. Cloud Platform 能够创建基本运输任务。
-6. Edge Server 能够接收 Cloud 创建的任务并向指定 AMR 下发。
+5. Edge Server 能够通过 V1 任务注入入口创建或导入基本运输任务。
+6. Edge Server 能够接收 Edge 侧任务注入创建的任务并向参与 AMR 列表下发。
 7. AMR 能够接收任务，并通过 `amr_behavior_manager` 组织任务执行。
 8. AMR 能够通过 Nav2 导航前往指定目标点。
 9. 系统支持任务取消，并能够反馈取消结果。
 10. AMR 与 Edge 通信中断时，允许当前任务在安全条件满足的情况下继续执行。
 11. 通信恢复后，AMR 能够补报尚未成功送达的任务状态和结果。
-12. Cloud 能够获取任务状态及最终执行结果。
+12. 调用方能够通过 Edge Server 获取任务状态及最终执行结果。
 13. Simulation Manager 能够通过 WebSocket 与 Edge Server 同步仿真 AMR 状态。
 14. 至少两个模拟 AMR 能够使用不同身份标识进行区分。
 
@@ -187,8 +221,8 @@ V1 的多 AMR 仿真用于验证实例管理、身份隔离和基本运行能力
 V1 基于以下假设进行设计：
 
 1. V1 的验证环境为 Gazebo 仿真，不连接真实 AMR、真实传感器或真实仓库设备。
-2. Cloud Platform 在 V1 中可以是 CLI、HTTP 脚本或最小化的服务端，用于创建任务和查询状态，不要求完整 Web 界面。
-3. Edge Server 与 AMR 处于可互通的网络中，Cloud-side EMQX 与 Edge-side EMQX 均可被访问。
+2. V1 暂不实现 Cloud Platform；任务通过 Edge 侧 HTTP API 任务注入入口创建。
+3. Edge Server 与 AMR 处于可互通的网络中，Edge-side EMQX 可被访问；Cloud-side EMQX 属于后续版本。
 4. V1 以单个仓库 `warehouse_01` 和单个 Edge Server 为主要验证范围。
 5. AMR 内部多个 ROS2 节点运行在同一仿真机器人命名空间下，并使用相对 Topic/Service/Action 名称。
 6. 安全策略在仿真环境中重点验证控制流和状态流，不涉及真实急停、硬件保护或人员安全认证。
@@ -215,8 +249,8 @@ V1 基于以下假设进行设计：
 
 | 通信双方                             | 通信方式                          | 主要用途                 |
 | -------------------------------- | ----------------------------- | -------------------- |
-| Cloud Platform ↔ Edge Server     | HTTP                          | API 调用及业务数据交互        |
-| Cloud Platform ↔ Edge Server     | MQTT                          | 任务创建请求、业务事件及状态交互     |
+| Cloud Platform ↔ Edge Server     | HTTP                          | 后续版本：API 调用及业务数据交互        |
+| Cloud Platform ↔ Edge Server     | MQTT                          | 后续版本：任务创建请求、业务事件及状态交互     |
 | Edge Server ↔ AMR                | HTTP                          | Bootstrap、地图包下载等请求   |
 | Edge Server ↔ AMR                | MQTT                          | 注册、任务下发、任务取消、状态及业务消息 |
 | Simulation Manager ↔ Edge Server | WebSocket                     | 仿真机器人状态及生命周期同步       |
@@ -229,7 +263,7 @@ V1 基于以下假设进行设计：
 
 系统存在两套相互独立的 MQTT Broker：
 
-1. **Cloud-side EMQX**：用于 Cloud Platform 与 Edge Server 之间的 MQTT 通信。
+1. **Cloud-side EMQX**：后续版本用于 Cloud Platform 与 Edge Server 之间的 MQTT 通信；V1 不接入。
 2. **Edge-side EMQX**：用于 Edge Server 与 AMR 之间的 MQTT 通信。
 
 两套 Broker 在逻辑和部署上独立，不应在架构设计中合并为同一个 MQTT Broker。
@@ -258,8 +292,11 @@ V1 基于以下假设进行设计：
 | GET | `/api/maps/download` | 下载当前生效地图包。 |
 | GET | `/api/maps/active` | 查询当前生效地图元数据。 |
 | POST | `/api/maps/activate` | 激活指定版本地图。 |
+| POST | `/api/tasks` | V1 Edge 侧任务注入。 |
+| GET | `/api/tasks/{task_id}` | 查询任务状态。 |
+| POST | `/api/tasks/{task_id}/cancel` | 取消任务。 |
 
-Cloud Platform 与 Edge Server 的任务创建、状态查询等接口可复用 HTTP 或 Cloud-side MQTT，具体方式待接口设计确定。
+V1 通过 Edge 侧 HTTP API 创建任务。后续 Cloud Platform 保留该接口，并可通过 MQTT 发布任务。
 
 #### 3.4.2 Edge Server 与 AMR 的 MQTT Topic
 
@@ -273,7 +310,11 @@ Cloud Platform 与 Edge Server 的任务创建、状态查询等接口可复用 
 | `warehouse/map/request` | AMR → Edge | 地图请求，预留接口。 |
 | `amr/traffic_rights/request`、`amr/traffic_rights/response/{robot_id}` | 双向 | 未来交通路权申请/响应，预留接口。 |
 
-任务下发和任务取消的具体 Topic 必须在接口设计文档中补充，并在实现中遵循 `task_id` 幂等约束。
+Cloud → Edge 任务 Topic 使用 `warehouse/{warehouse_id}/task`，Edge → Cloud 任务状态 Topic 使用 `warehouse/{warehouse_id}/task/status`，QoS 1。
+
+Edge → AMR 任务 Topic 使用 `amr/{robot_id}/task`，任务级共享状态 Topic 使用 `warehouse/{warehouse_id}/task/{task_id}/state`，QoS 1。任务下发不包含按 AMR 平均分配的数量。
+
+AMR 搬运申请使用 `amr/{robot_id}/task/goods/request`，Edge 响应使用 `amr/{robot_id}/task/goods/response`，QoS 1。
 
 #### 3.4.3 AMR 内部 ROS2 接口
 
@@ -326,7 +367,7 @@ AMR 获取接入配置后，应能够连接 Edge-side MQTT Broker，并完成机
 
 * `robot_id`
 * 所属仓库
-* `simulation_instance_id`（仿真场景下需要区分实例）
+* `instance_id`（仿真场景下需要区分实例）
 * 当前运行状态或必要的初始化信息
 * 本地地图版本或为空的地图版本信息
 
@@ -403,39 +444,37 @@ AMR 应能够在地图准备完成后完成导航所需的初始化。
 
 导航初始化的执行主体、节点启动时序及错误恢复策略在 AMR 设计文档中定义。
 
-### 4.4 Cloud 与 Edge 任务管理
+### 4.4 Edge 任务管理（V1）与 Cloud 任务管理（后续版本）
 
-#### FR-007：Cloud 创建运输任务
+#### FR-007：Edge 侧任务注入（V1 替代 Cloud 创建）
 
 **优先级：** Must
 **版本：** V1
 
-Cloud Platform 应作为 V1 运输任务的创建入口。
+V1 已确认暂不实现 Cloud Platform。运输任务由 Edge 侧 HTTP API 任务注入入口创建或导入，Edge Server 负责保存和后续下发。
 
-Cloud 创建任务后，应将任务信息交给 Edge Server，由 Edge Server 负责后续任务下发。
-
-基本运输任务至少应包含：
+该入口必须能够创建至少包含以下信息的运输任务：
 
 * 唯一任务标识 `task_id`
-* 目标 AMR 标识 `robot_id`，或能够用于后续指定目标 AMR 的必要信息
+* 参与任务的 AMR 标识列表 `robot_ids`
 * 任务类型
 * 目标位置或导航目标点
 * 必要的任务参数
 
-Cloud 与 Edge 应能够识别同一个任务，避免在跨系统交互时产生无法关联的任务记录。
+Edge Server 应能够识别同一个任务，避免重复创建或无法关联的任务记录。
 
-V1 暂不要求 Cloud 实现复杂的自动任务分配算法。任务目标 AMR 的选择方式、任务创建接口和异常处理规则在后续设计中明确。
+V1 不要求实现复杂的自动任务分配算法。参与 AMR 的选择方式和异常处理规则在接口设计中明确。
 
 #### FR-008：Edge 任务接收与下发
 
 **优先级：** Must
 **版本：** V1
 
-Edge Server 应能够接收 Cloud 创建的任务，校验必要的任务参数，并将任务下发至目标 AMR。
+Edge Server 应能够接收 Edge 侧任务注入入口创建或导入的任务，校验必要的任务参数，并将任务下发至 `robot_ids` 中的参与 AMR。
 
 Edge Server 应维护任务的基本状态，并能够识别任务是否已下发、是否已被 AMR 接受，以及当前执行结果。
 
-当目标 AMR 不可用、任务参数无效或下发失败时，Edge Server 应能够记录失败原因，并向 Cloud 提供可识别的处理结果。
+当参与 AMR 不可用、任务参数无效或下发失败时，Edge Server 应能够记录失败原因，并向任务注入调用方提供可识别的处理结果。
 
 Edge Server 不应将“消息已发送”等同于“任务已成功执行”。
 
@@ -460,7 +499,7 @@ Edge Server 不应将“消息已发送”等同于“任务已成功执行”�
 
 行为树或等价的状态机/流程编排机制可用于实现任务步骤编排、条件判断和失败分支。
 
-`amr_behavior_manager` 不负责替代 Nav2 的路径规划与运动控制，也不直接承担 Cloud 的任务创建或 Edge 的任务下发职责。
+`amr_behavior_manager` 不负责替代 Nav2 的路径规划与运动控制，也不直接承担上层调用方的任务创建或 Edge 的任务下发职责。
 
 #### FR-010：导航目标执行
 
@@ -498,6 +537,7 @@ V1 只要求基本导航，不要求实现交通冲突检测、路权申请、�
 | `SUCCEEDED` | 任务成功完成    |
 | `FAILED`    | 任务执行失败    |
 | `CANCELLED` | 任务已取消     |
+| `INTERRUPTED` | 任务因全部 AMR 异常等原因中断 |
 
 状态转换应受到约束，不应出现无法解释的状态跳转。
 
@@ -506,6 +546,7 @@ V1 至少应支持以下基本状态流转：
 * 正常执行：`PENDING` → `ACCEPTED` → `RUNNING` → `SUCCEEDED`
 * 执行失败：`RUNNING` → `FAILED`
 * 执行取消：任务进入执行阶段后，收到有效取消请求，完成必要的取消处理后进入 `CANCELLED`
+* 执行中断：参与任务的全部 AMR 均异常时，`RUNNING` → `INTERRUPTED`
 
 系统应区分任务的业务状态与 MQTT 消息的发送状态。通信失败不得直接将业务任务标记为失败。
 
@@ -518,7 +559,7 @@ V1 至少应支持以下基本状态流转：
 
 系统应支持对已接受或正在执行的运输任务发起取消请求。
 
-取消请求应能够从上层业务经 Edge Server 传递至目标 AMR。
+取消请求应能够从上层业务经 Edge Server 传递至参与任务的 AMR。
 
 AMR 收到有效取消请求后，应由 `amr_behavior_manager` 协调取消当前任务，并在适当情况下通过导航接口取消正在执行的导航动作。
 
@@ -529,7 +570,7 @@ AMR 收到有效取消请求后，应由 `amr_behavior_manager` 协调取消当�
 3. 系统应区分“取消请求已收到”和“任务已成功取消”。
 4. 只有在任务取消处理完成后，才能将任务状态更新为 `CANCELLED`。
 5. AMR 应将取消结果上报 Edge Server。
-6. Edge Server 应更新任务状态，并使 Cloud 能够获取取消结果。
+6. Edge Server 应更新任务状态，并使任务注入调用方能够获取取消结果。
 7. 如果任务已经成功完成或已经失败，应根据既定状态规则处理取消请求，不得错误地覆盖原有终态。
 
 任务取消应优先通过正常的任务控制流程实现，不得以直接终止 ROS2 节点或强制结束机器人进程作为常规取消方式。
@@ -567,7 +608,7 @@ V1 不要求在通信中断期间继续接收和执行新的远程任务。
 3. 补报消息应包含能够关联任务和机器人的标识。
 4. Edge Server 应能够处理重复收到的状态消息，不得因重复消息重复创建任务或重复执行任务。
 5. Edge Server 应更新任务的最新有效状态。
-6. Cloud 应能够通过 Edge Server 获取最终任务结果。
+6. 任务注入调用方应能够通过 Edge Server 获取最终任务结果。
 
 V1 可以采用轻量级的本地待发送结果记录和重连后补报机制，不要求实现完整的分布式事务系统。
 
@@ -605,7 +646,7 @@ Simulation Manager 应能够管理仿真环境中的 AMR 实例，包括启动�
 每个仿真 AMR 应具有可区分的身份信息，包括：
 
 * `robot_id`
-* `simulation_instance_id`
+* `instance_id`
 
 Gazebo 中的模型名称应能够根据机器人身份进行区分，避免多个仿真实例使用相同模型名称造成冲突。
 
@@ -631,16 +672,16 @@ Simulation Manager 应通过 WebSocket 与 Edge Server 交换仿真 AMR 相关�
 
 V1 验收重点是多 AMR 的身份区分、基本启动和导航能力，不要求实现多机器人交通协调。
 
-### 4.9 Cloud 与 Edge 协同
+### 4.9 Cloud 与 Edge 协同（后续版本）
 
 #### FR-019：Cloud 与 Edge 通信
 
-**优先级：** Must
-**版本：** V1
+**优先级：** Should
+**版本：** V2
 
-Cloud Platform 应能够通过 HTTP 与 Edge Server 进行必要的 API 交互，并通过 Cloud-side MQTT Broker 与 Edge Server 交换业务消息。
+V1 已确认暂不实现 Cloud Platform，因此本需求不作为 V1 完成条件。
 
-V1 应验证 Cloud 创建运输任务、Edge 接收任务、Edge 下发任务、任务状态反馈和 Cloud 获取最终结果的基本业务流程。
+后续版本中，Cloud Platform 应能够通过 HTTP 与 Edge Server 进行必要的 API 交互，并通过 Cloud-side MQTT Broker 与 Edge Server 交换业务消息。
 
 具体哪些交互采用 HTTP、哪些采用 MQTT，应在接口设计文档中确定。
 
@@ -649,30 +690,29 @@ V1 应验证 Cloud 创建运输任务、Edge 接收任务、Edge 下发任务、
 **优先级：** Must
 **版本：** V1
 
-系统应能够验证从 Cloud 创建运输任务到 AMR 执行任务并反馈结果的完整业务流程。
+V1 应能够验证从 Edge 侧任务注入到 AMR 执行任务并反馈结果的完整业务流程。
 
 正常执行流程至少包括：
 
-1. Cloud 创建运输任务。
-2. Cloud 将任务信息交给 Edge Server。
-3. Edge Server 校验并保存任务。
-4. Edge Server 将任务下发给目标 AMR。
-5. AMR 接收并接受任务。
-6. `amr_behavior_manager` 组织任务执行。
-7. `amr_navigation` 调用 Nav2 前往目标位置。
-8. AMR 获得导航结果并更新任务状态。
-9. AMR 将任务状态上报 Edge Server。
-10. Edge Server 更新任务状态。
-11. Cloud 获取任务最终结果。
+1. 通过 Edge 侧任务注入入口创建或导入运输任务。
+2. Edge Server 校验并保存任务。
+3. Edge Server 将任务下发给 `robot_ids` 中的参与 AMR。
+4. AMR 接收并接受任务。
+5. `amr_behavior_manager` 组织任务执行。
+6. `amr_navigation` 调用 Nav2 前往目标位置。
+7. AMR 获得导航结果并更新任务状态。
+8. AMR 将任务状态上报 Edge Server。
+9. Edge Server 更新任务状态。
+10. 通过 Edge 侧查询或日志获取任务最终结果。
 
 取消流程至少包括：
 
-1. Cloud 或其他获授权的上层调用方发起任务取消请求。
-2. 请求经 Edge Server 传递至目标 AMR。
+1. Edge 侧任务注入入口或其他获授权的调用方发起任务取消请求。
+2. 请求经 Edge Server 传递至参与任务的 AMR。
 3. AMR 协调取消任务及必要的导航动作。
 4. AMR 将取消结果反馈 Edge Server。
 5. Edge Server 更新任务状态。
-6. Cloud 获取取消结果。
+6. 调用方获取取消结果。
 
 通信中断恢复流程至少包括：
 
@@ -682,7 +722,7 @@ V1 应验证 Cloud 创建运输任务、Edge 接收任务、Edge 下发任务、
 4. MQTT 通信恢复。
 5. AMR 重新同步状态并补报结果。
 6. Edge Server 更新有效任务状态。
-7. Cloud 获取最终结果。
+7. 调用方通过 Edge Server 获取最终结果。
 
 ---
 
@@ -780,7 +820,7 @@ C++ 模块应具有合理的类职责、接口边界和依赖关系。
 
 **优先级：** Must
 
-Cloud、Edge 和 AMR 应能够通过 `task_id` 关联同一个任务。
+任务注入调用方、Edge 和 AMR 应能够通过 `task_id` 关联同一个任务。
 
 系统应区分消息发送、消息接收、任务接受、任务执行和任务完成等不同阶段。
 
@@ -807,7 +847,7 @@ V1 使用仿真代替实际硬件，仿真环境和启动参数应可重复执�
 至少应满足：
 
 * 相同仓库、地图和启动配置可以重复启动仿真环境。
-* 仿真 AMR 的 `robot_id`、`simulation_instance_id`、命名空间和 Gazebo 模型名称具有明确规则。
+* 仿真 AMR 的 `robot_id`、`instance_id`、命名空间和 Gazebo 模型名称具有明确规则。
 * 地图包、世界文件、控制器参数和启动脚本纳入版本管理。
 * 关键验证能够通过固定场景和固定配置复现，避免依赖手工临时修改。
 
@@ -837,29 +877,28 @@ V1 使用仿真代替实际硬件，仿真环境和启动参数应可重复执�
 
 ### 6.2 正常运输任务流程
 
-1. Cloud 创建运输任务。
-2. Cloud 将任务交给 Edge Server。
-3. Edge Server 校验并保存任务。
-4. Edge Server 将任务下发给指定 AMR。
-5. `amr_agent` 接收并校验任务。
-6. `amr_behavior_manager` 接管任务执行流程。
-7. `amr_behavior_manager` 调用 `amr_navigation` 执行导航。
-8. 导航模块返回执行结果。
-9. `amr_behavior_manager` 更新任务状态。
-10. `amr_agent` 将任务状态上报 Edge Server。
-11. Edge Server 保存最新任务状态。
-12. Cloud 获取任务执行结果。
+1. 通过 Edge 侧任务注入入口创建或导入运输任务。
+2. Edge Server 校验并保存任务。
+3. Edge Server 将任务下发给 `robot_ids` 中的指定 AMR。
+4. `amr_agent` 接收并校验任务。
+5. `amr_behavior_manager` 接管任务执行流程。
+6. `amr_behavior_manager` 调用 `amr_navigation` 执行导航。
+7. 导航模块返回执行结果。
+8. `amr_behavior_manager` 更新任务状态。
+9. `amr_agent` 将任务状态上报 Edge Server。
+10. Edge Server 保存最新任务状态。
+11. 调用方通过 Edge Server 获取任务执行结果。
 
 ### 6.3 任务取消流程
 
-1. 上层业务发起取消请求。
-2. Edge Server 校验任务状态并将取消请求转发至目标 AMR。
+1. Edge 侧任务注入入口或其他上层调用方发起取消请求。
+2. Edge Server 校验任务状态并将取消请求转发至参与任务的 AMR。
 3. AMR 检查任务标识及任务当前状态。
 4. `amr_behavior_manager` 协调任务取消。
 5. 必要时调用导航接口取消当前导航动作。
 6. AMR 更新任务状态并上报取消结果。
 7. Edge Server 保存取消结果。
-8. Cloud 获取取消后的任务状态。
+8. 调用方获取取消后的任务状态。
 
 如果取消请求到达时任务已经进入终态，系统应根据既定规则返回结果，不应错误地覆盖已有的终态记录。
 
@@ -873,7 +912,7 @@ V1 使用仿真代替实际硬件，仿真环境和启动参数应可重复执�
 6. AMR 重新建立必要的订阅和通信状态。
 7. AMR 补报尚未成功送达的任务状态及结果。
 8. Edge Server 依据任务标识处理补报消息，并更新最新有效状态。
-9. Cloud 获取最终任务结果。
+9. 调用方通过 Edge Server 获取最终任务结果。
 
 ### 6.5 仿真状态同步流程
 
@@ -889,12 +928,12 @@ V1 至少应维护以下逻辑数据对象：
 
 | 数据对象 | 关键字段 | 说明 |
 | --- | --- | --- |
-| 机器人注册信息 | `robot_id`、`simulation_instance_id`、`warehouse_id`、`register_timestamp` | Edge Server 维护 AMR 接入信息，区分业务身份与仿真实例。 |
+| 机器人注册信息 | `robot_id`、`instance_id`、`warehouse_id`、`register_timestamp` | Edge Server 维护 AMR 接入信息，区分业务身份与仿真实例。 |
 | 机器人运行状态 | `robot_id`、`state`、`online`、`battery`、`pose`、`task_id`、`timestamp` | 用于机器人列表、状态查询和异常识别。 |
 | 地图包 | `warehouse_id`、`version`、`package_name`、`package_path`、`package_size`、`upload_time`、`activate` | 记录地图版本、文件位置和激活状态。 |
-| 运输任务 | `task_id`、`robot_id`、`task_type`、`goal`、`status`、`created_at`、`updated_at` | 跨 Cloud、Edge、AMR 关联任务，是状态同步和幂等处理的核心。 |
+| 运输任务 | `task_id`、`robot_ids`、`task_type`、`goal`、`status`、`created_at`、`updated_at` | 跨任务注入调用方、Edge、AMR 关联任务，是状态同步和幂等处理的核心。 |
 | 任务状态事件 | `task_id`、`status`、`reason`、`timestamp`、`source` | 记录任务状态变化，用于补报、审计和冲突诊断。 |
-| 仿真 AMR 实例 | `robot_id`、`simulation_instance_id`、`model_name`、`lifecycle_state` | Simulation Manager 与 Edge Server 之间同步的仿真对象。 |
+| 仿真 AMR 实例 | `robot_id`、`instance_id`、`model_name`、`lifecycle_state` | Simulation Manager 与 Edge Server 之间同步的仿真对象。 |
 
 具体数据库表结构、字段类型和索引设计由数据库/接口设计文档定义。字段在实现中可拆分为更细的表，但必须保持上述业务关联能力。
 
@@ -912,10 +951,10 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | AC-004 | 地图管理          | Edge 能够管理地图包，并识别当前生效地图                         |
 | AC-005 | 地图同步          | AMR 能检查地图版本，并在必要时下载地图包                         |
 | AC-006 | 导航初始化         | AMR 能完成导航初始化并报告就绪状态                            |
-| AC-007 | Cloud 创建任务    | Cloud 创建任务后，Edge 能接收并识别对应的任务记录                 |
-| AC-008 | Edge 任务下发     | Edge 能向指定 AMR 下发任务，AMR 能正确接受任务                 |
+| AC-007 | Edge 任务注入    | 通过 Edge 侧任务注入入口创建任务后，Edge 能接收并识别对应的任务记录                 |
+| AC-008 | Edge 任务下发     | Edge 能向 `robot_ids` 中的 AMR 下发任务，AMR 能正确接受任务                 |
 | AC-009 | 正常任务执行        | AMR 能通过 `amr_behavior_manager` 调用 Nav2 前往目标位置                    |
-| AC-010 | 任务结果反馈        | AMR 能将任务成功或失败状态反馈给 Edge，Cloud 能获取结果            |
+| AC-010 | 任务结果反馈        | AMR 能将任务成功或失败状态反馈给 Edge，调用方能获取结果            |
 | AC-011 | 任务取消          | 对运行中的任务发起取消请求后，AMR 能执行取消流程并反馈最终结果              |
 | AC-012 | 通信中断续行        | 执行中的任务在 MQTT 中断期间，能够在安全条件满足时继续执行               |
 | AC-013 | 结果补报          | MQTT 恢复后，AMR 能补报待同步结果，Edge 能正确更新任务状态           |
@@ -935,7 +974,7 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | FR-004 | 地图包管理 | AC-004 |
 | FR-005 | AMR 地图版本检查与同步 | AC-005 |
 | FR-006 | 导航初始化 | AC-006 |
-| FR-007 | Cloud 创建运输任务 | AC-007 |
+| FR-007 | Edge 侧任务注入（V1 替代 Cloud 创建） | AC-007 |
 | FR-008 | Edge 任务接收与下发 | AC-007、AC-008 |
 | FR-009 | 任务接收与执行编排 | AC-008、AC-009 |
 | FR-010 | 导航目标执行 | AC-009 |
@@ -947,7 +986,7 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | FR-016 | 仿真 AMR 生命周期管理 | AC-015、AC-016 |
 | FR-017 | 仿真状态同步 | AC-015 |
 | FR-018 | 多 AMR 仿真 | AC-016 |
-| FR-019 | Cloud 与 Edge 通信 | AC-007、AC-010 |
+| FR-019 | Cloud 与 Edge 通信 | 后续版本，不纳入 V1 验收 |
 | FR-020 | 端到端业务闭环 | AC-007 至 AC-014 |
 | NFR-001 至 NFR-013 | 模块化、通信隔离、可构建、可测试、可诊断、可维护、可扩展、网络异常、配置管理、状态一致性、取消可控、仿真可复现、仿真安全 | AC-001、AC-014、AC-016、AC-017、AC-018 |
 
@@ -1000,24 +1039,25 @@ V1 不实现交通路权协调。多 AMR 仿真只用于验证身份隔离、基
 
 | 编号      | 问题                 | 需要明确的内容                                                |
 | ------- | ------------------ | ------------------------------------------------------ |
-| TBD-001 | Cloud 与 Edge 的任务接口 | Cloud 通过 HTTP 还是 MQTT 创建任务，是否需要同时支持两种方式？               |
-| TBD-002 | 任务分配方式             | V1 的目标 AMR 由 Cloud 指定，还是由 Edge 根据明确的简单规则选择？            |
+| TBD-001 | Edge 任务注入接口细节     | 已决策使用 HTTP API、无鉴权、局域网可调用；仍需确认具体错误码枚举和字段校验规则。 |
+| TBD-002 | 不可用 AMR 处理          | 已决策：部分 AMR 不可用时任务继续；全部 AMR 异常时 Edge 上报任务级 `INTERRUPTED`。仍需确认异常判定阈值。 |
 | TBD-003 | 地图切换策略             | 下载新地图后，何时允许切换，如何保证运行中的任务不受影响？                          |
 | TBD-004 | 任务取消的安全策略          | 取消导航时如何处理机器人当前运动，以及如何确认机器人已经达到可接受的停止状态？                |
-| TBD-005 | AMR 身份模型           | `robot_id` 与 `simulation_instance_id` 的职责，以及真实机器人和仿真实例之间的对应关系是什么？ |
+| TBD-005 | AMR 身份模型           | `robot_id` 与 `instance_id` 的职责，以及真实机器人和仿真实例之间的对应关系是什么？ |
 | TBD-006 | MQTT 安全            | V1 使用何种最小可行的身份认证与访问控制策略？                               |
-| TBD-007 | 导航目标定义             | 任务目标使用地图坐标、站点 ID，还是其他业务标识？                             |
-| TBD-008 | MQTT 消息可靠性         | 任务消息采用何种 QoS、消息确认和重发策略？                                |
-| TBD-009 | 断网期间的任务取消          | 如果 Cloud 发起取消，但 AMR 正在断网，任务是否必须在恢复通信后取消，还是允许在原任务完成后处理？ |
+| TBD-007 | 货物点位映射表           | 每个 `goods_id` 的装货区、卸载区、存储区坐标或站点如何维护和加载？                             |
+| TBD-008 | MQTT 消息可靠性         | 已决策 QoS 1；仍需确认是否需要独立 ACK Topic。                                |
+| TBD-009 | 断网期间的任务取消          | 如果任务注入调用方发起取消，但 AMR 正在断网，任务是否必须在恢复通信后取消，还是允许在原任务完成后处理？ |
 | TBD-010 | 任务状态冲突             | 如果 Edge 的最后已知状态与 AMR 补报状态不一致，应采用什么规则处理？                |
-| TBD-011 | 结果持久化              | AMR 的待补报结果保存到内存、文件还是本地数据库？需要保证多长时间内不丢失？                |
+| TBD-011 | 结果持久化              | 已决策：AMR 使用 `pending_task_reports.json` 原子写入；Edge 使用 SQLite。仍需确认清理时机和保留时长。 |
 | TBD-012 | 任务终态后的处理           | 已完成或已取消的任务是否允许重新下发？如允许，应如何区分重试与新任务？                    |
 | TBD-013 | 仿真与业务状态关联          | 仿真 AMR 的生命周期状态和 AMR 业务状态如何关联？                          |
-| TBD-014 | 任务下发/取消 Topic       | 任务下发、任务接受、状态上报和取消请求的具体 Topic、QoS 和幂等字段如何定义？              |
+| TBD-014 | AMR 任务状态机细节       | `task_state` 的完整状态转换仍需细化；心跳已决策为 5 秒，超时为 5 分钟。              |
 | TBD-015 | 地图包内部结构            | V1 地图包是否固定包含 `map.yaml`、`map.pgm`、`zones.yaml`、`stations.yaml`，是否允许其他布局？ |
 | TBD-016 | 地图下载地址              | AMR 从注册响应获得的是相对路径还是完整 URL，Edge 如何生成可访问的下载地址？                |
-| TBD-017 | Cloud 最小实现           | V1 的 Cloud Platform 以 CLI、HTTP 脚本还是 FastAPI 服务交付，任务创建参数如何输入？         |
-| TBD-018 | 仿真启动与身份分配          | 多 AMR 的 `robot_id`、`simulation_instance_id`、Gazebo 模型名和 ROS2 命名空间由谁分配并保持一致？ |
+| TBD-017 | Cloud Platform 后续形态  | 已决策 V1 不实现 Cloud Platform；后续版本采用 CLI、HTTP 脚本还是 FastAPI 服务交付，任务创建参数如何输入？ |
+| TBD-018 | 仿真启动与身份分配          | 多 AMR 的 `robot_id`、`instance_id`、Gazebo 模型名和 ROS2 命名空间由谁分配并保持一致？ |
+| TBD-019 | Edge 故障恢复细节         | 已决策：安全停止、本地待补报、Edge 恢复合并。仍需确认恢复后 AMR 是否自动继续后续任务。 |
 
 上述问题应在相关模块开始实现前逐步明确，不要求一次性全部解决。涉及任务取消、断网续行和结果补报的关键问题，应在对应功能实现前确定最低可行规则。
 
@@ -1051,10 +1091,10 @@ V2 规划项不应自动转化为 V1 的开发任务。
 
 * 核心 Must 需求已实现。
 * 核心验收标准已通过。
-* Cloud 创建任务、Edge 下发、AMR 执行、任务结果反馈的基本闭环能够稳定复现。
+* Edge 侧任务注入创建任务、Edge 下发、AMR 执行、任务结果反馈的基本闭环能够稳定复现。
 * 任务取消流程能够验证，并能正确反馈取消结果。
 * MQTT 中断期间当前任务能够在安全条件允许时继续执行。
-* 通信恢复后，任务结果能够补报，Edge 与 Cloud 能够获取正确的最终状态。
+* 通信恢复后，任务结果能够补报，Edge 与任务注入调用方能够获取正确的最终状态。
 * 构建、配置和运行步骤有文档记录。
 * 关键通信边界与模块职责符合架构约束。
 * 不存在阻止核心业务闭环运行的已知问题。
@@ -1068,3 +1108,12 @@ V2 规划项不应自动转化为 V1 的开发任务。
 | V0.1 | 初始版本 | 建立 SRS 基本框架。 |
 | V0.2 | 2026-10-09 | 对齐当前代码基线；补充支撑模块、假设依赖、关键接口、数据对象、仿真可复现性 NFR、需求追溯矩阵和 TBD。 |
 | V0.3 | 2026-10-09 | 按正式命名将 `amr_manager` 统一修正为 `amr_behavior_manager`，并同步代码包名、命名空间、节点名和接口注释。 |
+| V0.4 | 2026-10-09 | 记录 V1 已确认决策：SRS 权威路径、README 定位、Edge 侧任务注入、`instance_id` 命名、V2 模块边界。 |
+| V0.5 | 2026-10-10 | 记录 Edge HTTP 任务注入、任务 MQTT Topic/QoS、消息命名规范、ROS2/MQTT 名称集中管理和 ADR。 |
+| V0.6 | 2026-10-10 | 记录多 AMR 任务模型：`robot_ids`、Edge→AMR 任务 Topic、任务级共享状态 Topic 和总量不下发平均分配。 |
+| V0.7 | 2026-10-10 | 在任务共享状态中增加 `goods_status`，按货物拆分搬运进度。 |
+| V0.8 | 2026-10-10 | 增加 AMR 搬运申请/响应流程；明确 `robot_ids` 不能为空；正在搬运货物的 AMR 列表作为 Edge 内部状态。 |
+| V0.9 | 2026-10-10 | 增加 AMR 定时任务状态、完成/放弃上报；明确 Edge 数量校准和全部 AMR 异常时的任务级中断。 |
+| V0.10 | 2026-10-10 | 将 AMR 任务状态消息中的单货物字段改为 `goods` 数组，支持一趟搬运多类货物。 |
+| V0.11 | 2026-10-10 | 确认 HTTP 无鉴权、心跳 5s/超时 5min、货物申请规则、目的地映射方式和 V1 第一验收闭环。 |
+| V0.12 | 2026-10-10 | 确认 Edge 故障恢复策略：安全停止、本地待补报文件、Edge 持久化恢复和幂等合并。 |

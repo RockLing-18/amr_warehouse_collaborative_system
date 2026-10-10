@@ -63,6 +63,7 @@ target_include_directories(
 ament_target_dependencies(
     amr_agent
     rclcpp
+    amr_common
     # std_msgs
 )
 

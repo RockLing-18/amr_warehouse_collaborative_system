@@ -1,9 +1,15 @@
+# System Architecture
+
+**Status:** Target Architecture
+
+This document shows the target architecture. V1/V2 boundaries are marked in the components.
+
 ```mermaid
 architecture-beta
 
-    group cloud(cloud)[Cloud Platform]
-    service cloud_api(server)[Cloud API] in cloud
-    service cloud_mqtt(server)[MQTT Client] in cloud
+    group cloud(cloud)[Cloud Platform (V2)]
+    service cloud_api(server)[Cloud API (V2)] in cloud
+    service cloud_mqtt(server)[MQTT Client (V2)] in cloud
 
 
     group cloud_mqtt_infra(cloud)[Cloud MQTT]
@@ -24,8 +30,8 @@ architecture-beta
     service agent(server)[amr_agent] in amr
     service behavior(server)[amr_behavior_manager] in amr
     service navigation(server)[amr_navigation] in amr
-    service traffic(server)[amr_traffic_manager] in amr
-    service power(server)[amr_power_manager] in amr
+    service traffic(server)[amr_traffic_manager (V2)] in amr
+    service power(server)[amr_power_manager (V2)] in amr
 
 
     group simulation(cloud)[Simulation]
@@ -53,4 +59,9 @@ architecture-beta
     simulation_manager:B -- T:gazebo
 ```
 
+## 状态说明
 
+- V1：Edge Server、Edge MQTT、AMR（`amr_agent`、`amr_behavior_manager`、`amr_navigation`）、Simulation。
+- V2/Planned：Cloud Platform、Cloud MQTT、`amr_traffic_manager`、`amr_power_manager`。
+
+V1 暂不实现 Cloud Platform，任务通过 Edge 侧任务注入完成闭环。
