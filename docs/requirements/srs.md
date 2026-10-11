@@ -2,7 +2,7 @@
 
 **项目名称：** AMR 云边协同多机器人协调系统
 **英文名称：** Warehouse AMR Cloud-Edge Collaborative System
-**文档版本：** V0.12
+**文档版本：** V0.15
 **当前开发基线：** V1
 **文档状态：** Draft（已按当前代码基线校对）
 **最后更新：** 2026-10-10
@@ -93,6 +93,24 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 | D-027 | Edge 异常时，AMR 完成当前已获批搬运后停止下一行动，不进行本地平均分配。 | Confirmed |
 | D-028 | AMR 本地待补报结果持久化到 `pending_task_reports.json`，采用原子写入。 | Confirmed |
 | D-029 | Edge 恢复后从 SQLite 恢复任务状态，按幂等和时间戳合并 AMR 待补报结果。 | Confirmed |
+| D-030 | `ACCEPTED` 表示 Edge 已成功下发任务且至少一个参与 AMR 上报接受。 | Confirmed |
+| D-031 | `RUNNING` 表示第一个货物申请被 Edge 批准。 | Confirmed |
+| D-032 | V1 不主动使用 `FAILED`，保留给后续版本。 | Confirmed |
+| D-033 | 任务级 `INTERRUPTED` 不自动继续，需人工或上层重新创建任务。 | Confirmed |
+| D-034 | AMR 从 `INTERRUPTED` 恢复到 `IDLE`。 | Confirmed |
+| D-035 | AMR 行为状态转换按 `IDLE -> ACCEPTED -> GRASPING -> TRANSPORTING -> PLACING -> IDLE/GRASPING`。 | Confirmed |
+| D-036 | `PENDING`、`ACCEPTED`、`RUNNING` 均可进入 `CANCELLED`。 | Confirmed |
+| D-037 | `tbl_task.robot_ids` 在 V1 使用 JSON 数组存储。 | Confirmed |
+| D-038 | `tbl_task.goal` 在 V1 保留字段但允许为空。 | Confirmed |
+| D-039 | V1 保留 `tbl_task_event` 和 `tbl_amr_task_status_event` 两张事件表。 | Confirmed |
+| D-040 | 增加 `amr/{robot_id}/task/status/ack`，Edge 确认 AMR 消息，AMR 据此清理本地待补报记录。 | Confirmed |
+| D-041 | `amr_agent` 与 `amr_behavior_manager` 使用 ROS2 Topic 通信，通过 `task_command` 和 `task_event` 解耦。 | Confirmed |
+| D-042 | 新增 `TaskGoods.msg`、`TaskGoodsStatus.msg`、`TaskCommand.msg`、`TaskEvent.msg`。 | Confirmed |
+| D-043 | 货物申请由 `amr_behavior_manager` 决策，`amr_agent` 负责 MQTT 请求。 | Confirmed |
+| D-044 | 货物点位映射文件由 `amr_behavior_manager` 加载。 | Confirmed |
+| D-045 | V1 的 `GRASPING` 和 `PLACING` 使用固定延时或状态直接推进。 | Confirmed |
+| D-046 | `amr_behavior_manager` 发布内部 `task_status`，`amr_agent` 翻译为 MQTT `amr/{robot_id}/task/status`。 | Confirmed |
+| D-047 | 导航失败时 V1 不自动重试，直接上报 `CARRY_ABORTED`，原因 `NAVIGATION_FAILED`。 | Confirmed |
 
 详细接口结构、消息字段和幂等规则见 `docs/requirements/interface-contract.md` 和 `docs/architecture/adr/`。
 
@@ -937,6 +955,8 @@ V1 至少应维护以下逻辑数据对象：
 
 具体数据库表结构、字段类型和索引设计由数据库/接口设计文档定义。字段在实现中可拆分为更细的表，但必须保持上述业务关联能力。
 
+数据库表结构、索引和幂等键见 `docs/architecture/edge-data-model.md`；任务级与 AMR 行为状态机见 `docs/architecture/task-state-machine.md`。
+
 ---
 
 ## 7. 验收标准
@@ -989,6 +1009,50 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | FR-019 | Cloud 与 Edge 通信 | 后续版本，不纳入 V1 验收 |
 | FR-020 | 端到端业务闭环 | AC-007 至 AC-014 |
 | NFR-001 至 NFR-013 | 模块化、通信隔离、可构建、可测试、可诊断、可维护、可扩展、网络异常、配置管理、状态一致性、取消可控、仿真可复现、仿真安全 | AC-001、AC-014、AC-016、AC-017、AC-018 |
+
+### 7.2 需求实现状态矩阵
+
+状态定义：
+
+- `Implemented`：代码已实现并可验证。
+- `Partial`：已有骨架或部分实现，未满足全部需求。
+- `Planned`：已确认设计，尚未实现。
+
+| 需求 | 当前状态 | 说明 |
+| --- | --- | --- |
+| FR-001 AMR Bootstrap | Partial | Bootstrap HTTP 已实现，响应字段仍待补全。 |
+| FR-002 AMR 注册 | Partial | 注册请求/响应和 RobotManager 已实现，地图更新逻辑部分完成。 |
+| FR-003 通信重连与状态恢复 | Planned | MQTT 重连有基础，任务状态恢复和补报未完整实现。 |
+| FR-004 地图包管理 | Partial | 上传、下载、激活接口已有，校验和元数据仍需完善。 |
+| FR-005 AMR 地图同步 | Partial | 下载和解压已有，版本判断与校验需完善。 |
+| FR-006 导航初始化 | Partial | Nav2 相关模块和接口存在，端到端初始化流程未完成。 |
+| FR-007 Edge 侧任务注入 | Partial | HTTP API 和 TaskService 已实现基础创建、查询、取消；AMR 可用性校验未完成。 |
+| FR-008 Edge 任务下发 | Planned | Task Service 和 AMR 任务 Topic 未实现。 |
+| FR-009 任务接收与执行编排 | Partial | `amr_behavior_manager` 只有骨架。 |
+| FR-010 导航目标执行 | Partial | Nav2 Action 和 navigation server 已有，任务层未接通。 |
+| FR-011 任务状态管理 | Planned | 状态枚举和规则已定义，持久化和状态机未实现。 |
+| FR-012 任务取消 | Planned | 取消接口和流程已定义，未实现。 |
+| FR-013 通信中断续行 | Planned | 策略已定义，AMR 本地待补报未实现。 |
+| FR-014 结果补报 | Planned | ACK 和文件格式已定义，未实现。 |
+| FR-015 AMR 状态上报 | Partial | RobotStatus 和 MQTT status 已有基础，任务状态字段不完整。 |
+| FR-016 仿真 AMR 生命周期 | Partial | Simulation Manager 已有核心生命周期类。 |
+| FR-017 仿真状态同步 | Partial | WebSocket robot_list 已有基础。 |
+| FR-018 多 AMR 仿真 | Partial | 身份隔离机制已有，端到端验证未完成。 |
+| FR-019 Cloud 与 Edge 通信 | Planned | V2 规划，V1 不交付。 |
+| FR-020 端到端业务闭环 | Planned | 依赖任务服务、行为管理和状态持久化。 |
+| NFR-001 模块化 | Partial | 模块边界已有，但部分实现未完成。 |
+| NFR-002 通信隔离 | Partial | 通信边界清晰，Cloud MQTT 未实现。 |
+| NFR-003 可构建性 | Partial | 当前工作区可构建，但未做干净环境验证。 |
+| NFR-004 可测试性 | Planned | 缺少系统化测试。 |
+| NFR-005 故障可诊断性 | Partial | 已有日志，缺少统一字段。 |
+| NFR-006 可维护性 | Partial | 结构已有，需按模块设计继续完善。 |
+| NFR-007 可扩展性 | Partial | 架构预留了交通/电量扩展点。 |
+| NFR-008 网络异常处理 | Planned | 断网补报策略已定义，未实现。 |
+| NFR-009 配置与敏感信息 | Partial | 配置分离已有，真实密码需清理。 |
+| NFR-010 任务状态一致性 | Planned | 幂等规则已定义，未实现。 |
+| NFR-011 取消可控性 | Planned | 规则已定义，未实现。 |
+| NFR-012 仿真可复现性 | Partial | 世界、地图和启动脚本已有，需固化步骤。 |
+| NFR-013 仿真安全边界 | Partial | 文档已明确，需在异常处理中体现。 |
 
 验收过程中应保留必要的构建输出、测试结果、运行日志或截图，便于后续复现与展示。
 
@@ -1046,18 +1110,18 @@ V1 不实现交通路权协调。多 AMR 仿真只用于验证身份隔离、基
 | TBD-005 | AMR 身份模型           | `robot_id` 与 `instance_id` 的职责，以及真实机器人和仿真实例之间的对应关系是什么？ |
 | TBD-006 | MQTT 安全            | V1 使用何种最小可行的身份认证与访问控制策略？                               |
 | TBD-007 | 货物点位映射表           | 每个 `goods_id` 的装货区、卸载区、存储区坐标或站点如何维护和加载？                             |
-| TBD-008 | MQTT 消息可靠性         | 已决策 QoS 1；仍需确认是否需要独立 ACK Topic。                                |
+| TBD-008 | MQTT 消息可靠性         | 已决策 QoS 1，并增加 `amr/{robot_id}/task/status/ack` 作为 AMR 状态消息确认。 |
 | TBD-009 | 断网期间的任务取消          | 如果任务注入调用方发起取消，但 AMR 正在断网，任务是否必须在恢复通信后取消，还是允许在原任务完成后处理？ |
 | TBD-010 | 任务状态冲突             | 如果 Edge 的最后已知状态与 AMR 补报状态不一致，应采用什么规则处理？                |
-| TBD-011 | 结果持久化              | 已决策：AMR 使用 `pending_task_reports.json` 原子写入；Edge 使用 SQLite。仍需确认清理时机和保留时长。 |
+| TBD-011 | 结果持久化              | 已决策：AMR 使用 `pending_task_reports.json` 原子写入，收到 Edge ACK 后删除对应记录；Edge 使用 SQLite。 |
 | TBD-012 | 任务终态后的处理           | 已完成或已取消的任务是否允许重新下发？如允许，应如何区分重试与新任务？                    |
 | TBD-013 | 仿真与业务状态关联          | 仿真 AMR 的生命周期状态和 AMR 业务状态如何关联？                          |
-| TBD-014 | AMR 任务状态机细节       | `task_state` 的完整状态转换仍需细化；心跳已决策为 5 秒，超时为 5 分钟。              |
+| TBD-014 | AMR 任务状态机细节       | 状态机已冻结；心跳 5 秒，超时 5 分钟。 |
 | TBD-015 | 地图包内部结构            | V1 地图包是否固定包含 `map.yaml`、`map.pgm`、`zones.yaml`、`stations.yaml`，是否允许其他布局？ |
 | TBD-016 | 地图下载地址              | AMR 从注册响应获得的是相对路径还是完整 URL，Edge 如何生成可访问的下载地址？                |
 | TBD-017 | Cloud Platform 后续形态  | 已决策 V1 不实现 Cloud Platform；后续版本采用 CLI、HTTP 脚本还是 FastAPI 服务交付，任务创建参数如何输入？ |
 | TBD-018 | 仿真启动与身份分配          | 多 AMR 的 `robot_id`、`instance_id`、Gazebo 模型名和 ROS2 命名空间由谁分配并保持一致？ |
-| TBD-019 | Edge 故障恢复细节         | 已决策：安全停止、本地待补报、Edge 恢复合并。仍需确认恢复后 AMR 是否自动继续后续任务。 |
+| TBD-019 | Edge 故障恢复细节         | 已决策：安全停止、本地待补报、Edge 恢复合并；恢复后不自动继续，需人工或上层重新创建任务。 |
 
 上述问题应在相关模块开始实现前逐步明确，不要求一次性全部解决。涉及任务取消、断网续行和结果补报的关键问题，应在对应功能实现前确定最低可行规则。
 
@@ -1117,3 +1181,6 @@ V2 规划项不应自动转化为 V1 的开发任务。
 | V0.10 | 2026-10-10 | 将 AMR 任务状态消息中的单货物字段改为 `goods` 数组，支持一趟搬运多类货物。 |
 | V0.11 | 2026-10-10 | 确认 HTTP 无鉴权、心跳 5s/超时 5min、货物申请规则、目的地映射方式和 V1 第一验收闭环。 |
 | V0.12 | 2026-10-10 | 确认 Edge 故障恢复策略：安全停止、本地待补报文件、Edge 持久化恢复和幂等合并。 |
+| V0.13 | 2026-10-11 | 确认任务状态机、AMR 行为状态机、数据模型细节和 `task/status/ack`。 |
+| V0.14 | 2026-10-11 | 增加需求实现状态矩阵；补充 HTTP 错误码和 AMR 待补报文件格式引用。 |
+| V0.15 | 2026-10-12 | 确认 AMR 内部 ROS2 接口、新消息类型、货物申请、点位映射和导航失败处理。 |

@@ -9,6 +9,8 @@
 namespace amr_agent
 {
 
+class HttpClient;
+
 class MapManager
 {
 public:
@@ -44,6 +46,8 @@ private:
     std::string m_mapVersion;
     std::string m_mapDir;
     std::string m_mapYaml;
+
+    std::shared_ptr<HttpClient> m_httpClient;
 
     bool m_ready{false};
 };

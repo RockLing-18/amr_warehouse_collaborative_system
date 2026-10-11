@@ -1,6 +1,9 @@
 #include "amr_agent_node.h"
 #include "types.h"
 #include "bootstrap/bootstrap.h"
+#include "communication/edge_communication.h"
+#include "bridge/task_bridge.h"
+#include "map/map_manager.h"
 #include "utils/ros_logger.h"
 
 namespace amr_agent
@@ -33,7 +36,25 @@ bool AmrAgentNode::init()
     }
 
     m_communication = std::make_shared<EdgeCommunication>();
-    m_mapManager =  std::make_shared<MapManager>();
+    if(!m_communication->init(info, shared_from_this()))
+    {
+        LOG_ERROR("edge communication init failed");
+        return false;
+    }
+
+    m_mapManager = std::make_shared<MapManager>(shared_from_this());
+    if(!m_mapManager->init(info.map.path))
+    {
+        LOG_ERROR("map manager init failed");
+        return false;
+    }
+
+    m_taskBridge = std::make_shared<TaskBridge>(
+        shared_from_this(),
+        m_communication.get(),
+        info.robot_id,
+        info.warehouse_id);
+    m_taskBridge->init();
 
     return true;
 }

@@ -7,6 +7,7 @@
 #include "message/message_codec.h"
 #include "utils/ros_logger.h"
 #include <fmt/format.h>
+#include <utility>
 
 namespace amr_agent
 {
@@ -16,9 +17,11 @@ EdgeCommunication::EdgeCommunication()
     m_router =  std::make_unique<MqttMessageRouter>();
 }
 
-bool EdgeCommunication::init(const BootstrapInfo& cfg, const std::shared_ptr<ServiceContext>& serviceContext)
+EdgeCommunication::~EdgeCommunication() = default;
+
+bool EdgeCommunication::init(const BootstrapInfo& cfg, rclcpp::Node::SharedPtr node)
 {
-    // m_context = serviceContext;
+    (void)node;
     m_robotId = cfg.robot_id;
     MqttConfig config = cfg.mqtt;
     config.will_msg_enable = true;
@@ -46,6 +49,29 @@ bool EdgeCommunication::init(const BootstrapInfo& cfg, const std::shared_ptr<Ser
     }
 
     return true;
+}
+
+bool EdgeCommunication::publish(const std::string& topic, const std::string& payload, int qos, bool retain)
+{
+    if(!m_mqtt)
+        return false;
+
+    return m_mqtt->publish(topic, payload, qos, retain);
+}
+
+void EdgeCommunication::registerExternalHandler(const std::string& topic, Handler handler)
+{
+    if(m_router)
+        m_router->registerHandler(topic, std::move(handler));
+}
+
+void EdgeCommunication::setExternalSubscribe(const std::string& topic, int qos)
+{
+    if(m_mqtt)
+    {
+        if(!m_mqtt->subscribe(topic, qos))
+            m_mqtt->setSubscribe(topic, qos);
+    }
 }
 
 void EdgeCommunication::setSubscribe()

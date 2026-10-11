@@ -35,6 +35,7 @@ namespace edge_server
 class RobotService;
 class BootstrapService;
 class MapService;
+class TaskService;
 
 class ServiceContext
 {
@@ -45,11 +46,13 @@ public:
     std::shared_ptr<RobotService> getRobotService();
     std::shared_ptr<BootstrapService> getBootstrapService();
     std::shared_ptr<MapService> getMapService();
+    std::shared_ptr<TaskService> getTaskService();
 
 private:
     std::shared_ptr<RobotService> m_robotService;
     std::shared_ptr<BootstrapService> m_bootstrapService;
     std::shared_ptr<MapService> m_mapService;
+    std::shared_ptr<TaskService> m_taskService;
 };
 
 }

@@ -8,7 +8,7 @@
 #include "http/http_client.h"
 #include "utils/ros_logger.h"
 
-#include "amr_common/topic_names.hpp"
+#include "amr_common/ros_interface_names.h"
 
 namespace fs = std::filesystem;
 

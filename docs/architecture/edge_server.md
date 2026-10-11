@@ -364,6 +364,8 @@ Active map information
 
 Large map packages and other files are stored in the file system rather than directly inside SQLite.
 
+The detailed table definitions, indexes, idempotency keys, and goods-progress derivation are defined in `docs/architecture/edge-data-model.md`.
+
 Edge Server
     │
     ├── SQLite

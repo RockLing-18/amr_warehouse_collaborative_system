@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 
 namespace edge_server
 {
@@ -213,6 +214,50 @@ struct RobotRegisterResponse
 struct RobotRegWillPush
 {
     std::string robot_id;
+};
+
+struct TaskGoods
+{
+    std::string goods_id;
+    std::string goods_name;
+    int total_quantity = 0;
+};
+
+struct TransportTask
+{
+    std::string task_id;
+    std::string warehouse_id;
+    std::string task_type;
+    std::vector<std::string> robot_ids;
+    std::vector<TaskGoods> goods;
+    std::string state = "PENDING";
+    std::string goal;
+    std::string reason;
+    std::string created_at;
+    std::string updated_at;
+};
+
+struct TaskGoodsStatus
+{
+    std::string goods_id;
+    int total_quantity = 0;
+    int in_progress_quantity = 0;
+    int completed_quantity = 0;
+    int pending_quantity = 0;
+    std::string updated_at;
+};
+
+struct AmrTaskStatusEvent
+{
+    std::string message_id;
+    std::string task_id;
+    std::string robot_id;
+    std::string event_type;
+    std::string task_state;
+    std::string goods_json;
+    std::string reason;
+    std::string timestamp;
+    std::string received_at;
 };
 
 

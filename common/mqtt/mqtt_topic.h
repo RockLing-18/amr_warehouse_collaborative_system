@@ -46,6 +46,10 @@ constexpr const char AMR_TASK_GOODS_RESPONSE[] = "amr/{}/task/goods/response";
 // robot_id 会替换 {}
 constexpr const char AMR_TASK_STATUS[] = "amr/{}/task/status";
 
+// Edge -> AMR 任务状态上报 ACK
+// robot_id 会替换 {}
+constexpr const char AMR_TASK_STATUS_ACK[] = "amr/{}/task/status/ack";
+
 constexpr const char TRAFFIC_RIGHTS_REQ[] = "amr/traffic_rights/request";
 constexpr const char TRAFFIC_RIGHTS_RSP_PREFIX[] = "amr/traffic_rights/response/";
 
@@ -90,6 +94,11 @@ inline std::string makeAmrTaskGoodsResponseTopic(const std::string& robot_id)
 inline std::string makeAmrTaskStatusTopic(const std::string& robot_id)
 {
     return fmt::format(AMR_TASK_STATUS, robot_id);
+}
+
+inline std::string makeAmrTaskStatusAckTopic(const std::string& robot_id)
+{
+    return fmt::format(AMR_TASK_STATUS_ACK, robot_id);
 }
 
 }

@@ -1,0 +1,6 @@
+string goods_id
+string goods_name
+int32 total_quantity
+int32 in_progress_quantity
+int32 completed_quantity
+int32 pending_quantity

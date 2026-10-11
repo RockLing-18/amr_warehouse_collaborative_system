@@ -1,0 +1,12 @@
+string command_type
+string task_id
+string warehouse_id
+string task_type
+string[] robot_ids
+TaskGoods[] goods
+TaskGoodsStatus[] goods_status
+string state
+string reason
+string request_id
+bool accepted
+builtin_interfaces/Time stamp

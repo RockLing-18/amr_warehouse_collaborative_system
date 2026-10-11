@@ -11,7 +11,12 @@
 | SRS | Draft |
 | System Architecture | Target Architecture |
 | AMR Internal Architecture | Partial |
+| AMR Application Design | Draft |
 | Edge Server Architecture | Partial |
+| Edge Data Model | Draft |
+| Task State Machine | Draft |
+| HTTP Error Codes | Draft |
+| AMR Pending Reports Format | Draft |
 | Simulation Architecture | Partial |
 | Interface Contract | Draft |
 
@@ -19,12 +24,18 @@
 
 - [软件需求规格说明书](requirements/srs.md)：V1 需求、范围、验收标准和 TBD。
 - [接口契约](requirements/interface-contract.md)：Edge HTTP、MQTT 任务消息、ROS2 接口名称和 QoS/幂等规则。
+- [HTTP 错误码](requirements/http-error-codes.md)：Edge HTTP API 的统一响应和错误码。
+- [AMR 待补报文件格式](requirements/pending-task-reports-format.md)：`pending_task_reports.json` 结构、写入和清理规则。
+- [项目待办与交付清单](TODO.md)：后续开发、测试和验收的工作清单。
 
 ## 架构文档
 
 - [系统总体架构](architecture/system.md)
 - [AMR 内部架构](architecture/amr.md)
+- [AMR Application 设计](architecture/amr-application-design.md)
 - [Edge Server 架构](architecture/edge_server.md)
+- [Edge 数据模型与 SQLite Schema](architecture/edge-data-model.md)
+- [任务状态机与 AMR 行为状态机](architecture/task-state-machine.md)
 - [Simulation 架构](architecture/simulation.md)
 - [架构决策记录](architecture/adr/README.md)
 
@@ -43,5 +54,7 @@
 - AMR 任务状态消息使用 `goods` 数组，支持一趟搬运多类货物。
 - Edge HTTP 任务注入无鉴权；AMR 心跳 5 秒，Edge 超时判定 5 分钟。
 - Edge 异常时 AMR 完成当前已获批搬运后停止，本地待补报写入 `pending_task_reports.json`，Edge 恢复后合并。
+- Edge 通过 `amr/{robot_id}/task/status/ack` 确认 AMR 消息；AMR 收到 ACK 后清理本地待补报记录。
+- `amr_agent` 与 `amr_behavior_manager` 通过 `task_command` / `task_event` 通信，并新增 TaskCommand/TaskEvent 消息。
 
 未确认事项继续以 TBD 记录，不在本索引中自行填充。

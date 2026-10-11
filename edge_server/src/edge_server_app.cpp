@@ -17,6 +17,7 @@
 #include "service/robot_service.h"
 #include "service/bootstrap_service.h"
 #include "service/map_service.h"
+#include "service/task_service.h"
 
 #include "communication/amr_communication.h"
 
@@ -113,6 +114,7 @@ bool EdgeServerApp::init(const std::string& cfgPath)
 
 
     m_serviceContext->getMapService()->init(config.warehouse.id);
+    m_serviceContext->getTaskService()->init(config.warehouse.id);
 
     RobotServiceRuntime runtimeInfo;
     runtimeInfo.mapService = m_serviceContext->getMapService();
@@ -124,7 +126,10 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     m_amrCommunication = std::make_shared<AmrCommunication>();
     m_amrCommunication->init(config.edge_amr_mqtt, m_serviceContext);
     
-    m_httpServer = std::make_shared<HttpServer>(m_serviceContext->getBootstrapService(), m_serviceContext->getMapService());
+    m_httpServer = std::make_shared<HttpServer>(
+        m_serviceContext->getBootstrapService(),
+        m_serviceContext->getMapService(),
+        m_serviceContext->getTaskService());
     m_httpServer->start(config.http.host, config.http.port);
 
     LOG_INFO("edge server start");
@@ -132,5 +137,4 @@ bool EdgeServerApp::init(const std::string& cfgPath)
 }
 
 }
-
 

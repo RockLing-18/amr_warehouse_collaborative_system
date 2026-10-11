@@ -2,6 +2,7 @@
 #include "utils/LogDefine.h"
 #include "service/bootstrap_service.h"
 #include "service/map_service.h"
+#include "service/task_service.h"
 #include "nlohmann/json.hpp"
 #include <fstream>
 
@@ -10,8 +11,11 @@ using json=nlohmann::json;
 namespace edge_server
 {
 
-HttpServer::HttpServer(const std::shared_ptr<BootstrapService>& bootstrapService, const std::shared_ptr<MapService>& mapService)
-: m_bootstrapService(bootstrapService), m_mapService(mapService)
+HttpServer::HttpServer(
+    const std::shared_ptr<BootstrapService>& bootstrapService,
+    const std::shared_ptr<MapService>& mapService,
+    const std::shared_ptr<TaskService>& taskService)
+: m_bootstrapService(bootstrapService), m_mapService(mapService), m_taskService(taskService)
 {
 }
 
@@ -46,6 +50,7 @@ void HttpServer::registerRoutes()
 {
     registerBootstrapRoutes();
     registerMapRoutes();
+    registerTaskRoutes();
 }
 
 void HttpServer::registerBootstrapRoutes()
@@ -387,6 +392,167 @@ void HttpServer::registerActivateMapRoute()
                 res.set_content(R"({"code":400,"msg":"invalid json"})", "application/json");
             }
 
+        });
+}
+
+void HttpServer::registerTaskRoutes()
+{
+    registerCreateTaskRoute();
+    registerGetTaskRoute();
+    registerCancelTaskRoute();
+}
+
+void HttpServer::registerCreateTaskRoute()
+{
+    std::weak_ptr<TaskService> serviceWeak = m_taskService;
+    m_server.Post(
+        "/api/tasks",
+        [serviceWeak](const httplib::Request& req, httplib::Response& res)
+        {
+            try
+            {
+                auto service = serviceWeak.lock();
+                if(!service)
+                {
+                    res.status = 500;
+                    res.set_content(R"({"code":50001,"msg":"task service unavailable"})", "application/json");
+                    return;
+                }
+
+                auto body = json::parse(req.body);
+                TransportTask task;
+                task.task_id = body.value("task_id", "");
+                task.task_type = body.value("task_type", "");
+                if(body.contains("robot_ids") && body["robot_ids"].is_array())
+                {
+                    for(const auto& robot : body["robot_ids"])
+                        task.robot_ids.push_back(robot.get<std::string>());
+                }
+
+                if(body.contains("goods") && body["goods"].is_array())
+                {
+                    for(const auto& goodsJson : body["goods"])
+                    {
+                        TaskGoods goods;
+                        goods.goods_id = goodsJson.value("goods_id", "");
+                        goods.goods_name = goodsJson.value("goods_name", "");
+                        goods.total_quantity = goodsJson.value("quantity", 0);
+                        task.goods.push_back(goods);
+                    }
+                }
+
+                int code = 0;
+                std::string message;
+                if(!service->createTask(task, code, message))
+                {
+                    json err;
+                    err["code"] = code;
+                    err["msg"] = message;
+                    res.status = code >= 50000 ? 500 : 400;
+                    res.set_content(err.dump(), "application/json");
+                    return;
+                }
+
+                json resp;
+                resp["code"] = 0;
+                resp["msg"] = "success";
+                resp["data"]["task_id"] = task.task_id;
+                resp["data"]["state"] = "PENDING";
+                res.set_content(resp.dump(), "application/json");
+            }
+            catch(const std::exception& e)
+            {
+                LOG_ERROR("create task exception:{}", e.what());
+                res.status = 400;
+                res.set_content(R"({"code":40001,"msg":"invalid json"})", "application/json");
+            }
+        });
+}
+
+void HttpServer::registerGetTaskRoute()
+{
+    std::weak_ptr<TaskService> serviceWeak = m_taskService;
+    m_server.Get(
+        R"(/api/tasks/([a-zA-Z0-9_-]+))",
+        [serviceWeak](const httplib::Request& req, httplib::Response& res)
+        {
+            auto service = serviceWeak.lock();
+            if(!service)
+            {
+                res.status = 500;
+                res.set_content(R"({"code":50001,"msg":"task service unavailable"})", "application/json");
+                return;
+            }
+
+            std::string task_id = req.matches[1].str();
+            TransportTask task;
+            if(!service->getTask(task_id, task))
+            {
+                res.status = 404;
+                res.set_content(R"({"code":41005,"msg":"task not found"})", "application/json");
+                return;
+            }
+
+            json data;
+            data["task_id"] = task.task_id;
+            data["warehouse_id"] = task.warehouse_id;
+            data["task_type"] = task.task_type;
+            data["state"] = task.state;
+            data["robot_ids"] = task.robot_ids;
+            data["goods"] = json::array();
+            for(const auto& goods : task.goods)
+            {
+                json g;
+                g["goods_id"] = goods.goods_id;
+                g["goods_name"] = goods.goods_name;
+                g["quantity"] = goods.total_quantity;
+                data["goods"].push_back(g);
+            }
+            data["reason"] = task.reason;
+            data["updated_at"] = task.updated_at;
+
+            json resp;
+            resp["code"] = 0;
+            resp["msg"] = "success";
+            resp["data"] = data;
+            res.set_content(resp.dump(), "application/json");
+        });
+}
+
+void HttpServer::registerCancelTaskRoute()
+{
+    std::weak_ptr<TaskService> serviceWeak = m_taskService;
+    m_server.Post(
+        R"(/api/tasks/([a-zA-Z0-9_-]+)/cancel)",
+        [serviceWeak](const httplib::Request& req, httplib::Response& res)
+        {
+            auto service = serviceWeak.lock();
+            if(!service)
+            {
+                res.status = 500;
+                res.set_content(R"({"code":50001,"msg":"task service unavailable"})", "application/json");
+                return;
+            }
+
+            std::string task_id = req.matches[1].str();
+            int code = 0;
+            std::string message;
+            if(!service->cancelTask(task_id, code, message))
+            {
+                json err;
+                err["code"] = code;
+                err["msg"] = message;
+                res.status = code == 41006 ? 409 : 404;
+                res.set_content(err.dump(), "application/json");
+                return;
+            }
+
+            json resp;
+            resp["code"] = 0;
+            resp["msg"] = "cancel requested";
+            resp["data"]["task_id"] = task_id;
+            resp["data"]["state"] = "CANCELLED";
+            res.set_content(resp.dump(), "application/json");
         });
 }
 

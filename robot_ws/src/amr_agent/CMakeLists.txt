@@ -16,6 +16,7 @@ find_package(yaml-cpp REQUIRED)
 find_package(PahoMqttCpp REQUIRED)
 find_package(fmt REQUIRED)
 find_package(amr_common REQUIRED)
+find_package(amr_interfaces REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -64,6 +65,7 @@ ament_target_dependencies(
     amr_agent
     rclcpp
     amr_common
+    amr_interfaces
     # std_msgs
 )
 

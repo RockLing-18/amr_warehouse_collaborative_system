@@ -44,6 +44,24 @@ V1 当前没有 Cloud Platform，但 SRS 需要验证运输任务闭环。任务
 28. Edge 异常时，AMR 完成当前已获批搬运后停止下一行动，不进行本地平均分配。
 29. AMR 本地待补报结果持久化到 `pending_task_reports.json`，采用原子写入。
 30. Edge 恢复后从 SQLite 恢复任务状态，按幂等和时间戳合并 AMR 待补报结果。
+31. `ACCEPTED` 表示 Edge 已成功下发任务且至少一个参与 AMR 上报接受。
+32. `RUNNING` 表示第一个货物申请被 Edge 批准。
+33. V1 不主动使用 `FAILED`，保留给后续版本。
+34. 任务级 `INTERRUPTED` 不自动继续，需人工或上层重新创建任务。
+35. AMR 从 `INTERRUPTED` 恢复到 `IDLE`。
+36. AMR 行为状态转换按 `IDLE -> ACCEPTED -> GRASPING -> TRANSPORTING -> PLACING -> IDLE/GRASPING` 执行。
+37. `PENDING`、`ACCEPTED`、`RUNNING` 均可通过取消流程进入 `CANCELLED`。
+38. `tbl_task.robot_ids` 在 V1 使用 JSON 数组存储，不新增成员表。
+39. `tbl_task.goal` 在 V1 保留字段但允许为空。
+40. V1 保留 `tbl_task_event` 和 `tbl_amr_task_status_event` 两张事件表。
+41. 增加 `amr/{robot_id}/task/status/ack`，Edge 确认 AMR 状态/完成/放弃消息，AMR 据此清理本地待补报记录。
+42. `amr_agent` 与 `amr_behavior_manager` 使用 ROS2 Topic 通信，通过 `task_command` 和 `task_event` 解耦。
+43. 新增 `TaskGoods.msg`、`TaskGoodsStatus.msg`、`TaskCommand.msg`、`TaskEvent.msg`。
+44. 货物申请由 `amr_behavior_manager` 决策，`amr_agent` 负责 MQTT 请求。
+45. 货物点位映射文件由 `amr_behavior_manager` 加载。
+46. V1 的 `GRASPING` 和 `PLACING` 使用固定延时或状态直接推进，不接机械臂。
+47. `amr_behavior_manager` 发布内部 `task_status`，`amr_agent` 翻译为 MQTT `amr/{robot_id}/task/status`。
+48. 导航失败时 V1 不自动重试，直接上报 `CARRY_ABORTED`，原因 `NAVIGATION_FAILED`。
 
 ## 理由
 

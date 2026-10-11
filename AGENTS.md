@@ -42,6 +42,10 @@
 - 目的地由 `goods_id + task_type` 映射，不在任务消息中下发具体坐标。
 - Edge 异常时，AMR 完成当前已获批搬运后停止下一行动；本地待补报结果持久化到 `pending_task_reports.json`。
 - Edge 恢复后从 SQLite 恢复任务状态，按幂等和时间戳合并 AMR 待补报结果。
+- Edge 通过 `amr/{robot_id}/task/status/ack` 确认 AMR 状态/完成/放弃消息；AMR 收到 ACK 后清理本地待补报记录。
+- `amr_agent` 与 `amr_behavior_manager` 通过 ROS2 Topic `task_command` 和 `task_event` 通信。
+- 新增 `TaskGoods.msg`、`TaskGoodsStatus.msg`、`TaskCommand.msg`、`TaskEvent.msg`。
+- 货物申请由 `amr_behavior_manager` 决策，`amr_agent` 负责 MQTT 请求；导航失败不自动重试。
 - JSON 消息字段使用 `snake_case`；任务状态枚举与 SRS 保持一致。
 - AMR 内部 ROS2 Topic/Service/Action 名称统一定义在 `amr_common`。
 - Cloud/Edge/AMR 相关 MQTT Topic 统一定义在 `common/mqtt/mqtt_topic.h`。
@@ -56,13 +60,14 @@
 - 不擅自修改构建文件、依赖配置或业务代码，除非任务明确允许。
 - 新增功能前应先完成对应文档和接口决策。
 - 提交说明应关联需求编号、验收项和必要文档。
+- 每次完成功能或文档后，必须说明“为什么这么实现”，包含设计动机、边界和取舍，便于面试表达和后续维护。
 
 ## 5. 当前 TBD 处理
 
 - V1 的 Edge 任务注入入口已确定为 HTTP API。
 - 任务相关 MQTT Topic、消息结构、QoS 和幂等字段已记录在接口契约和 ADR-0001。
-- `task_state` 的完整状态机尚未确定。
-- Edge 恢复后 AMR 是否自动继续后续任务尚未确定。
+- `task_state` 状态机已冻结。
+- Edge 恢复后不自动继续，需人工或上层重新创建任务。
 - Cloud Platform 后续形态尚未确定。
 - `amr_agent` CMake 中的 `amr_common` 依赖已补充。
 

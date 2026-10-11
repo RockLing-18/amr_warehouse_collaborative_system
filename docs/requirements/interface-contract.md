@@ -10,7 +10,7 @@
 
 - V1 使用 Edge 侧 HTTP API 进行任务注入。
 - 后续 Cloud 使用 MQTT 向 Edge 发布任务，Edge 订阅任务 Topic。
-- 任务相关 MQTT Topic 使用 `warehouse/{warehouse_id}/task`、`warehouse/{warehouse_id}/task/status`、`amr/{robot_id}/task`、`warehouse/{warehouse_id}/task/{task_id}/state`、`amr/{robot_id}/task/goods/request`、`amr/{robot_id}/task/goods/response` 和 `amr/{robot_id}/task/status`。
+- 任务相关 MQTT Topic 使用 `warehouse/{warehouse_id}/task`、`warehouse/{warehouse_id}/task/status`、`amr/{robot_id}/task`、`warehouse/{warehouse_id}/task/{task_id}/state`、`amr/{robot_id}/task/goods/request`、`amr/{robot_id}/task/goods/response`、`amr/{robot_id}/task/status` 和 `amr/{robot_id}/task/status/ack`。
 - AMR 内部 ROS2 Topic/Service/Action 名称统一定义在 `amr_common`。
 - Edge/Cloud/AMR 相关 MQTT Topic 统一定义在 `common/mqtt/mqtt_topic.h`。
 
@@ -146,6 +146,7 @@ V1 暂不实现 Cloud Platform，由调用方通过 Edge Server 的 HTTP API 注
 | AMR → Edge | `amr/{robot_id}/task/goods/request` | 1 | AMR 向 Edge 申请搬运指定货物和数量。 |
 | Edge → AMR | `amr/{robot_id}/task/goods/response` | 1 | Edge 返回搬运申请结果。 |
 | AMR → Edge | `amr/{robot_id}/task/status` | 1 | AMR 定时上报任务状态，以及上报搬运完成、放弃/中断。 |
+| Edge → AMR | `amr/{robot_id}/task/status/ack` | 1 | Edge 确认已处理的 AMR 状态/完成/放弃消息。 |
 
 V1 阶段没有 Cloud，因此这些 Topic 可以先不启用；但 Topic 名称和消息结构必须提前冻结。
 
@@ -590,11 +591,40 @@ Edge 异常或与 AMR 的 MQTT 链路中断时，AMR 采用“完成当前已获
 
 多 AMR 场景下，Edge 故障期间不进行本地平均分配，避免多个 AMR 重复领取同一批货物。
 
+### 4.10 AMR 状态上报 ACK
+
+Edge 处理完 AMR 的 `STATUS`、`CARRY_COMPLETED` 或 `CARRY_ABORTED` 消息后，通过 `amr/{robot_id}/task/status/ack` 发送确认。
+
+```json
+{
+  "warehouse_id": "warehouse_01",
+  "task_id": "task_001",
+  "robot_id": "robot_01",
+  "acked_message_ids": [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "550e8400-e29b-41d4-a716-446655440001"
+  ],
+  "timestamp": "2026-10-10T10:07:00+08:00"
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `warehouse_id` | string | 是 | 仓库标识。 |
+| `task_id` | string | 是 | 任务唯一标识。 |
+| `robot_id` | string | 是 | 接收 ACK 的 AMR。 |
+| `acked_message_ids` | array[string] | 是 | Edge 已确认处理的 AMR 消息 ID 列表。 |
+| `timestamp` | string | 是 | ACK 时间。 |
+
+AMR 收到 ACK 后，删除本地 `pending_task_reports.json` 中对应的待补报记录。
+
 ## 5. AMR 内部 ROS2 接口名称
 
 AMR 内部 Topic/Service/Action 名称统一定义在：
 
-`robot_ws/src/amr_common/include/amr_common/topic_names.h`
+`robot_ws/src/amr_common/include/amr_common/ros_interface_names.h`
 
 | 类型 | 常量 | 名称 |
 | --- | --- | --- |
@@ -622,6 +652,7 @@ MQTT Topic 统一定义在：
 - `AMR_TASK_GOODS_REQUEST = "amr/{}/task/goods/request"`
 - `AMR_TASK_GOODS_RESPONSE = "amr/{}/task/goods/response"`
 - `AMR_TASK_STATUS = "amr/{}/task/status"`
+- `AMR_TASK_STATUS_ACK = "amr/{}/task/status/ack"`
 - 现有注册、状态、Will、地图、交通路权等 Topic。
 
 后续实现时优先使用 helper：
@@ -633,9 +664,9 @@ MQTT Topic 统一定义在：
 - `makeAmrTaskGoodsRequestTopic(robot_id)`
 - `makeAmrTaskGoodsResponseTopic(robot_id)`
 - `makeAmrTaskStatusTopic(robot_id)`
+- `makeAmrTaskStatusAckTopic(robot_id)`
 
 ## 7. TBD
 
-- 是否需要独立 ACK Topic，还是仅依赖 QoS 1 + 幂等字段。
 - `unload_zone_priority` 是否应扩展为更通用的优先级规则。
-- `task_state` 的完整状态机和超时判定规则仍待细化。
+- `task_state` 的完整状态机已基本冻结，见 `docs/architecture/task-state-machine.md`。

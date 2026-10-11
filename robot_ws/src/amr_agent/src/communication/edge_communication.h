@@ -15,8 +15,15 @@ class MqttMessageRouter;
 class EdgeCommunication
 {
 public:
+    using Handler = std::function<void(const std::string&)>;
+
     EdgeCommunication();
-    bool init(const BootstrapInfo& cfg, const std::shared_ptr<ServiceContext>& serviceContext);
+    ~EdgeCommunication();
+    bool init(const BootstrapInfo& cfg, rclcpp::Node::SharedPtr node);
+
+    bool publish(const std::string& topic, const std::string& payload, int qos = 1, bool retain = false);
+    void registerExternalHandler(const std::string& topic, Handler handler);
+    void setExternalSubscribe(const std::string& topic, int qos = 1);
     
 private:
     void setSubscribe();
