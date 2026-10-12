@@ -190,6 +190,11 @@ bool MqttClient::publish(const std::string& topic, const std::string& payload, i
     }
 }
 
+bool MqttClient::isConnected() const
+{
+    return m_client && m_client->is_connected();
+}
+
 void MqttClient::setMessageCallback(MessageCallback cb)
 {
     m_callback = cb;

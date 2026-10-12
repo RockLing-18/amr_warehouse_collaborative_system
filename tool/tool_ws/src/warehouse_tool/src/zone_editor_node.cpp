@@ -4,6 +4,9 @@
 #include <iostream>
 #include <yaml-cpp/yaml.h>
 #include <fstream>
+#include <sstream>
+#include <algorithm>
+#include <cctype>
 #include "warehouse_tool/yaml_zone_manager.h"
 #include "warehouse_tool/zone_marker_publisher.h"
 
@@ -169,7 +172,28 @@ private:
         std::getline(std::cin, zone.info.name);
         std::cout << "zone type: ";
         std::getline(std::cin, zone.info.type);
+
+        std::string goodsLine;
+        std::cout << "goods_ids (comma separated): ";
+        std::getline(std::cin, goodsLine);
+        zone.info.goods_ids = splitGoodsIds(goodsLine);
         return zone;
+    }
+
+    static std::vector<std::string> splitGoodsIds(const std::string& line)
+    {
+        std::vector<std::string> goodsIds;
+        std::stringstream ss(line);
+        std::string item;
+        while(std::getline(ss, item, ','))
+        {
+            item.erase(
+                std::remove_if(item.begin(), item.end(), ::isspace),
+                item.end());
+            if(!item.empty())
+                goodsIds.push_back(item);
+        }
+        return goodsIds;
     }
     
 private:

@@ -2,10 +2,12 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "rclcpp/rclcpp.hpp"
 #include "amr_interfaces/msg/task_command.hpp"
 #include "amr_interfaces/msg/task_event.hpp"
+#include "persist/pending_report_store.h"
 
 namespace amr_agent
 {
@@ -22,7 +24,8 @@ public:
         rclcpp::Node::SharedPtr node,
         EdgeCommunication* communication,
         const std::string& robot_id,
-        const std::string& warehouse_id);
+        const std::string& warehouse_id,
+        const std::string& pending_report_path);
 
     void init();
 
@@ -32,8 +35,10 @@ private:
     void onGoodsResponseMessage(const std::string& payload);
     void onStatusAckMessage(const std::string& payload);
     void onInternalTaskEvent(const TaskEvent::SharedPtr event);
+    void flushPendingReports();
 
     void publishTaskEventToMqtt(const TaskEvent& event);
+    std::pair<std::string, std::string> buildMqttMessage(const TaskEvent& event) const;
 
     std::string makeMessageId(const std::string& event_type) const;
     std::string nowIso8601() const;
@@ -43,9 +48,11 @@ private:
     EdgeCommunication* m_communication;
     std::string m_robot_id;
     std::string m_warehouse_id;
+    PendingReportStore m_pending_reports;
 
     rclcpp::Publisher<TaskCommand>::SharedPtr m_task_command_pub;
     rclcpp::Subscription<TaskEvent>::SharedPtr m_task_event_sub;
+    rclcpp::TimerBase::SharedPtr m_pending_flush_timer;
 };
 
 }

@@ -34,10 +34,10 @@ def generate_metadata(
                 "map.pgm",
 
             "zone":
-                "zone.yaml",
+                "zones.yaml",
 
             "station":
-                "station.yaml"
+                "stations.yaml"
         }
     }
 

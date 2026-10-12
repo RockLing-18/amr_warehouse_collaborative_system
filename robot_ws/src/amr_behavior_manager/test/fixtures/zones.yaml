@@ -1,0 +1,21 @@
+zones:
+  - id: "load_zone_A"
+    name: "A 装货区"
+    type: "load"
+    goods_ids: ["A"]
+    polygon: []
+  - id: "unload_zone_A"
+    name: "A 卸货区"
+    type: "unload"
+    goods_ids: ["A"]
+    polygon: []
+  - id: "load_zone_B"
+    name: "B 装货区"
+    type: "load"
+    goods_ids: ["B"]
+    polygon: []
+  - id: "unload_zone_B"
+    name: "B 卸货区"
+    type: "unload"
+    goods_ids: ["B"]
+    polygon: []

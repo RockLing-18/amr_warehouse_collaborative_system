@@ -39,6 +39,8 @@ struct BootstrapInfo
 {
     std::string robot_id;
     std::string warehouse_id;
+    std::string edge_host;
+    int edge_port = 8080;
     MqttConfig mqtt;
     MapConfig map;
 };

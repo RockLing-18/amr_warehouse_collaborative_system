@@ -20,6 +20,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(amr_interfaces REQUIRED)
+find_package(amr_common REQUIRED)
 
 # ============================
 # TF Helper Library
@@ -130,6 +131,7 @@ ament_target_dependencies(
     geometry_msgs
     nav2_msgs
     amr_interfaces
+    amr_common
 )
 
 # ============================

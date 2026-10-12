@@ -62,6 +62,10 @@ V1 当前没有 Cloud Platform，但 SRS 需要验证运输任务闭环。任务
 46. V1 的 `GRASPING` 和 `PLACING` 使用固定延时或状态直接推进，不接机械臂。
 47. `amr_behavior_manager` 发布内部 `task_status`，`amr_agent` 翻译为 MQTT `amr/{robot_id}/task/status`。
 48. 导航失败时 V1 不自动重试，直接上报 `CARRY_ABORTED`，原因 `NAVIGATION_FAILED`。
+49. `map -> zone -> station -> location` 为货物点位映射关系。
+50. `zones.yaml` 中 zone 使用 `goods_ids` 列表记录可处理的货物。
+51. 任务消息不携带 `target_zone_id`、`target_station_id`、`target_location_id`，由 AMR 按 `goods_id + task_type` 推导。
+52. V1 先假设所有 zone 均为货物相关区域；非货物区域后续再增加字段区分。
 
 ## 理由
 

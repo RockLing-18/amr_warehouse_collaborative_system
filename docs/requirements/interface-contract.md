@@ -468,6 +468,7 @@ AMR 任务状态每 5 秒上报一次。Edge 在 5 分钟内未收到该 AMR 的
   "robot_id": "robot_01",
   "event_type": "CARRY_COMPLETED",
   "task_state": "TRANSPORTING",
+  "request_id": "req_001",
   "goods": [
     {
       "goods_id": "A",
@@ -490,6 +491,7 @@ AMR 任务状态每 5 秒上报一次。Edge 在 5 分钟内未收到该 AMR 的
   "robot_id": "robot_01",
   "event_type": "CARRY_ABORTED",
   "task_state": "INTERRUPTED",
+  "request_id": "req_001",
   "goods": [
     {
       "goods_id": "A",
@@ -512,6 +514,7 @@ AMR 任务状态每 5 秒上报一次。Edge 在 5 分钟内未收到该 AMR 的
 | `robot_id` | string | 是 | AMR 标识。 |
 | `event_type` | enum | 是 | `STATUS`、`CARRY_COMPLETED`、`CARRY_ABORTED`。 |
 | `task_state` | enum | 是 | AMR 当前任务状态。 |
+| `request_id` | string | 条件必填 | `CARRY_COMPLETED` 或 `CARRY_ABORTED` 时必填，用于定位已批准分配。 |
 | `goods` | array | 条件必填 | `CARRY_COMPLETED` 或 `CARRY_ABORTED` 时必填；`STATUS` 时可空数组或填写当前搬运货物。 |
 | `goods[].goods_id` | string | 是 | 货物标识。 |
 | `goods[].goods_name` | string | 否 | 货物显示名。 |

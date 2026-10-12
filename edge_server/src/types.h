@@ -250,14 +250,32 @@ struct TaskGoodsStatus
 struct AmrTaskStatusEvent
 {
     std::string message_id;
+    std::string warehouse_id;
     std::string task_id;
     std::string robot_id;
     std::string event_type;
     std::string task_state;
+    std::string request_id;
     std::string goods_json;
     std::string reason;
     std::string timestamp;
     std::string received_at;
+};
+
+struct GoodsApplyRequest
+{
+    std::string request_id;
+    std::string warehouse_id;
+    std::string task_id;
+    std::string robot_id;
+    std::vector<TaskGoods> goods;
+};
+
+struct GoodsApplyResult
+{
+    bool accepted = false;
+    std::string reason;
+    std::vector<TaskGoods> goods;
 };
 
 

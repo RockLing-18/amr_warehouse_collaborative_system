@@ -56,5 +56,7 @@
 - Edge 异常时 AMR 完成当前已获批搬运后停止，本地待补报写入 `pending_task_reports.json`，Edge 恢复后合并。
 - Edge 通过 `amr/{robot_id}/task/status/ack` 确认 AMR 消息；AMR 收到 ACK 后清理本地待补报记录。
 - `amr_agent` 与 `amr_behavior_manager` 通过 `task_command` / `task_event` 通信，并新增 TaskCommand/TaskEvent 消息。
+- `map -> zone -> station -> location` 是货物点位映射关系；zone 使用 `goods_ids`，任务不携带 target 字段。
+- V1 先假设所有 zone 均为货物相关区域。
 
 未确认事项继续以 TBD 记录，不在本索引中自行填充。

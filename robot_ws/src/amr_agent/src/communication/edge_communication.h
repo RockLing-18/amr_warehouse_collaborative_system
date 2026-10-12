@@ -22,6 +22,7 @@ public:
     bool init(const BootstrapInfo& cfg, rclcpp::Node::SharedPtr node);
 
     bool publish(const std::string& topic, const std::string& payload, int qos = 1, bool retain = false);
+    bool isConnected() const;
     void registerExternalHandler(const std::string& topic, Handler handler);
     void setExternalSubscribe(const std::string& topic, int qos = 1);
     

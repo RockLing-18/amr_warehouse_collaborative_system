@@ -17,6 +17,13 @@ find_package(PahoMqttCpp REQUIRED)
 find_package(fmt REQUIRED)
 find_package(amr_common REQUIRED)
 find_package(amr_interfaces REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(
+    LIBZIP
+    REQUIRED
+    IMPORTED_TARGET
+    libzip
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -75,6 +82,7 @@ target_link_libraries(
     yaml-cpp
     PahoMqttCpp::paho-mqttpp3
     fmt::fmt
+    PkgConfig::LIBZIP
 )
 
 install(TARGETS

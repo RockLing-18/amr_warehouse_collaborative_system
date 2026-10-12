@@ -46,6 +46,9 @@
 - `amr_agent` 与 `amr_behavior_manager` 通过 ROS2 Topic `task_command` 和 `task_event` 通信。
 - 新增 `TaskGoods.msg`、`TaskGoodsStatus.msg`、`TaskCommand.msg`、`TaskEvent.msg`。
 - 货物申请由 `amr_behavior_manager` 决策，`amr_agent` 负责 MQTT 请求；导航失败不自动重试。
+- `map -> zone -> station -> location` 是货物点位映射关系；`zones.yaml` 中 zone 使用 `goods_ids`。
+- 任务消息不携带 target zone/station/location，由 AMR 按 `goods_id + task_type` 推导。
+- V1 先假设所有 zone 均为货物相关区域；非货物区域后续再增加字段区分。
 - JSON 消息字段使用 `snake_case`；任务状态枚举与 SRS 保持一致。
 - AMR 内部 ROS2 Topic/Service/Action 名称统一定义在 `amr_common`。
 - Cloud/Edge/AMR 相关 MQTT Topic 统一定义在 `common/mqtt/mqtt_topic.h`。

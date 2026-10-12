@@ -25,6 +25,7 @@ public:
     bool subscribe(const std::string& topic, int qos = 1);
     bool unsubscribe(const std::string& topic);
     bool publish(const std::string& topic, const std::string& payload, int qos = 1, bool retain = false);
+    bool isConnected() const;
     void setMessageCallback(MessageCallback cb);
     void setSubscribe(const std::string& topic, int qos = 1);  // 仅设置,不立马生效, 连接成功后生效
 

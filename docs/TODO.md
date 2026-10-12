@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：`amr_agent` 消息桥接层 TaskBridge 已实现并编译通过；下一步实现 `amr_behavior_manager` 状态机与任务事件消费。
+当前执行：已创建测试 fixtures 并验证 `GoodsPointResolver` 对 A/B 货物 LOAD/UNLOAD 的点位解析正确。
 
 ## 3. 状态图例
 
@@ -112,12 +112,12 @@
 | ID | 任务 | 交付物 | 验证方式 | 状态 |
 | --- | --- | --- | --- | --- |
 | AMR-01 | 实现任务接收 | `amr_agent` | 收到 Edge 任务后进入行为管理 | In Progress |
-| AMR-02 | 实现定时任务状态上报 | `amr_agent` | 每 5 秒上报 `STATUS` | Not Started |
-| AMR-03 | 实现货物申请 | `amr_agent`/`amr_behavior_manager` | 申请成功后进入搬运流程 | Not Started |
-| AMR-04 | 实现完成/放弃上报 | `amr_agent` | 到达目的地后上报 `CARRY_COMPLETED` | Not Started |
-| AMR-05 | 实现本地待补报文件 | AMR 本地持久化 | 断网时结果不丢失 | Not Started |
+| AMR-02 | 实现定时任务状态上报 | `amr_agent` | 每 5 秒上报 `STATUS` | In Progress |
+| AMR-03 | 实现货物申请 | `amr_agent`/`amr_behavior_manager` | 申请成功后进入搬运流程 | In Progress |
+| AMR-04 | 实现完成/放弃上报 | `amr_agent` | 到达目的地后上报 `CARRY_COMPLETED` | In Progress |
+| AMR-05 | 实现本地待补报文件 | AMR 本地持久化 | 断网时结果不丢失 | In Progress |
 | AMR-06 | 实现 Edge 故障检测 | AMR 状态监控 | Edge 异常时停止下一行动 | Not Started |
-| AMR-07 | 实现导航调用 | `amr_behavior_manager` + `amr_navigation` | 能前往指定点位 | Not Started |
+| AMR-07 | 实现导航调用 | `amr_behavior_manager` + `amr_navigation` | 能前往指定点位 | In Progress |
 | AMR-08 | 实现导航取消/失败处理 | `amr_behavior_manager` | 取消后正确更新任务状态 | Not Started |
 | AMR-09 | 实现多 AMR 命名空间和身份隔离 | 启动配置 | 两个 AMR 可同时运行 | Not Started |
 

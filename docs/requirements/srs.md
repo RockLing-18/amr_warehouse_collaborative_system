@@ -2,7 +2,7 @@
 
 **项目名称：** AMR 云边协同多机器人协调系统
 **英文名称：** Warehouse AMR Cloud-Edge Collaborative System
-**文档版本：** V0.15
+**文档版本：** V0.17
 **当前开发基线：** V1
 **文档状态：** Draft（已按当前代码基线校对）
 **最后更新：** 2026-10-10
@@ -111,6 +111,10 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 | D-045 | V1 的 `GRASPING` 和 `PLACING` 使用固定延时或状态直接推进。 | Confirmed |
 | D-046 | `amr_behavior_manager` 发布内部 `task_status`，`amr_agent` 翻译为 MQTT `amr/{robot_id}/task/status`。 | Confirmed |
 | D-047 | 导航失败时 V1 不自动重试，直接上报 `CARRY_ABORTED`，原因 `NAVIGATION_FAILED`。 | Confirmed |
+| D-048 | `map -> zone -> station -> location` 为货物点位映射关系。 | Confirmed |
+| D-049 | `zones.yaml` 中 zone 使用 `goods_ids` 列表记录可处理的货物。 | Confirmed |
+| D-050 | 任务消息不携带 target zone/station/location，由 AMR 按 `goods_id + task_type` 推导。 | Confirmed |
+| D-051 | V1 先假设所有 zone 均为货物相关区域；非货物区域后续再增加字段区分。 | Confirmed |
 
 详细接口结构、消息字段和幂等规则见 `docs/requirements/interface-contract.md` 和 `docs/architecture/adr/`。
 
@@ -1184,3 +1188,5 @@ V2 规划项不应自动转化为 V1 的开发任务。
 | V0.13 | 2026-10-11 | 确认任务状态机、AMR 行为状态机、数据模型细节和 `task/status/ack`。 |
 | V0.14 | 2026-10-11 | 增加需求实现状态矩阵；补充 HTTP 错误码和 AMR 待补报文件格式引用。 |
 | V0.15 | 2026-10-12 | 确认 AMR 内部 ROS2 接口、新消息类型、货物申请、点位映射和导航失败处理。 |
+| V0.16 | 2026-10-12 | 确认 map/zone/station/location 关系、zone.goods_ids 映射和任务不携带 target 字段。 |
+| V0.17 | 2026-10-12 | 确认 `goods_ids` 使用列表，V1 先假设所有 zone 均为货物相关区域。 |

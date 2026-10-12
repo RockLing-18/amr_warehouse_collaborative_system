@@ -27,6 +27,7 @@
 #include "amr_interfaces/msg/robot_pose.hpp"
 #include "amr_navigation/tf_helper.h"
 #include "amr_navigation/navigation_manager.h"
+#include "amr_common/ros_interface_names.h"
 
 namespace amr_navigation
 {
@@ -55,18 +56,19 @@ public:
 		m_navigation_manager->setResultCallback(std::bind(&NavigationServer::onNavigationResult, this, std::placeholders::_1));
 	
 		// 位姿话题（相对名：/robot_namespace/robot_pose）
-		m_robot_pose_pub = this->create_publisher<RobotPoseMsg>("robot_pose", 10);
+		m_robot_pose_pub = this->create_publisher<RobotPoseMsg>(
+            amr_common::topic::ROBOT_POSE, 10);
 	
 		// 位姿查询服务（相对名：/robot_namespace/get_robot_pose）
 		m_get_robot_pose_srv = this->create_service<GetRobotPose>(
-			"get_robot_pose",
+			amr_common::service::GET_ROBOT_POSE,
 			std::bind(&NavigationServer::handleGetRobotPose, this, std::placeholders::_1, std::placeholders::_2)
 			);
 		
 		// 导航 Action server（相对名：/robot_namespace/amr_navigate_to_pose
 		m_nav_action_server = rclcpp_action::create_server<AmrNavigateToPose>(
 			this,
-			"amr_navigate_to_pose",
+			amr_common::action::AMR_NAVIGATE_TO_POSE,
 			std::bind(&NavigationServer::handleGoal, this, std::placeholders::_1, std::placeholders::_2),
 			std::bind(&NavigationServer::handleCancel, this, std::placeholders::_1),
 			std::bind(&NavigationServer::handleAccepted, this, std::placeholders::_1)

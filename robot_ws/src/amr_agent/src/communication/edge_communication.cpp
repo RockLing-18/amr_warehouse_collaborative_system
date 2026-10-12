@@ -59,6 +59,11 @@ bool EdgeCommunication::publish(const std::string& topic, const std::string& pay
     return m_mqtt->publish(topic, payload, qos, retain);
 }
 
+bool EdgeCommunication::isConnected() const
+{
+    return m_mqtt && m_mqtt->isConnected();
+}
+
 void EdgeCommunication::registerExternalHandler(const std::string& topic, Handler handler)
 {
     if(m_router)

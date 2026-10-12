@@ -4,6 +4,8 @@
 #include <fstream>
 #include <system_error>
 #include <cstdlib>
+#include <cstring>
+#include <zip.h>
 
 #include "http/http_client.h"
 #include "utils/ros_logger.h"
@@ -23,9 +25,11 @@ MapManager::MapManager(
 }
 
 
-bool MapManager::init(const std::string& path)
+bool MapManager::init(const std::string& path, const std::string& edge_host, int edge_port)
 {
     m_mapRootPath = path;
+
+    m_httpClient = std::make_shared<HttpClient>(edge_host, edge_port);
 
     if (m_mapRootPath.empty())
     {
@@ -533,34 +537,72 @@ bool MapManager::extractMap(
         return false;
     }
 
-    /*
-     * 当前第一版直接调用系统 unzip。
-     *
-     * packagePath 和 mapDir 都是程序自己生成的路径，
-     * 不是外部用户输入。
-     */
-    const std::string command =
-        "unzip -o \"" +
-        packagePath +
-        "\" -d \"" +
-        mapDir +
-        "\" > /dev/null";
+    int errorCode = 0;
+    zip_t* archive = zip_open(
+        packagePath.c_str(),
+        ZIP_RDONLY,
+        &errorCode);
 
-    LOG_INFO(
-        "extracting map package to: %s",
-        mapDir.c_str());
-
-    const int ret =
-        std::system(command.c_str());
-
-    if (ret != 0)
+    if(!archive)
     {
         LOG_ERROR(
-            "unzip failed, ret=%d",
-            ret);
-
+            "open zip failed code=%d",
+            errorCode);
         return false;
     }
+
+    zip_int64_t entryCount = zip_get_num_entries(archive, 0);
+    if(entryCount < 0)
+    {
+        LOG_ERROR("get zip entry count failed");
+        zip_close(archive);
+        return false;
+    }
+
+    for(zip_uint64_t i = 0; i < static_cast<zip_uint64_t>(entryCount); ++i)
+    {
+        zip_stat_t stat{};
+        if(zip_stat_index(archive, i, 0, &stat) != 0)
+            continue;
+
+        if(!(stat.valid & ZIP_STAT_NAME) || !stat.name)
+            continue;
+
+        std::string entryName = stat.name;
+        if(entryName.empty() || entryName.back() == '/')
+            continue;
+
+        fs::path outputPath =
+            fs::path(mapDir) /
+            fs::path(entryName).filename();
+
+        zip_file_t* input = zip_fopen_index(archive, i, 0);
+        if(!input)
+        {
+            LOG_ERROR("open zip entry failed:%s", entryName.c_str());
+            zip_close(archive);
+            return false;
+        }
+
+        std::ofstream ofs(outputPath, std::ios::binary);
+        if(!ofs.is_open())
+        {
+            LOG_ERROR("open output file failed:%s", outputPath.c_str());
+            zip_fclose(input);
+            zip_close(archive);
+            return false;
+        }
+
+        char buffer[8192];
+        zip_int64_t bytesRead = 0;
+        while((bytesRead = zip_fread(input, buffer, sizeof(buffer))) > 0)
+            ofs.write(buffer, bytesRead);
+
+        ofs.close();
+        zip_fclose(input);
+    }
+
+    zip_close(archive);
 
     LOG_INFO(
         "map package extracted successfully");

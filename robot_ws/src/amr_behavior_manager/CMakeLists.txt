@@ -11,6 +11,8 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(amr_interfaces REQUIRED)
+find_package(amr_common REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 
 # ============================
@@ -20,6 +22,8 @@ add_executable(
     amr_behavior_manager_node
     src/amr_behavior_manager_node.cpp
     src/navigation_client.cpp
+    src/zone_station_loader.cpp
+    src/goods_point_resolver.cpp
 )
 
 target_include_directories(
@@ -34,6 +38,12 @@ ament_target_dependencies(
     rclcpp_action
     geometry_msgs
     amr_interfaces
+    amr_common
+)
+
+target_link_libraries(
+    amr_behavior_manager_node
+    yaml-cpp
 )
 
 # ============================

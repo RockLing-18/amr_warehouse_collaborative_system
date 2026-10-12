@@ -45,11 +45,13 @@ bool Bootstrap::loadLocalConfig(const std::string& cfgPath, BootstrapInfo& info)
             if(config["edge_server"]["host"])
             {
                 m_edgeHost = config["edge_server"]["host"].as<std::string>();
+                info.edge_host = m_edgeHost;
             }
 
             if(config["edge_server"]["port"])
             {
                 m_edgePort =  config["edge_server"]["port"].as<int>();
+                info.edge_port = m_edgePort;
             }
         }
 

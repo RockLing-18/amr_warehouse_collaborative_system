@@ -1,0 +1,51 @@
+stations:
+  - id: "load_station_A"
+    name: "A 装货点"
+    type: "load"
+    zone_id: "load_zone_A"
+    locations:
+      - id: "load_location_A_1"
+        type: "load"
+        pose:
+          x: 1.0
+          y: 1.0
+          yaw: 0.0
+      - id: "load_location_A_2"
+        type: "wait"
+        pose:
+          x: 1.2
+          y: 1.2
+          yaw: 0.0
+  - id: "unload_station_A"
+    name: "A 卸货点"
+    type: "unload"
+    zone_id: "unload_zone_A"
+    locations:
+      - id: "unload_location_A_1"
+        type: "unload"
+        pose:
+          x: 3.0
+          y: 2.0
+          yaw: 1.57
+  - id: "load_station_B"
+    name: "B 装货点"
+    type: "load"
+    zone_id: "load_zone_B"
+    locations:
+      - id: "load_location_B_1"
+        type: "load"
+        pose:
+          x: 5.0
+          y: 0.5
+          yaw: 0.0
+  - id: "unload_station_B"
+    name: "B 卸货点"
+    type: "unload"
+    zone_id: "unload_zone_B"
+    locations:
+      - id: "unload_location_B_1"
+        type: "unload"
+        pose:
+          x: 7.0
+          y: 3.0
+          yaw: 0.0

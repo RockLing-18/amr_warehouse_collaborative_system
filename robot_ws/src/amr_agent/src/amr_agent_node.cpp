@@ -13,6 +13,9 @@ AmrAgentNode::AmrAgentNode()
 : Node("amr_agent")
 {
     this->declare_parameter<std::string>("cfg_path","");
+    this->declare_parameter<std::string>(
+        "pending_report_path",
+        "/opt/amr/data/amr_runtime/pending_task_reports.json");
 }
 
 
@@ -43,7 +46,7 @@ bool AmrAgentNode::init()
     }
 
     m_mapManager = std::make_shared<MapManager>(shared_from_this());
-    if(!m_mapManager->init(info.map.path))
+    if(!m_mapManager->init(info.map.path, info.edge_host, info.edge_port))
     {
         LOG_ERROR("map manager init failed");
         return false;
@@ -53,7 +56,8 @@ bool AmrAgentNode::init()
         shared_from_this(),
         m_communication.get(),
         info.robot_id,
-        info.warehouse_id);
+        info.warehouse_id,
+        this->get_parameter("pending_report_path").as_string());
     m_taskBridge->init();
 
     return true;

@@ -16,7 +16,7 @@ class MapManager
 public:
     explicit MapManager(const rclcpp::Node::SharedPtr& node);
 
-    bool init(const std::string& path);
+    bool init(const std::string& path, const std::string& edge_host, int edge_port);
 
     void onRegisterResponse(const RobotRegisterResponse& response);
 

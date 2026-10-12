@@ -20,11 +20,13 @@ TaskBridge::TaskBridge(
     rclcpp::Node::SharedPtr node,
     EdgeCommunication* communication,
     const std::string& robot_id,
-    const std::string& warehouse_id)
+    const std::string& warehouse_id,
+    const std::string& pending_report_path)
     : m_node(node),
       m_communication(communication),
       m_robot_id(robot_id),
-      m_warehouse_id(warehouse_id)
+      m_warehouse_id(warehouse_id),
+      m_pending_reports(pending_report_path)
 {
 }
 
@@ -77,6 +79,13 @@ void TaskBridge::init()
         mqtt_topic::makeAmrTaskGoodsResponseTopic(m_robot_id), 1);
     m_communication->setExternalSubscribe(
         mqtt_topic::makeAmrTaskStatusAckTopic(m_robot_id), 1);
+
+    m_pending_flush_timer = m_node->create_wall_timer(
+        std::chrono::seconds(5),
+        [this]()
+        {
+            flushPendingReports();
+        });
 
     LOG_INFO("TaskBridge init done robot=%s warehouse=%s", m_robot_id.c_str(), m_warehouse_id.c_str());
 }
@@ -195,15 +204,37 @@ void TaskBridge::onStatusAckMessage(const std::string& payload)
     try
     {
         auto root = json::parse(payload);
+        std::vector<std::string> acked;
+        if(root.contains("acked_message_ids") && root["acked_message_ids"].is_array())
+        {
+            for(const auto& id : root["acked_message_ids"])
+                acked.push_back(id.get<std::string>());
+        }
+
+        m_pending_reports.removeByMessageIds(acked);
         LOG_INFO(
             "receive task status ack robot=%s task=%s count=%zu",
             m_robot_id.c_str(),
             root.value("task_id", "").c_str(),
-            root.contains("acked_message_ids") ? root["acked_message_ids"].size() : 0);
+            acked.size());
     }
     catch(const std::exception& e)
     {
         LOG_ERROR("parse status ack failed:%s", e.what());
+    }
+}
+
+void TaskBridge::flushPendingReports()
+{
+    if(!m_communication || !m_communication->isConnected())
+        return;
+
+    for(const auto& report : m_pending_reports.load())
+    {
+        if(m_communication->publish(report.topic, report.payload))
+        {
+            LOG_INFO("flush pending report message_id=%s", report.message_id.c_str());
+        }
     }
 }
 
@@ -216,6 +247,33 @@ void TaskBridge::onInternalTaskEvent(const TaskEvent::SharedPtr event)
 }
 
 void TaskBridge::publishTaskEventToMqtt(const TaskEvent& event)
+{
+    auto [topic, payload] = buildMqttMessage(event);
+    if(topic.empty())
+        return;
+
+    if(m_communication->isConnected())
+    {
+        if(!m_communication->publish(topic, payload))
+        {
+            PendingReport report;
+            report.message_id = json::parse(payload).value("message_id", "");
+            report.topic = topic;
+            report.payload = payload;
+            m_pending_reports.add(report);
+        }
+    }
+    else
+    {
+        PendingReport report;
+        report.message_id = json::parse(payload).value("message_id", "");
+        report.topic = topic;
+        report.payload = payload;
+        m_pending_reports.add(report);
+    }
+}
+
+std::pair<std::string, std::string> TaskBridge::buildMqttMessage(const TaskEvent& event) const
 {
     json root;
     root["message_id"] = makeMessageId(event.event_type);
@@ -236,15 +294,13 @@ void TaskBridge::publishTaskEventToMqtt(const TaskEvent& event)
             root["goods"].push_back(g);
         }
 
-        m_communication->publish(
-            mqtt_topic::makeAmrTaskGoodsRequestTopic(m_robot_id),
-            root.dump());
-        return;
+        return {mqtt_topic::makeAmrTaskGoodsRequestTopic(m_robot_id), root.dump()};
     }
 
     root["event_type"] = event.event_type;
     root["task_state"] = event.task_state;
     root["reason"] = event.reason;
+    root["request_id"] = event.request_id;
     root["timestamp"] = nowIso8601();
     root["goods"] = json::array();
     for(const auto& goods : event.goods)
@@ -256,9 +312,7 @@ void TaskBridge::publishTaskEventToMqtt(const TaskEvent& event)
         root["goods"].push_back(g);
     }
 
-    m_communication->publish(
-        mqtt_topic::makeAmrTaskStatusTopic(m_robot_id),
-        root.dump());
+    return {mqtt_topic::makeAmrTaskStatusTopic(m_robot_id), root.dump()};
 }
 
 std::string TaskBridge::makeMessageId(const std::string& event_type) const

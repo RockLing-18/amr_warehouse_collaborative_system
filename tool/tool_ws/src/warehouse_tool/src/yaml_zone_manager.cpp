@@ -33,6 +33,11 @@ bool YamlZoneManager::load(const std::string& filename)
             zone.marker_id = marker_id++;
             zone.info.name = zoneNode["name"].as<std::string>();
             zone.info.type = zoneNode["type"].as<std::string>();
+            if(zoneNode["goods_ids"])
+            {
+                for(auto goodsNode : zoneNode["goods_ids"])
+                    zone.info.goods_ids.push_back(goodsNode.as<std::string>());
+            }
             auto polygon = zoneNode["polygon"];
             for(auto point : polygon)
             {
@@ -121,6 +126,12 @@ bool YamlZoneManager::save()
 
         out << YAML::Key << "type";
         out << YAML::Value << zone.info.type;
+
+        out << YAML::Key << "goods_ids";
+        out << YAML::Value << YAML::BeginSeq;
+        for(auto& goods_id : zone.info.goods_ids)
+            out << goods_id;
+        out << YAML::EndSeq;
 
         out << YAML::Key << "polygon";
         out << YAML::Value << YAML::BeginSeq;

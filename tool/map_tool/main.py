@@ -1,7 +1,7 @@
 import os
 
 
-from validator import validate_map_directory
+from validator import validate_warehouse_directory
 from metadata import generate_metadata
 from package import package_map
 from uploader import upload_map
@@ -19,11 +19,11 @@ def main():
         "===== AMR Map Tool ====="
     )
 
-    map_dir=input(
-        "Map directory:"
+    warehouse_dir=input(
+        "Warehouse directory:"
     ).strip()
 
-    if not validate_map_directory(map_dir):
+    if not validate_warehouse_directory(warehouse_dir):
         return
 
 
@@ -50,14 +50,14 @@ def main():
 
 
     generate_metadata(
-        map_dir,
+        warehouse_dir,
         warehouse_id,
         version
     )
 
 
     zip_file=package_map(
-        map_dir,
+        warehouse_dir,
         warehouse_id,
         version,
         PACKAGE_DIR

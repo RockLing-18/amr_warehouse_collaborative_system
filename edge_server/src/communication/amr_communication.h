@@ -17,6 +17,7 @@ class AmrCommunication
 public:
     AmrCommunication();
     bool init(const MqttCfg& cfg, const std::shared_ptr<ServiceContext>& serviceContext);
+    bool publish(const std::string& topic, const std::string& payload, int qos = 1, bool retain = false);
     
 private:
     void setSubscribe();
@@ -24,6 +25,8 @@ private:
     void robotRegisterReqHandler(const std::string& msg);
     void robotStatusHandler(const std::string& msg);
     void robotWillHandler(const std::string& msg);
+    void robotGoodsRequestHandler(const std::string& msg);
+    void robotTaskStatusHandler(const std::string& msg);
 
 private:
     std::unique_ptr<MqttClient> m_mqtt;

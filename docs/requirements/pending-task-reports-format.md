@@ -23,35 +23,13 @@ AMR 与 Edge 通信中断或 Edge 异常时，AMR 需要把未成功送达的 `S
   "reports": [
     {
       "message_id": "550e8400-e29b-41d4-a716-446655440000",
-      "warehouse_id": "warehouse_01",
-      "task_id": "task_001",
-      "event_type": "CARRY_COMPLETED",
-      "task_state": "TRANSPORTING",
-      "goods": [
-        {
-          "goods_id": "A",
-          "goods_name": "A",
-          "quantity": 15
-        }
-      ],
-      "reason": "",
-      "timestamp": "2026-10-10T10:05:00+08:00"
+      "topic": "amr/robot_01/task/status",
+      "payload": "{\"message_id\":\"...\",\"warehouse_id\":\"warehouse_01\",\"task_id\":\"task_001\",\"event_type\":\"CARRY_COMPLETED\",\"task_state\":\"TRANSPORTING\",\"goods\":[{\"goods_id\":\"A\",\"goods_name\":\"A\",\"quantity\":15}],\"reason\":\"\",\"timestamp\":\"2026-10-10T10:05:00+08:00\"}"
     },
     {
       "message_id": "550e8400-e29b-41d4-a716-446655440002",
-      "warehouse_id": "warehouse_01",
-      "task_id": "task_001",
-      "event_type": "CARRY_ABORTED",
-      "task_state": "INTERRUPTED",
-      "goods": [
-        {
-          "goods_id": "A",
-          "goods_name": "A",
-          "quantity": 8
-        }
-      ],
-      "reason": "LOW_BATTERY",
-      "timestamp": "2026-10-10T10:06:00+08:00"
+      "topic": "amr/robot_01/task/status",
+      "payload": "{\"message_id\":\"...\",\"warehouse_id\":\"warehouse_01\",\"task_id\":\"task_001\",\"event_type\":\"CARRY_ABORTED\",\"task_state\":\"INTERRUPTED\",\"goods\":[{\"goods_id\":\"A\",\"goods_name\":\"A\",\"quantity\":8}],\"reason\":\"LOW_BATTERY\",\"timestamp\":\"2026-10-10T10:06:00+08:00\"}"
     }
   ]
 }
@@ -65,13 +43,8 @@ AMR 与 Edge 通信中断或 Edge 异常时，AMR 需要把未成功送达的 `S
 | `robot_id` | string | 是 | 所属 AMR。 |
 | `reports` | array | 是 | 待补报消息列表，按生成顺序排列。 |
 | `reports[].message_id` | string | 是 | AMR 生成的消息幂等标识。 |
-| `reports[].warehouse_id` | string | 是 | 仓库标识。 |
-| `reports[].task_id` | string | 是 | 任务唯一标识。 |
-| `reports[].event_type` | enum | 是 | `STATUS`、`CARRY_COMPLETED`、`CARRY_ABORTED`。 |
-| `reports[].task_state` | enum | 是 | AMR 任务状态。 |
-| `reports[].goods` | array | 条件必填 | 完成或放弃时必填。 |
-| `reports[].reason` | string | 否 | 放弃/中断原因。 |
-| `reports[].timestamp` | string | 是 | 原始上报时间。 |
+| `reports[].topic` | string | 是 | 重传时需要发布的 MQTT Topic。 |
+| `reports[].payload` | string | 是 | 待重传的完整 MQTT 消息 JSON 字符串。 |
 
 ## 4. 写入规则
 

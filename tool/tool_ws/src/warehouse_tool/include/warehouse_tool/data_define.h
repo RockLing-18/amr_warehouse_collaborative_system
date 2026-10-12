@@ -7,6 +7,7 @@ struct ZoneInfo
     std::string id;
     std::string name;
     std::string type;
+    std::vector<std::string> goods_ids;
     std::string filename;
 };
 

@@ -1,4 +1,5 @@
 #include "amr_behavior_manager/navigation_client.h"
+#include "amr_common/ros_interface_names.h"
 
 namespace amr_behavior_manager
 {
@@ -7,10 +8,13 @@ NavigationClient::NavigationClient(rclcpp::Node::SharedPtr node)
 : m_node(node)
 {
     // 相对名创建，robot namespace（如 /robot_01）
-    m_action_client = rclcpp_action::create_client<AmrNavigateToPose>(m_node, "amr_navigate_to_pose");
-    m_pose_service_client = m_node->create_client<GetRobotPose>("get_robot_pose");
+    m_action_client = rclcpp_action::create_client<AmrNavigateToPose>(
+        m_node,
+        amr_common::action::AMR_NAVIGATE_TO_POSE);
+    m_pose_service_client = m_node->create_client<GetRobotPose>(
+        amr_common::service::GET_ROBOT_POSE);
     m_pose_sub = m_node->create_subscription<RobotPose>(
-        "robot_pose", 10,
+        amr_common::topic::ROBOT_POSE, 10,
         std::bind(&NavigationClient::poseSubscriptionCallback, this, std::placeholders::_1));
 }
 
@@ -21,6 +25,12 @@ bool NavigationClient::waitForActionServer(const std::chrono::seconds &timeout)
 
 void NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped &goal)
 {
+    if(!waitForActionServer(std::chrono::seconds(3)))
+    {
+        RCLCPP_ERROR(m_node->get_logger(), "navigation action server not available");
+        return;
+    }
+
     auto goal_msg = AmrNavigateToPose::Goal();
     goal_msg.goal_pose = goal;
 

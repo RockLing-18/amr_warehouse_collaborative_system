@@ -2,6 +2,8 @@
 #include <iostream>
 #include <yaml-cpp/yaml.h>
 #include <fstream>
+#include <limits>
+#include <sstream>
 #include "warehouse_tool/data_define.h"
 #include "warehouse_tool/clicked_point_receiver.h"
 #include "warehouse_tool/yaml_zone_manager.h"
@@ -158,8 +160,23 @@ private:
         // m_preview_location = inputLocationInfo();
         m_preview_location.pose.x = point.point.x;
         m_preview_location.pose.y =  point.point.y;
-        m_preview_location.pose.yaw = 0; //此处该赋什么值
-        m_preview_location.type = "work";
+        std::cout << "location type: ";
+        std::getline(std::cin, m_preview_location.type);
+        if(m_preview_location.type.empty())
+            m_preview_location.type = "work";
+
+        std::cout << "location yaw: ";
+        std::string yawLine;
+        std::getline(std::cin, yawLine);
+        try
+        {
+            m_preview_location.pose.yaw = std::stod(yawLine);
+        }
+        catch(...)
+        {
+            m_preview_location.pose.yaw = 0.0;
+        }
+
         m_preview_location.id = m_preview_station.id + "_location_" + std::to_string(m_preview_station.locations.size() + 1);
         m_preview_station.locations.push_back(m_preview_location);
         m_station_point_marker_pub->publishPreview(m_preview_station);
