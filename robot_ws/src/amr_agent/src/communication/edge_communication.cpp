@@ -64,6 +64,16 @@ bool EdgeCommunication::isConnected() const
     return m_mqtt && m_mqtt->isConnected();
 }
 
+void EdgeCommunication::setRegisterResponseCallback(RegisterResponseCallback callback)
+{
+    m_registerResponseCallback = std::move(callback);
+}
+
+void EdgeCommunication::setEdgeStatusCallback(EdgeStatusCallback callback)
+{
+    m_edgeStatusCallback = std::move(callback);
+}
+
 void EdgeCommunication::registerExternalHandler(const std::string& topic, Handler handler)
 {
     if(m_router)
@@ -166,7 +176,8 @@ void EdgeCommunication::edgeSvrStatusHandler(const std::string& msg)
         return;
     }
 
-    //m_context->getRobotService()->handleStatus(status);
+    if(m_edgeStatusCallback)
+        m_edgeStatusCallback(online);
 }
 
 // void EdgeCommunication::robotWillHandler(const std::string& msg)

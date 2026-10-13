@@ -97,6 +97,34 @@ bool TaskService::createTask(const TransportTask& task, int& code, std::string& 
         return false;
     }
 
+    if(m_publish_callback)
+    {
+        json taskMsg;
+        taskMsg["command_type"] = "TASK_ASSIGN";
+        taskMsg["task_id"] = insertTask.task_id;
+        taskMsg["warehouse_id"] = insertTask.warehouse_id;
+        taskMsg["task_type"] = insertTask.task_type;
+        taskMsg["robot_ids"] = insertTask.robot_ids;
+        taskMsg["state"] = insertTask.state;
+        taskMsg["reason"] = insertTask.reason;
+        taskMsg["goods"] = json::array();
+        for(const auto& goods : insertTask.goods)
+        {
+            json g;
+            g["goods_id"] = goods.goods_id;
+            g["goods_name"] = goods.goods_name;
+            g["quantity"] = goods.total_quantity;
+            taskMsg["goods"].push_back(g);
+        }
+
+        for(const auto& robot_id : insertTask.robot_ids)
+        {
+            m_publish_callback(
+                mqtt_topic::makeAmrTaskTopic(robot_id),
+                taskMsg.dump());
+        }
+    }
+
     code = 0;
     message = "success";
     return true;
@@ -130,6 +158,22 @@ bool TaskService::cancelTask(const std::string& task_id, int& code, std::string&
         code = 50001;
         message = "update task failed";
         return false;
+    }
+
+    if(m_publish_callback)
+    {
+        json cancelMsg;
+        cancelMsg["command_type"] = "TASK_CANCEL";
+        cancelMsg["task_id"] = task_id;
+        cancelMsg["warehouse_id"] = task.warehouse_id;
+        cancelMsg["reason"] = "canceled by API";
+
+        for(const auto& robot_id : task.robot_ids)
+        {
+            m_publish_callback(
+                mqtt_topic::makeAmrTaskTopic(robot_id),
+                cancelMsg.dump());
+        }
     }
 
     code = 0;
@@ -190,6 +234,16 @@ bool TaskService::handleGoodsApply(const GoodsApplyRequest& request, GoodsApplyR
 
     result.accepted = true;
     result.goods = request.goods;
+
+    if(task.state == "PENDING" || task.state == "ACCEPTED")
+    {
+        db.UpdateTaskStateWithEvent(
+            request.task_id,
+            "RUNNING",
+            "first goods approved",
+            "EDGE");
+    }
+
     return true;
 }
 
@@ -220,6 +274,49 @@ bool TaskService::handleAmrTaskStatus(const AmrTaskStatusEvent& event)
         {
             LOG_ERROR("settle allocation failed request_id=%s", event.request_id.c_str());
             return false;
+        }
+    }
+
+    TransportTask task;
+    if(event.event_type == "STATUS" && event.task_state == "ACCEPTED")
+    {
+        if(db.GetTask(event.task_id, task) &&
+           task.state == "PENDING")
+        {
+            db.UpdateTaskStateWithEvent(
+                event.task_id,
+                "ACCEPTED",
+                "first AMR accepted",
+                "AMR");
+        }
+    }
+
+    if(event.event_type == "CARRY_COMPLETED")
+    {
+        if(db.GetTask(event.task_id, task))
+        {
+            std::vector<TaskGoodsStatus> statusList;
+            if(db.GetTaskGoodsStatus(event.task_id, statusList))
+            {
+                bool allDone = true;
+                for(const auto& status : statusList)
+                {
+                    if(status.pending_quantity > 0 || status.in_progress_quantity > 0)
+                    {
+                        allDone = false;
+                        break;
+                    }
+                }
+
+                if(allDone)
+                {
+                    db.UpdateTaskStateWithEvent(
+                        event.task_id,
+                        "SUCCEEDED",
+                        "all goods completed",
+                        "AMR");
+                }
+            }
         }
     }
 
@@ -270,6 +367,20 @@ std::string TaskService::buildTaskStateMessage(const std::string& task_id)
     root["goods_status"] = goodsStatus;
     root["updated_at"] = task.updated_at;
     return root.dump();
+}
+
+bool TaskService::getActiveTasks(std::vector<TransportTask>& tasks)
+{
+    return SQLiteDB::Instance().GetActiveTasks(tasks);
+}
+
+bool TaskService::markTaskInterrupted(const std::string& task_id, const std::string& reason)
+{
+    return SQLiteDB::Instance().UpdateTaskStateWithEvent(
+        task_id,
+        "INTERRUPTED",
+        reason,
+        "TIMEOUT");
 }
 
 }

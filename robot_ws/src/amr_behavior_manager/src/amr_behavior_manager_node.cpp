@@ -2,6 +2,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <algorithm>
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -14,6 +15,8 @@
 #include "amr_interfaces/msg/task_status.hpp"
 #include "amr_interfaces/msg/task_command.hpp"
 #include "amr_interfaces/msg/task_event.hpp"
+#include "amr_interfaces/msg/map_info.hpp"
+#include "amr_interfaces/msg/edge_status.hpp"
 
 namespace amr_behavior_manager
 {
@@ -36,7 +39,7 @@ public:
         this->declare_parameter<double>("task_status_period_s", 5.0);
         this->declare_parameter<double>("grasp_simulate_seconds", 1.0);
         this->declare_parameter<double>("place_simulate_seconds", 1.0);
-        this->declare_parameter<std::string>("map_path", "/opt/amr/data/arm_runtime/map");
+        this->declare_parameter<int>("carry_capacity", 10);
 
         m_robot_status_pub = this->create_publisher<RobotStatus>(
             amr_common::topic::ROBOT_STATUS, 10);
@@ -51,6 +54,46 @@ public:
             });
         m_task_event_pub = this->create_publisher<TaskEvent>(
             amr_common::topic::TASK_EVENT, 10);
+
+        auto map_info_qos = rclcpp::QoS(rclcpp::KeepLast(1));
+        map_info_qos.reliable();
+        map_info_qos.transient_local();
+        m_map_info_sub = this->create_subscription<amr_interfaces::msg::MapInfo>(
+            amr_common::topic::MAP_INFO,
+            map_info_qos,
+            [this](const amr_interfaces::msg::MapInfo::SharedPtr msg)
+            {
+                if(!msg || !msg->ready)
+                    return;
+
+                m_zone_station_loader = std::make_shared<ZoneStationLoader>();
+                if(m_zone_station_loader->load(msg->zones_yaml, msg->stations_yaml))
+                {
+                    m_goods_point_resolver = std::make_shared<GoodsPointResolver>(m_zone_station_loader);
+                    m_map_ready = true;
+                    RCLCPP_INFO(
+                        get_logger(),
+                        "map info ready and zone/station loaded");
+                }
+                else
+                {
+                    m_map_ready = false;
+                    RCLCPP_ERROR(
+                        get_logger(),
+                        "map info ready but zone/station load failed");
+                }
+            });
+
+        m_edge_status_sub = this->create_subscription<amr_interfaces::msg::EdgeStatus>(
+            amr_common::topic::EDGE_STATUS,
+            10,
+            [this](const amr_interfaces::msg::EdgeStatus::SharedPtr msg)
+            {
+                if(!msg)
+                    return;
+                m_edge_online = msg->online;
+                RCLCPP_INFO(get_logger(), "edge online=%s", m_edge_online ? "true" : "false");
+            });
     }
 
     void init()
@@ -78,20 +121,6 @@ public:
         m_task_status_timer = this->create_wall_timer(
             std::chrono::duration<double>(taskStatusPeriod),
             std::bind(&AmrBehaviorManagerNode::publishPeriodicTaskStatus, this));
-
-        std::string mapPath = this->get_parameter("map_path").as_string();
-        m_zone_station_loader = std::make_shared<ZoneStationLoader>();
-        if(m_zone_station_loader->load(
-            mapPath + "/zones.yaml",
-            mapPath + "/stations.yaml"))
-        {
-            m_goods_point_resolver = std::make_shared<GoodsPointResolver>(m_zone_station_loader);
-            RCLCPP_INFO(get_logger(), "zone/station loaded map_path=%s", mapPath.c_str());
-        }
-        else
-        {
-            RCLCPP_WARN(get_logger(), "zone/station load failed, use default navigation point");
-        }
 
         RCLCPP_INFO(this->get_logger(), "amr_behavior_manager_node init done");
     }
@@ -122,6 +151,12 @@ private:
 
     void handleTaskAssign(const TaskCommand& cmd)
     {
+        if(!m_map_ready)
+        {
+            RCLCPP_WARN(get_logger(), "ignore task because map is not ready");
+            return;
+        }
+
         if(!m_current_task_id.empty() && m_current_task_id == cmd.task_id)
         {
             RCLCPP_WARN(get_logger(), "task already assigned task=%s", cmd.task_id.c_str());
@@ -158,6 +193,14 @@ private:
         if(cmd.task_id != m_current_task_id)
             return;
 
+        if(cmd.state == "SUCCEEDED" || cmd.state == "CANCELLED" ||
+           cmd.state == "FAILED" || cmd.state == "INTERRUPTED")
+        {
+            m_task_state = "IDLE";
+            resetTask();
+            return;
+        }
+
         m_goods_status = cmd.goods_status;
         maybeRequestNextGoods();
     }
@@ -180,21 +223,35 @@ private:
 
     void maybeRequestNextGoods()
     {
+        if(!m_edge_online)
+            return;
+
+        if(!m_map_ready)
+            return;
+
         if(m_task_state == "CANCELLED" || m_task_state == "INTERRUPTED" || m_waiting_goods_response)
             return;
 
         if(m_current_task_id.empty())
             return;
 
+        int capacity = this->get_parameter("carry_capacity").as_int();
+        if(capacity <= 0)
+        {
+            RCLCPP_ERROR(get_logger(), "carry_capacity invalid");
+            return;
+        }
+
         for(const auto& status : m_goods_status)
         {
             if(status.pending_quantity > 0)
             {
+                int requestQuantity = std::min(status.pending_quantity, capacity);
                 m_request_id = makeRequestId();
                 publishTaskEvent(
                     "GOODS_REQUEST",
                     "ACCEPTED",
-                    {makeGoods(status.goods_id, status.goods_name, status.pending_quantity)},
+                    {makeGoods(status.goods_id, status.goods_name, requestQuantity)},
                     m_request_id,
                     "");
                 m_waiting_goods_response = true;
@@ -202,7 +259,7 @@ private:
                     get_logger(),
                     "request goods goods=%s quantity=%d request=%s",
                     status.goods_id.c_str(),
-                    status.pending_quantity,
+                    requestQuantity,
                     m_request_id.c_str());
                 return;
             }
@@ -292,8 +349,16 @@ private:
             {
                 publishTaskEvent("CARRY_COMPLETED", "TRANSPORTING", m_current_goods, "", "");
                 m_current_goods.clear();
-                m_task_state = "ACCEPTED";
-                maybeRequestNextGoods();
+                if(m_edge_online)
+                {
+                    m_task_state = "ACCEPTED";
+                    maybeRequestNextGoods();
+                }
+                else
+                {
+                    m_task_state = "IDLE";
+                    resetTask();
+                }
             });
         m_one_shot_timers.push_back(timer);
     }
@@ -379,6 +444,8 @@ private:
     rclcpp::Publisher<TaskStatus>::SharedPtr m_task_status_pub;
     rclcpp::Subscription<TaskCommand>::SharedPtr m_task_command_sub;
     rclcpp::Publisher<TaskEvent>::SharedPtr m_task_event_pub;
+    rclcpp::Subscription<amr_interfaces::msg::MapInfo>::SharedPtr m_map_info_sub;
+    rclcpp::Subscription<amr_interfaces::msg::EdgeStatus>::SharedPtr m_edge_status_sub;
     rclcpp::TimerBase::SharedPtr m_robot_status_timer;
     rclcpp::TimerBase::SharedPtr m_task_status_timer;
     std::vector<rclcpp::TimerBase::SharedPtr> m_one_shot_timers;
@@ -389,6 +456,8 @@ private:
     std::string m_task_state = "IDLE";
     std::string m_request_id;
     bool m_waiting_goods_response = false;
+    bool m_map_ready = false;
+    bool m_edge_online = true;
     std::vector<TaskGoodsStatus> m_goods_status;
     std::vector<TaskGoods> m_current_goods;
 };

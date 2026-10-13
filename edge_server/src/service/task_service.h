@@ -18,6 +18,8 @@ public:
     bool handleGoodsApply(const GoodsApplyRequest& request, GoodsApplyResult& result);
     bool handleAmrTaskStatus(const AmrTaskStatusEvent& event);
     std::string buildTaskStateMessage(const std::string& task_id);
+    bool getActiveTasks(std::vector<TransportTask>& tasks);
+    bool markTaskInterrupted(const std::string& task_id, const std::string& reason);
 
     using PublishCallback = std::function<bool(const std::string& topic, const std::string& payload)>;
     void setPublishCallback(PublishCallback callback);

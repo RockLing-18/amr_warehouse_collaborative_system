@@ -1,5 +1,7 @@
 #pragma once
 #include <rclcpp/rclcpp.hpp>
+#include "types.h"
+#include "amr_interfaces/msg/edge_status.hpp"
 
 namespace amr_agent
 {
@@ -18,7 +20,9 @@ public:
     bool init();
 
 private:
-    //void onTimerUpdateRobotModels();
+    void sendRegisterRequest();
+    void onRegisterResponse(const RobotRegisterResponse& response);
+    void publishRobotStatus(const std::string& state);
 
 private:
     std::shared_ptr<EdgeCommunication> m_communication;
@@ -28,7 +32,14 @@ private:
     std::shared_ptr<StatusManager> m_statusManager;
     std::shared_ptr<TrafficBridge> m_trafficBridge;
 
-    // rclcpp::TimerBase::SharedPtr m_timer;
+    std::string m_robot_id;
+    std::string m_warehouse_id;
+    std::string m_map_version;
+    bool m_registered = false;
+    bool m_map_ready = false;
+    rclcpp::Publisher<amr_interfaces::msg::EdgeStatus>::SharedPtr m_edge_status_pub;
+    rclcpp::TimerBase::SharedPtr m_register_timer;
+    rclcpp::TimerBase::SharedPtr m_heartbeat_timer;
 };
 
 }

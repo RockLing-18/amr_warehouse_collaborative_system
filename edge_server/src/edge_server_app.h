@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include "utils/timer.h"
 
 namespace edge_server
 {
@@ -25,6 +27,9 @@ public:
     bool init(const std::string& cfgPath);
 
 private:
+    void checkAmrHeartbeat();
+
+private:
     std::shared_ptr<ConfigManager> m_configManager;
     std::shared_ptr<ServiceContext> m_serviceContext;
     std::shared_ptr<AmrCommunication> m_amrCommunication;
@@ -35,6 +40,8 @@ private:
     std::shared_ptr<TopicManager> m_topicManager;
     std::shared_ptr<WebSocketMessageRouter> m_webSocketMessageRouter;
     std::shared_ptr<HttpServer> m_httpServer;
+
+    std::unique_ptr<Timer> m_taskMonitorTimer;
 
 
 };

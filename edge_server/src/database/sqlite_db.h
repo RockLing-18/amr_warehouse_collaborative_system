@@ -31,6 +31,7 @@ public:
     // task
     bool CreateTask(const TransportTask& task);
     bool GetTask(const std::string& task_id, TransportTask& task);
+    bool GetActiveTasks(std::vector<TransportTask>& tasks);
     bool TaskExists(const std::string& task_id);
     bool UpdateTaskState(const std::string& task_id, const std::string& state, const std::string& reason);
     bool GetTaskGoodsStatus(const std::string& task_id, std::vector<TaskGoodsStatus>& statusList);

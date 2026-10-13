@@ -818,6 +818,44 @@ bool SQLiteDB::GetTask(const std::string& task_id, TransportTask& task)
     return true;
 }
 
+bool SQLiteDB::GetActiveTasks(std::vector<TransportTask>& tasks)
+{
+    std::lock_guard<std::mutex> lock(m_Mu);
+    if(!m_pDB)
+        return false;
+
+    const char* sql = R"(
+        SELECT task_id, warehouse_id, task_type, state, robot_ids
+        FROM tbl_task
+        WHERE state IN ('PENDING', 'ACCEPTED', 'RUNNING');
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, sql, -1, &stmt, nullptr) != SQLITE_OK)
+        return false;
+
+    while(sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        TransportTask task;
+        task.task_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        task.warehouse_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        task.task_type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        task.state = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+
+        std::string robotIds = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        auto json = nlohmann::json::parse(robotIds, nullptr, false);
+        if(json.is_array())
+        {
+            for(const auto& item : json)
+                task.robot_ids.push_back(item.get<std::string>());
+        }
+        tasks.push_back(task);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
+}
+
 bool SQLiteDB::UpdateTaskState(const std::string& task_id, const std::string& state, const std::string& reason)
 {
     std::lock_guard<std::mutex> lock(m_Mu);

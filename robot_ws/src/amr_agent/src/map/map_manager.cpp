@@ -746,6 +746,12 @@ void MapManager::publishMapInfo()
     msg.map_yaml =
         m_mapYaml;
 
+    msg.zones_yaml =
+        (fs::path(m_mapDir) / "zones.yaml").string();
+
+    msg.stations_yaml =
+        (fs::path(m_mapDir) / "stations.yaml").string();
+
     msg.ready = true;
 
     m_mapInfoPublisher->publish(msg);
@@ -755,11 +761,15 @@ void MapManager::publishMapInfo()
         "warehouse_id=%s, "
         "map_version=%s, "
         "map_dir=%s, "
-        "map_yaml=%s",
+        "map_yaml=%s, "
+        "zones_yaml=%s, "
+        "stations_yaml=%s",
         msg.warehouse_id.c_str(),
         msg.map_version.c_str(),
         msg.map_dir.c_str(),
-        msg.map_yaml.c_str());
+        msg.map_yaml.c_str(),
+        msg.zones_yaml.c_str(),
+        msg.stations_yaml.c_str());
 }
 
 

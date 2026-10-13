@@ -1,0 +1,8 @@
+amr_behavior_manager:
+  ros__parameters:
+    robot_id: "robot_01"
+    status_publish_rate_hz: 1.0
+    task_status_period_s: 5.0
+    grasp_simulate_seconds: 1.0
+    place_simulate_seconds: 1.0
+    carry_capacity: 10

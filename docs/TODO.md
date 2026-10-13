@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：已创建测试 fixtures 并验证 `GoodsPointResolver` 对 A/B 货物 LOAD/UNLOAD 的点位解析正确。
+当前执行：已完成 `robot_ws` 全工作区干净构建，并补充启动说明文档。
 
 ## 3. 状态图例
 

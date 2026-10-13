@@ -8,6 +8,7 @@ inline constexpr char ROBOT_STATUS[] = "robot_status";
 inline constexpr char TASK_STATUS[] = "task_status";
 inline constexpr char TASK_COMMAND[] = "task_command";
 inline constexpr char TASK_EVENT[] = "task_event";
+inline constexpr char EDGE_STATUS[] = "edge_status";
 inline constexpr char ROBOT_POSE[] = "robot_pose";
 
 }

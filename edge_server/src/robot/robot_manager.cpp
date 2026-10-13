@@ -100,6 +100,17 @@ bool RobotManager::updateRobotStatus(const std::string& robot_id, const RobotRun
     return true;
 }
 
+bool RobotManager::getRobotStatus(const std::string& robot_id, RobotRunningStatus& status)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto iter = m_robots.find(robot_id);
+    if(iter == m_robots.end())
+        return false;
+
+    status = iter->second.getRunningStatus();
+    return true;
+}
+
 std::vector<RobotInstanceInfo> RobotManager::getRobotList()
 {
     std::vector<RobotInstanceInfo> vRobot;

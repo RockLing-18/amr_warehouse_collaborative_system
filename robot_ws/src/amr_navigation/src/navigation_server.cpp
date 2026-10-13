@@ -25,6 +25,7 @@
 #include "amr_interfaces/srv/get_robot_pose.hpp"
 #include "amr_interfaces/msg/navigation_state.hpp"
 #include "amr_interfaces/msg/robot_pose.hpp"
+#include "amr_interfaces/msg/map_info.hpp"
 #include "amr_navigation/tf_helper.h"
 #include "amr_navigation/navigation_manager.h"
 #include "amr_common/ros_interface_names.h"
@@ -79,6 +80,21 @@ public:
 		m_pose_timer = this->create_wall_timer(
 			std::chrono::duration<double>(1.0 / rate),
 			std::bind(&NavigationServer::publishPose, this));
+
+		auto map_info_qos = rclcpp::QoS(rclcpp::KeepLast(1));
+		map_info_qos.reliable();
+		map_info_qos.transient_local();
+		m_map_info_sub = this->create_subscription<amr_interfaces::msg::MapInfo>(
+			amr_common::topic::MAP_INFO,
+			map_info_qos,
+			[this](const amr_interfaces::msg::MapInfo::SharedPtr msg)
+			{
+				m_map_ready = msg && msg->ready;
+				if(m_map_ready)
+					RCLCPP_INFO(get_logger(), "map info ready, navigation enabled");
+				else
+					RCLCPP_WARN(get_logger(), "map info not ready");
+			});
 	
 		RCLCPP_INFO(this->get_logger(), "navigation_server init done");
 	}
@@ -134,6 +150,11 @@ private:
 		const std::shared_ptr<const AmrNavigateToPose::Goal> goal)
 	{
 		(void)uuid;
+		if(!m_map_ready)
+		{
+			RCLCPP_WARN(get_logger(), "reject navigation goal because map is not ready");
+			return rclcpp_action::GoalResponse::REJECT;
+		}
 		RCLCPP_INFO(this->get_logger(), "receive goal, frame=%s x=%.2f y=%.2f",
 			goal->goal_pose.header.frame_id.c_str(),
 			goal->goal_pose.pose.position.x,
@@ -310,6 +331,8 @@ private:
 	bool m_navigation_result_ready{false};
 	amr_navigation::NavigationExecutionState m_navigation_result{amr_navigation::NavigationExecutionState::IDLE};
 	std::shared_ptr<GoalHandle> m_active_goal_handle;
+	rclcpp::Subscription<amr_interfaces::msg::MapInfo>::SharedPtr m_map_info_sub;
+	bool m_map_ready = false;
 };
 }
 

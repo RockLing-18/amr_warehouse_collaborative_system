@@ -8,6 +8,8 @@
 #include "mqtt/mqtt_client.h"
 #include "mqtt/mqtt_message_router.h"
 #include "utils/LogDefine.h"
+#include "utils/timer.h"
+#include "utils/CommonFunc.h"
 #include "config/config.h"
 #include "mqtt/mqtt_topic.h"
 #include "http/http_server.h"
@@ -125,6 +127,26 @@ bool EdgeServerApp::init(const std::string& cfgPath)
 
     m_amrCommunication = std::make_shared<AmrCommunication>();
     m_amrCommunication->init(config.edge_amr_mqtt, m_serviceContext);
+
+    m_taskMonitorTimer = std::make_unique<Timer>();
+    m_taskMonitorTimer->start(
+        std::chrono::seconds(5),
+        [this]()
+        {
+            checkAmrHeartbeat();
+        },
+        false,
+        true);
+
+    std::weak_ptr<AmrCommunication> amrCommWeak = m_amrCommunication;
+    m_serviceContext->getTaskService()->setPublishCallback(
+        [amrCommWeak](const std::string& topic, const std::string& payload)
+        {
+            auto comm = amrCommWeak.lock();
+            if(!comm)
+                return false;
+            return comm->publish(topic, payload);
+        });
     
     m_httpServer = std::make_shared<HttpServer>(
         m_serviceContext->getBootstrapService(),
@@ -136,5 +158,55 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     return true;
 }
 
+void EdgeServerApp::checkAmrHeartbeat()
+{
+    if(!m_serviceContext || !m_robotManager || !m_amrCommunication)
+        return;
+
+    std::vector<TransportTask> tasks;
+    if(!m_serviceContext->getTaskService()->getActiveTasks(tasks))
+        return;
+
+    int64_t now = utils::getCurrentTime();
+    constexpr int64_t kTimeoutSeconds = 300;
+
+    for(const auto& task : tasks)
+    {
+        bool allAbnormal = !task.robot_ids.empty();
+        for(const auto& robot_id : task.robot_ids)
+        {
+            RobotRunningStatus status;
+            if(!m_robotManager->getRobotStatus(robot_id, status))
+                continue;
+
+            bool abnormal =
+                !status.online ||
+                status.state == RobotState::OFFLINE ||
+                status.state == RobotState::ERROR ||
+                (now - static_cast<int64_t>(status.timestamp) > kTimeoutSeconds);
+
+            if(!abnormal)
+            {
+                allAbnormal = false;
+                break;
+            }
+        }
+
+        if(!allAbnormal)
+            continue;
+
+        auto taskService = m_serviceContext->getTaskService();
+        if(taskService->markTaskInterrupted(task.task_id, "ALL_AMRS_ABNORMAL"))
+        {
+            std::string statePayload = taskService->buildTaskStateMessage(task.task_id);
+            if(!statePayload.empty())
+            {
+                m_amrCommunication->publish(
+                    mqtt_topic::makeWarehouseTaskStateTopic(task.warehouse_id, task.task_id),
+                    statePayload);
+            }
+        }
+    }
 }
 
+}

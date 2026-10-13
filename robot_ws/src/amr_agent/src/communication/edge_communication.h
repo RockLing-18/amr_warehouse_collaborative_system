@@ -25,6 +25,12 @@ public:
     bool isConnected() const;
     void registerExternalHandler(const std::string& topic, Handler handler);
     void setExternalSubscribe(const std::string& topic, int qos = 1);
+
+    using RegisterResponseCallback = std::function<void(const RobotRegisterResponse&)>;
+    void setRegisterResponseCallback(RegisterResponseCallback callback);
+
+    using EdgeStatusCallback = std::function<void(bool online)>;
+    void setEdgeStatusCallback(EdgeStatusCallback callback);
     
 private:
     void setSubscribe();
@@ -34,10 +40,9 @@ private:
     
     // void robotWillHandler(const std::string& msg);
 
-    using RegisterResponseCallback = std::function<void(const RobotRegisterResponse&)>;
-    void setRegisterResponseCallback(RegisterResponseCallback callback);
 private:
     RegisterResponseCallback m_registerResponseCallback;
+    EdgeStatusCallback m_edgeStatusCallback;
     
 
 //     using TrafficResponseCallback = std::function<void(const TrafficResponse&)>;

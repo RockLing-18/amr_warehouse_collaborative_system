@@ -42,6 +42,7 @@ public:
 
     // 更新机器人状态
     bool updateRobotStatus(const std::string& robot_id, const RobotRunningStatus& status);
+    bool getRobotStatus(const std::string& robot_id, RobotRunningStatus& status);
 
     // 获取所有机器人 推送给仿真管理服务
     std::vector<RobotInstanceInfo> getRobotList();
