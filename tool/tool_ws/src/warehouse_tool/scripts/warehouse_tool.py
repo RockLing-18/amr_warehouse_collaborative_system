@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 import subprocess
 from pathlib import Path
 import signal
@@ -21,22 +22,63 @@ class WarehouseTool:
                 f"Config file not found: {self.config_path}"
             )
 
-        self.config = self._load_yaml(self.config_path)sync
+        self.config = self._load_yaml(self.config_path)
 
         self._load_config()
 
         self.map_process: subprocess.Popen | None = None
         # self.editor_processes: list[subprocess.Popen] = []
     
+    # def cleanup(self):
+    #     # 关闭 map viewer
+    #     if self.map_process and self.map_process.poll() is None:
+    #         self.map_process.terminate()
+    #         try:
+    #             self.map_process.wait(timeout=3)
+    #         except subprocess.TimeoutExpired:
+    #             self.map_process.kill()
+    #     self.map_process = None
+
     def cleanup(self):
-        # 关闭 map viewer
-        if self.map_process and self.map_process.poll() is None:
-            self.map_process.terminate()
-            try:
-                self.map_process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                self.map_process.kill()
+        """清理地图查看器及其启动的所有子进程。"""
+        process = self.map_process
+
+        if process is None:
+            return
+
+        # 先清空成员变量，避免重复清理
         self.map_process = None
+
+        pgid = process.pid
+
+        try:
+            # 向整个进程组发送 SIGTERM
+            os.killpg(pgid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+        # 等待进程组退出，而不只是等待 ros2 launch 父进程
+        deadline = time.monotonic() + 5.0
+
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(pgid, 0)
+            except ProcessLookupError:
+                break
+
+            time.sleep(0.1)
+        else:
+            # 超时后强制清理仍然存在的进程组
+            try:
+                os.killpg(pgid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+        # 回收 ros2 launch 主进程
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            pass
 
     # ============================================================
     # Configuration
@@ -101,45 +143,39 @@ class WarehouseTool:
     # ============================================================
 
     def run(self):
+        try:
+            self.print_header()
+            self.run_map_viewer()
 
-        self.print_header()
+            while True:
+                self.print_menu()
 
-        self.run_map_viewer()
+                try:
+                    choice = input("\nSelect: ").strip()
+                except KeyboardInterrupt:
+                    print("\n")
+                    break
 
-        while True:
+                if choice == "1":
+                    self.run_zone_editor()
+                elif choice == "2":
+                    self.run_station_editor()
+                elif choice == "3":
+                    self.run_wall_editor()
+                elif choice == "4":
+                    self.show_status()
+                elif choice == "5":
+                    self.upload_data()
+                elif choice == "6":
+                    self.upload_all()
+                elif choice == "0":
+                    print("\nBye.")
+                    break
+                else:
+                    print("\nInvalid selection.")
 
-            self.print_menu()
-
-            try:
-                choice = input("\nSelect: ").strip()
-            except KeyboardInterrupt:
-                print("\n")
-                break
-
-            if choice == "1":
-                self.run_zone_editor()
-
-            elif choice == "2":
-                self.run_station_editor()
-
-            elif choice == "3":
-                self.run_wall_editor()
-
-            elif choice == "4":
-                self.show_status()
-
-            elif choice == "5":
-                self.upload_data()
-
-            elif choice == "6":
-                self.upload_all()
-
-            elif choice == "0":
-                print("\nBye.")
-                break
-
-            else:
-                print("\nInvalid selection.")
+        finally:
+            self.cleanup()
 
     # ============================================================
     # UI
@@ -170,16 +206,30 @@ class WarehouseTool:
         print("0. Exit")
         print("-" * 60)
 
+    # def run_process_background(self, command: list[str]) -> subprocess.Popen:
+    #     """后台启动进程，丢弃标准输出与错误，不阻塞主菜单"""
+    #     print("\nCommand:")
+    #     print(" ".join(f'"{arg}"' if " " in arg else arg for arg in command))
+    #     p = subprocess.Popen(
+    #         command,
+    #         stdout=subprocess.DEVNULL,
+    #         stderr=subprocess.DEVNULL
+    #     )
+    #     return p
     def run_process_background(self, command: list[str]) -> subprocess.Popen:
-        """后台启动进程，丢弃标准输出与错误，不阻塞主菜单"""
+        """在独立进程组中启动后台进程，便于统一清理。"""
         print("\nCommand:")
-        print(" ".join(f'"{arg}"' if " " in arg else arg for arg in command))
-        p = subprocess.Popen(
+        print(" ".join(
+            f'"{arg}"' if " " in arg else arg
+            for arg in command
+        ))
+
+        return subprocess.Popen(
             command,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
+            start_new_session=True
         )
-        return p
 
     def run_map_viewer(self):
         if self.map_process and self.map_process.poll() is None:
@@ -193,7 +243,8 @@ class WarehouseTool:
             f"map_yaml:={self.map_yaml}"
         ]
         self.map_process = self.run_process_background(cmd)
-        print("[OK] Map Viewer running in background, ready for editors.") 
+        print("[OK] Map Viewer running in background, ready for editors.")
+        print(f"map_yaml : {self.map_yaml}")
 
     # ============================================================
     # Editor
