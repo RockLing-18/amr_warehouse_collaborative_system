@@ -4,6 +4,8 @@
 #include <fstream>
 #include <limits>
 #include <sstream>
+#include <poll.h>
+#include <unistd.h>
 #include "warehouse_tool/data_define.h"
 #include "warehouse_tool/clicked_point_receiver.h"
 #include "warehouse_tool/yaml_zone_manager.h"
@@ -77,6 +79,7 @@ private:
 
         m_preview_station = inputStationInfo();
         m_preview_station.locations.clear();
+        m_pending_location = false;
         m_receiver->start();
         m_collecting = true;
         std::cout <<"start click points in RViz\n";
@@ -89,6 +92,7 @@ private:
         
         m_receiver->stop();
         m_collecting = false;
+        m_pending_location = false;
 
         if(m_preview_station.locations.empty())
         {
@@ -119,6 +123,16 @@ private:
     {
         while(m_running)
         {
+            if(m_pending_location)
+                processPendingLocation();
+
+            struct pollfd pfd{};
+            pfd.fd = STDIN_FILENO;
+            pfd.events = POLLIN;
+            int ret = poll(&pfd, 1, 100);
+            if(ret <= 0)
+                continue;
+
             std::cout
             << "\ncommand:"
             << "\n new  : create station and collect locations"
@@ -126,7 +140,8 @@ private:
             << "\n q     : quit"
             << "\n> ";
             std::string cmd;
-            std::getline(std::cin, cmd);
+            if(!std::getline(std::cin, cmd))
+                continue;
 
             if(cmd == "new" || cmd == "start")
             {
@@ -145,21 +160,14 @@ private:
         }
     }
 
-    void onPointClicked(const geometry_msgs::msg::PointStamped& point)
+    void processPendingLocation()
     {
-        if(point.header.frame_id != "map")
-        {
-            RCLCPP_WARN(get_logger(), "ignore click, frame not map, got:%s", point.header.frame_id.c_str());
+        if(!m_pending_location)
             return;
-        }
 
-        m_receiver->stop();
+        m_preview_location.pose.x = m_pending_x;
+        m_preview_location.pose.y = m_pending_y;
 
-        RCLCPP_INFO(get_logger(), "collect location x=%f y=%f", point.point.x, point.point.y);
-
-        // m_preview_location = inputLocationInfo();
-        m_preview_location.pose.x = point.point.x;
-        m_preview_location.pose.y =  point.point.y;
         std::cout << "location type (WORK/WAIT): ";
         std::getline(std::cin, m_preview_location.type);
         if(m_preview_location.type != "WORK" && m_preview_location.type != "WAIT")
@@ -177,10 +185,31 @@ private:
             m_preview_location.pose.yaw = 0.0;
         }
 
-        m_preview_location.id = m_preview_station.id + "_location_" + std::to_string(m_preview_station.locations.size() + 1);
+        m_preview_location.id =
+            m_preview_station.id +
+            "_location_" +
+            std::to_string(m_preview_station.locations.size() + 1);
+
         m_preview_station.locations.push_back(m_preview_location);
         m_station_point_marker_pub->publishPreview(m_preview_station);
+
+        m_pending_location = false;
         m_receiver->start();
+    }
+
+    void onPointClicked(const geometry_msgs::msg::PointStamped& point)
+    {
+        if(point.header.frame_id != "map")
+        {
+            RCLCPP_WARN(get_logger(), "ignore click, frame not map, got:%s", point.header.frame_id.c_str());
+            return;
+        }
+
+        m_receiver->stop();
+        RCLCPP_INFO(get_logger(), "collect location x=%f y=%f", point.point.x, point.point.y);
+        m_pending_x = point.point.x;
+        m_pending_y = point.point.y;
+        m_pending_location = true;
     }
 
     Station inputStationInfo()
@@ -254,6 +283,9 @@ private:
     std::thread m_terminal_thread;
     std::atomic<bool> m_running{true};
     std::atomic<bool> m_collecting{false};
+    std::atomic<bool> m_pending_location{false};
+    double m_pending_x = 0.0;
+    double m_pending_y = 0.0;
     YamlZoneManager m_zone_manager;
     YamlStationManager m_station_manager;
     std::string m_map_dir;

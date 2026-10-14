@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：Station Editor 已优化：去掉 station.type，location.type 限定 WORK/WAIT，流程改为 new/save 支持连续编辑多个 station，并编译通过。
+当前执行：修复 Station Editor 输入竞争问题，点选 location 后由统一终端线程处理 type/yaw，避免 stdin 并发读取；编译通过。
 
 ## 3. 状态图例
 
