@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：修复 Station Editor 输入竞争问题，点选 location 后由统一终端线程处理 type/yaw，避免 stdin 并发读取；编译通过。
+当前执行：Station Editor 改为“新建后进入编辑状态，collect/finish/save 分段操作”，避免自动采集导致的流程混乱；编译通过。
 
 ## 3. 状态图例
 

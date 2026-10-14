@@ -69,30 +69,55 @@ public:
     }
 
 private:
-    void startCollect()
+    void createStation()
     {
-        if(m_collecting)
-        {
-            std::cout <<"already collecting\n";
-            return;
-        }
-
         m_preview_station = inputStationInfo();
         m_preview_station.locations.clear();
         m_pending_location = false;
-        m_receiver->start();
-        m_collecting = true;
-        std::cout <<"start click points in RViz\n";
+        m_collecting = false;
+        m_editing_station = true;
+        std::cout << "\nStation created. Commands: collect / finish / save / q\n";
     }
 
-    void finishCollect()
+    void startLocationCollect()
+    {
+        if(!m_editing_station)
+        {
+            std::cout << "Please create a station first\n";
+            return;
+        }
+
+        if(m_collecting)
+        {
+            std::cout << "Already collecting\n";
+            return;
+        }
+
+        m_receiver->start();
+        m_collecting = true;
+        std::cout << "Start collecting locations in RViz\n";
+    }
+
+    void stopLocationCollect()
     {
         if(!m_collecting)
             return;
-        
+
         m_receiver->stop();
         m_collecting = false;
         m_pending_location = false;
+        std::cout << "Location collection stopped\n";
+    }
+
+    void saveStation()
+    {
+        if(!m_editing_station)
+        {
+            std::cout << "No station being edited\n";
+            return;
+        }
+
+        stopLocationCollect();
 
         if(m_preview_station.locations.empty())
         {
@@ -116,7 +141,7 @@ private:
             std::cout << "station id already exists\n";
         }
 
-        return;
+        m_editing_station = false;
     }
 
     void terminalLoop()
@@ -133,23 +158,44 @@ private:
             if(ret <= 0)
                 continue;
 
-            std::cout
-            << "\ncommand:"
-            << "\n new  : create station and collect locations"
-            << "\n save : save current station and return"
-            << "\n q     : quit"
-            << "\n> ";
+            if(m_editing_station)
+            {
+                std::cout
+                << "\ncommand:"
+                << "\n collect : start/restart location collection"
+                << "\n finish  : stop location collection"
+                << "\n save    : save current station and return"
+                << "\n q       : quit"
+                << "\n> ";
+            }
+            else
+            {
+                std::cout
+                << "\ncommand:"
+                << "\n new : create station"
+                << "\n q   : quit"
+                << "\n> ";
+            }
+
             std::string cmd;
             if(!std::getline(std::cin, cmd))
                 continue;
 
-            if(cmd == "new" || cmd == "start")
+            if(cmd == "new")
             {
-                startCollect();
+                createStation();
             }
-            else if(cmd == "save" || cmd == "finish")
+            else if(cmd == "collect" || cmd == "start")
             {
-                finishCollect();
+                startLocationCollect();
+            }
+            else if(cmd == "finish")
+            {
+                stopLocationCollect();
+            }
+            else if(cmd == "save")
+            {
+                saveStation();
             }
             else if(cmd == "q")
             {
@@ -194,7 +240,8 @@ private:
         m_station_point_marker_pub->publishPreview(m_preview_station);
 
         m_pending_location = false;
-        m_receiver->start();
+        if(m_collecting)
+            m_receiver->start();
     }
 
     void onPointClicked(const geometry_msgs::msg::PointStamped& point)
@@ -284,6 +331,7 @@ private:
     std::atomic<bool> m_running{true};
     std::atomic<bool> m_collecting{false};
     std::atomic<bool> m_pending_location{false};
+    std::atomic<bool> m_editing_station{false};
     double m_pending_x = 0.0;
     double m_pending_y = 0.0;
     YamlZoneManager m_zone_manager;
