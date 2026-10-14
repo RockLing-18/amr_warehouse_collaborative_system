@@ -1,0 +1,81 @@
+stations:
+  - id: station01
+    name: station_unload_A
+    zone_id: zone01
+    locations:
+      - id: station01_location_1
+        type: WORK
+        pose:
+          x: 2.8082787990570068
+          y: 2.504035472869873
+          yaw: 1.5700000000000001
+      - id: station01_location_2
+        type: WAIT
+        pose:
+          x: 1.6369951963424683
+          y: 3.7454822063446045
+          yaw: 0
+  - id: station02
+    name: station_unload_B
+    zone_id: zone02
+    locations:
+      - id: station02_location_1
+        type: WORK
+        pose:
+          x: 2.7800459861755371
+          y: -0.035278912633657455
+          yaw: 1.5700000000000001
+      - id: station02_location_2
+        type: WAIT
+        pose:
+          x: 1.9897737503051758
+          y: -1.5024354457855225
+          yaw: 0
+  - id: station03
+    name: station_load
+    zone_id: zone03
+    locations:
+      - id: station03_location_1
+        type: WORK
+        pose:
+          x: -2.441349983215332
+          y: 2.7579858303070068
+          yaw: 1.5700000000000001
+      - id: station03_location_2
+        type: WAIT
+        pose:
+          x: -3.4291791915893555
+          y: 3.9288954734802246
+          yaw: 0
+  - id: station04
+    name: station_storage_A
+    zone_id: zone04
+    locations:
+      - id: station04_location_1
+        type: WORK
+        pose:
+          x: -4.0077981948852539
+          y: -4.4226236343383789
+          yaw: 1.5700000000000001
+      - id: station04_location_2
+        type: WAIT
+        pose:
+          x: -3.6832194328308105
+          y: -2.9836800098419189
+          yaw: 0
+  - id: station05
+    name: station_storage_B
+    zone_id: zone05
+    locations:
+      - id: station05_location_1
+        type: WORK
+        pose:
+          x: -1.9897934198379517
+          y: -3.8019096851348877
+          yaw: 1.5700000000000001
+      - id: station05_location_2
+        type: WAIT
+        pose:
+          x: -2.8506159782409668
+          y: -2.8002879619598389
+          yaw: 0
