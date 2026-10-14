@@ -38,7 +38,6 @@ struct Station
 {
     std::string id;
     std::string name;
-    std::string type;
     std::string zone_id;
     std::vector<Location> locations;
 };

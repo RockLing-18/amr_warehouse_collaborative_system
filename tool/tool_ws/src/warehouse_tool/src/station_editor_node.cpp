@@ -121,18 +121,18 @@ private:
         {
             std::cout
             << "\ncommand:"
-            << "\n start : begin collect"
-            << "\n finish: stop collect"
+            << "\n new  : create station and collect locations"
+            << "\n save : save current station and return"
             << "\n q     : quit"
             << "\n> ";
             std::string cmd;
             std::getline(std::cin, cmd);
 
-            if(cmd == "start")
+            if(cmd == "new" || cmd == "start")
             {
                 startCollect();
             }
-            else if(cmd == "finish")
+            else if(cmd == "save" || cmd == "finish")
             {
                 finishCollect();
             }
@@ -160,10 +160,10 @@ private:
         // m_preview_location = inputLocationInfo();
         m_preview_location.pose.x = point.point.x;
         m_preview_location.pose.y =  point.point.y;
-        std::cout << "location type: ";
+        std::cout << "location type (WORK/WAIT): ";
         std::getline(std::cin, m_preview_location.type);
-        if(m_preview_location.type.empty())
-            m_preview_location.type = "work";
+        if(m_preview_location.type != "WORK" && m_preview_location.type != "WAIT")
+            m_preview_location.type = "WORK";
 
         std::cout << "location yaw: ";
         std::string yawLine;
@@ -192,9 +192,6 @@ private:
 
         std::cout << "station name:";
         std::getline(std::cin, station.name);
-
-        std::cout << "station type:";
-        std::getline(std::cin, station.type);
 
         station.zone_id = selectZone();
         return station;

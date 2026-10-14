@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：已完成 `robot_ws` 全工作区干净构建，并补充启动说明文档。
+当前执行：Station Editor 已优化：去掉 station.type，location.type 限定 WORK/WAIT，流程改为 new/save 支持连续编辑多个 station，并编译通过。
 
 ## 3. 状态图例
 

@@ -27,7 +27,6 @@ bool YamlStationManager::load(const std::string& filename)
             Station station;
             station.id = stationNode["id"].as<std::string>();
             station.name = stationNode["name"].as<std::string>();
-            station.type = stationNode["type"].as<std::string>();
             station.zone_id = stationNode["zone_id"].as<std::string>();
 
             auto locations = stationNode["locations"];
@@ -125,11 +124,6 @@ bool YamlStationManager::save()
             << "name"
             << YAML::Value
             << station.name;
-
-        out << YAML::Key
-            << "type"
-            << YAML::Value
-            << station.type;
 
         out << YAML::Key
             << "zone_id"
