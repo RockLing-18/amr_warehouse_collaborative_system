@@ -146,10 +146,37 @@ private:
 
     void terminalLoop()
     {
+        bool menuShown = false;
         while(m_running)
         {
             if(m_pending_location)
+            {
                 processPendingLocation();
+                menuShown = false;
+            }
+
+            if(!menuShown)
+            {
+                if(m_editing_station)
+                {
+                    std::cout
+                    << "\ncommand:"
+                    << "\n collect : start/restart location collection"
+                    << "\n finish  : stop location collection"
+                    << "\n save    : save current station and return"
+                    << "\n q       : quit"
+                    << "\n> " << std::flush;
+                }
+                else
+                {
+                    std::cout
+                    << "\ncommand:"
+                    << "\n new : create station"
+                    << "\n q   : quit"
+                    << "\n> " << std::flush;
+                }
+                menuShown = true;
+            }
 
             struct pollfd pfd{};
             pfd.fd = STDIN_FILENO;
@@ -157,25 +184,6 @@ private:
             int ret = poll(&pfd, 1, 100);
             if(ret <= 0)
                 continue;
-
-            if(m_editing_station)
-            {
-                std::cout
-                << "\ncommand:"
-                << "\n collect : start/restart location collection"
-                << "\n finish  : stop location collection"
-                << "\n save    : save current station and return"
-                << "\n q       : quit"
-                << "\n> ";
-            }
-            else
-            {
-                std::cout
-                << "\ncommand:"
-                << "\n new : create station"
-                << "\n q   : quit"
-                << "\n> ";
-            }
 
             std::string cmd;
             if(!std::getline(std::cin, cmd))
@@ -203,6 +211,8 @@ private:
                 rclcpp::shutdown();
                 break;
             }
+
+            menuShown = false;
         }
     }
 
