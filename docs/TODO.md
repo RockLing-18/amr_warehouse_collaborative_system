@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：修复 Station Editor 启动后无菜单提示的问题，启动即显示 new/q 操作菜单；编译通过。
+当前执行：`map_tool` 已改为输入 warehouse root + warehouse id 自动发现 map 文件，打包 map/zones/stations/walls/metadata，验证通过。
 
 ## 3. 状态图例
 

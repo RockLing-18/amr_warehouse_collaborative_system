@@ -1,6 +1,7 @@
 #include "amr_behavior_manager/goods_point_resolver.h"
 
 #include <algorithm>
+#include <cctype>
 
 namespace amr_behavior_manager
 {
@@ -18,8 +19,8 @@ bool GoodsPointResolver::resolve(
     if(!m_loader)
         return false;
 
-    const std::string target_zone_type =
-        task_type == "LOAD" ? "load" : "unload";
+    std::string target_zone_type =
+        task_type == "LOAD" ? "LOAD" : "UNLOAD";
 
     const auto& zones = m_loader->getZones();
     auto zoneIt = std::find_if(
@@ -27,7 +28,16 @@ bool GoodsPointResolver::resolve(
         zones.end(),
         [&goods_id, &target_zone_type](const ZoneInfo& zone)
         {
-            if(zone.type != target_zone_type)
+            std::string zoneType = zone.type;
+            std::transform(
+                zoneType.begin(),
+                zoneType.end(),
+                zoneType.begin(),
+                [](unsigned char c)
+                {
+                    return static_cast<char>(std::toupper(c));
+                });
+            if(zoneType != target_zone_type)
                 return false;
             return std::find(zone.goods_ids.begin(), zone.goods_ids.end(), goods_id) != zone.goods_ids.end();
         });
@@ -47,18 +57,29 @@ bool GoodsPointResolver::resolve(
     if(stationIt == stations.end() || stationIt->locations.empty())
         return false;
 
-    auto locationIt = std::find_if(
+    auto workLocationIt = std::find_if(
         stationIt->locations.begin(),
         stationIt->locations.end(),
-        [&target_zone_type](const LocationInfo& item)
+        [](const LocationInfo& item)
         {
-            return item.type == target_zone_type;
+            return item.type == "WORK";
         });
 
-    if(locationIt == stationIt->locations.end())
-        locationIt = stationIt->locations.begin();
+    if(workLocationIt == stationIt->locations.end())
+    {
+        workLocationIt = std::find_if(
+            stationIt->locations.begin(),
+            stationIt->locations.end(),
+            [](const LocationInfo& item)
+            {
+                return item.type == "WAIT";
+            });
+    }
 
-    location = *locationIt;
+    if(workLocationIt == stationIt->locations.end())
+        workLocationIt = stationIt->locations.begin();
+
+    location = *workLocationIt;
     return true;
 }
 

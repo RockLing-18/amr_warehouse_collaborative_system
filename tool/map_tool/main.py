@@ -1,7 +1,7 @@
 import os
 
 
-from validator import validate_warehouse_directory
+from validator import validate_warehouse_directory, discover_warehouse_files
 from metadata import generate_metadata
 from package import package_map
 from uploader import upload_map
@@ -19,14 +19,9 @@ def main():
         "===== AMR Map Tool ====="
     )
 
-    warehouse_dir=input(
-        "Warehouse directory:"
+    warehouse_root=input(
+        "Warehouse root directory:"
     ).strip()
-
-    if not validate_warehouse_directory(warehouse_dir):
-        return
-
-
 
     warehouse_id=input(
         "warehouse_id:"
@@ -37,22 +32,25 @@ def main():
         "version:"
     ).strip()
 
-
-
     if not warehouse_id or not version:
-
         print(
             "invalid parameter"
         )
-
         return
 
+    warehouse_dir = os.path.join(warehouse_root, warehouse_id)
+    if not validate_warehouse_directory(warehouse_dir):
+        return
 
+    files = discover_warehouse_files(warehouse_dir)
+    if files is None:
+        return
 
     generate_metadata(
         warehouse_dir,
         warehouse_id,
-        version
+        version,
+        files
     )
 
 
@@ -60,6 +58,7 @@ def main():
         warehouse_dir,
         warehouse_id,
         version,
+        files,
         PACKAGE_DIR
     )
 

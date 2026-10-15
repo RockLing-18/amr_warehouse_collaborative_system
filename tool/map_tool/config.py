@@ -5,14 +5,10 @@ import os
 DEFAULT_EDGE_SERVER = "http://127.0.0.1:8080"
 
 # 地图必须文件
-REQUIRED_MAP_FILES = [
-    "map.yaml",
-    "map.pgm"
-]
-
 REQUIRED_WAREHOUSE_FILES = [
     "zones.yaml",
-    "stations.yaml"
+    "stations.yaml",
+    "walls.yaml"
 ]
 
 # 临时输出目录
