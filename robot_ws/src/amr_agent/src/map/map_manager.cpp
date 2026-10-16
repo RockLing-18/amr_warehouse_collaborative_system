@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <zip.h>
+#include <yaml-cpp/yaml.h>
 
 #include "http/http_client.h"
 #include "utils/ros_logger.h"
@@ -273,7 +274,7 @@ bool MapManager::updateMap(
      *
      * 当前设计明确采用“直接覆盖”：
      *
-     * /opt/amr/data/arm_runtime/map/*
+     * /opt/amr/data/arm_runtime/map/
      *
      * 全部删除，然后解压最新地图。
      */
@@ -397,10 +398,13 @@ bool MapManager::updateMap(
         return false;
     }
 
+    loadMetadata();
+
     /*
      * 保存当前地图信息。
      */
-    m_mapVersion = response.map_version;
+    if(!response.map_version.empty())
+        m_mapVersion = response.map_version;
     m_mapDir = m_mapRootPath;
     m_mapYaml = mapYaml.string();
 
@@ -696,6 +700,8 @@ bool MapManager::loadCurrentMap()
     m_mapYaml =
         mapYaml.string();
 
+    loadMetadata();
+
     m_ready = true;
 
     LOG_INFO(
@@ -703,6 +709,42 @@ bool MapManager::loadCurrentMap()
         m_mapYaml.c_str());
 
     return true;
+}
+
+bool MapManager::loadMetadata()
+{
+    const fs::path metadataPath =
+        fs::path(m_mapRootPath) /
+        "metadata.yaml";
+
+    std::error_code ec;
+    if(!fs::exists(metadataPath, ec))
+    {
+        LOG_WARN(
+            "metadata.yaml not found: %s",
+            metadataPath.c_str());
+        return false;
+    }
+
+    try
+    {
+        YAML::Node root = YAML::LoadFile(metadataPath.string());
+        if(root["warehouse_id"])
+            m_warehouseId = root["warehouse_id"].as<std::string>();
+        if(root["version"])
+            m_mapVersion = root["version"].as<std::string>();
+
+        LOG_INFO(
+            "load metadata warehouse=%s version=%s",
+            m_warehouseId.c_str(),
+            m_mapVersion.c_str());
+        return true;
+    }
+    catch(const std::exception& e)
+    {
+        LOG_ERROR("load metadata failed:%s", e.what());
+        return false;
+    }
 }
 
 

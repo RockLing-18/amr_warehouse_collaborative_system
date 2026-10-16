@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：`map_tool` 已改为输入 warehouse root + warehouse id 自动发现 map 文件，打包 map/zones/stations/walls/metadata，验证通过。
+当前执行：修复 Edge 返回 map_version 为空的问题，`checkMapUpdate` 始终返回当前激活版本；Edge 已重新编译。
 
 ## 3. 状态图例
 

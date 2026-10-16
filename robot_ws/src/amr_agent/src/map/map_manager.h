@@ -35,6 +35,7 @@ private:
     bool activateMap(const std::string& mapDir);
 
     bool loadCurrentMap();
+    bool loadMetadata();
     void publishMapInfo();
 
 private:

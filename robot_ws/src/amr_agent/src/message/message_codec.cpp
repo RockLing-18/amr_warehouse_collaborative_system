@@ -80,6 +80,9 @@ bool MessageCodec::decodeRobotRegisterResp(const std::string& msg, RobotRegister
             return false;
         }
 
+        resp.code = root.value("code", 0);
+        resp.message = root.value("message", "");
+        resp.robot_id = root.value("robot_id", "");
         resp.request_id = root.value("request_id", "");
         resp.map_version = root.value("map_version", "");
         resp.map_update = root.value("map_update", false);

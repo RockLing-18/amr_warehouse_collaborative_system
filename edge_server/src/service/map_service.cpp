@@ -177,11 +177,12 @@ bool MapService::checkMapUpdate(const std::string& warehouse_id, const std::stri
         return false;
     }
 
+    info.version = package.version;
+
     if(package.version != robot_version)
     {
         info.need_update = true;
-        info.version = package.version;
-        info.download_url = "/api/maps/download";
+        info.download_url = "/api/maps/download?warehouse_id=" + warehouse_id;
     }
 
     return true;
