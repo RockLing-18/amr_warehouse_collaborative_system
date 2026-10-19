@@ -382,23 +382,19 @@ bool MapManager::updateMap(
             ec.message().c_str());
     }
 
-    /*
-     * 验证 map.yaml。
-     */
-    const fs::path mapYaml =
-        fs::path(m_mapRootPath) /
-        "map.yaml";
+    loadMetadata();
 
-    if (!fs::exists(mapYaml, ec))
+    if(m_mapYaml.empty())
+        m_mapYaml = (fs::path(m_mapRootPath) / "map.yaml").string();
+
+    if (!fs::exists(m_mapYaml, ec))
     {
         LOG_ERROR(
-            "map.yaml not found after extraction: %s",
-            mapYaml.c_str());
+            "map yaml not found after extraction: %s",
+            m_mapYaml.c_str());
 
         return false;
     }
-
-    loadMetadata();
 
     /*
      * 保存当前地图信息。
@@ -406,7 +402,6 @@ bool MapManager::updateMap(
     if(!response.map_version.empty())
         m_mapVersion = response.map_version;
     m_mapDir = m_mapRootPath;
-    m_mapYaml = mapYaml.string();
 
     m_ready = true;
 
@@ -665,17 +660,18 @@ bool MapManager::loadCurrentMap()
         return false;
     }
 
-    const fs::path mapYaml =
-        fs::path(m_mapRootPath) /
-        "map.yaml";
+    loadMetadata();
+
+    if(m_mapYaml.empty())
+        m_mapYaml = (fs::path(m_mapRootPath) / "map.yaml").string();
 
     std::error_code ec;
 
-    if (!fs::exists(mapYaml, ec))
+    if (!fs::exists(m_mapYaml, ec))
     {
         LOG_INFO(
-            "local map.yaml does not exist: %s",
-            mapYaml.c_str());
+            "local map yaml does not exist: %s",
+            m_mapYaml.c_str());
 
         m_ready = false;
 
@@ -696,11 +692,6 @@ bool MapManager::loadCurrentMap()
      */
     m_mapDir =
         m_mapRootPath;
-
-    m_mapYaml =
-        mapYaml.string();
-
-    loadMetadata();
 
     m_ready = true;
 
@@ -733,6 +724,10 @@ bool MapManager::loadMetadata()
             m_warehouseId = root["warehouse_id"].as<std::string>();
         if(root["version"])
             m_mapVersion = root["version"].as<std::string>();
+        if(root["files"] && root["files"]["map"])
+            m_mapYaml = (fs::path(m_mapRootPath) / root["files"]["map"].as<std::string>()).string();
+        if(root["files"] && root["files"]["image"])
+            m_mapImage = root["files"]["image"].as<std::string>();
 
         LOG_INFO(
             "load metadata warehouse=%s version=%s",

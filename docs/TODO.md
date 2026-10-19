@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：修复 Edge 返回 map_version 为空的问题，`checkMapUpdate` 始终返回当前激活版本；Edge 已重新编译。
+当前执行：修复 MapManager 写死 map.yaml 的问题，改为从 metadata.yaml 读取实际地图文件名；amr_agent 编译通过。
 
 ## 3. 状态图例
 

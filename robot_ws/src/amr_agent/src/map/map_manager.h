@@ -47,6 +47,7 @@ private:
     std::string m_mapVersion;
     std::string m_mapDir;
     std::string m_mapYaml;
+    std::string m_mapImage;
 
     std::shared_ptr<HttpClient> m_httpClient;
 
