@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：navigation_server 支持 map 包变更时先关闭旧 Nav2 子进程，再按新 map_yaml 重启 Nav2；编译通过。
+当前执行：修复 navigation_server 重复声明 use_sim_time 导致的启动崩溃；amr_navigation 编译通过。
 
 ## 3. 状态图例
 

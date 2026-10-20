@@ -59,7 +59,6 @@ public:
 		this->declare_parameter<std::string>(
 			"nav2_params_file",
 			"/home/zyr/code/amr_warehouse_collaborative_system/robot_ws/src/amr_navigation/config/nav2_params.yaml");
-		this->declare_parameter<bool>("use_sim_time", true);
 	}
 
 	~NavigationServer()
@@ -417,7 +416,7 @@ private:
 			return;
 
 		std::string paramsFile = this->get_parameter("nav2_params_file").as_string();
-		bool useSimTime = this->get_parameter("use_sim_time").as_bool();
+		bool useSimTime = this->get_parameter_or("use_sim_time", true);
 
 		pid_t pid = fork();
 		if(pid < 0)
