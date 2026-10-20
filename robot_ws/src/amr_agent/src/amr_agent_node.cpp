@@ -48,6 +48,9 @@ bool AmrAgentNode::init()
     m_robot_id = info.robot_id;
     m_warehouse_id = info.warehouse_id;
     m_map_version = info.map.version;
+    m_initial_x = info.initial_x;
+    m_initial_y = info.initial_y;
+    m_initial_yaw = info.initial_yaw;
 
     m_communication = std::make_shared<EdgeCommunication>();
     if(!m_communication->init(info, shared_from_this()))
@@ -58,6 +61,9 @@ bool AmrAgentNode::init()
 
     m_edge_status_pub = this->create_publisher<amr_interfaces::msg::EdgeStatus>(
         amr_common::topic::EDGE_STATUS, 10);
+
+    m_initial_pose_pub = this->create_publisher<amr_interfaces::msg::InitialPose>(
+        amr_common::topic::INITIAL_POSE, 10);
 
     m_communication->setEdgeStatusCallback(
         [this](bool online)
@@ -73,6 +79,8 @@ bool AmrAgentNode::init()
         LOG_ERROR("map manager init failed");
         return false;
     }
+
+    publishInitialPoseIfReady();
 
     m_taskBridge = std::make_shared<TaskBridge>(
         shared_from_this(),
@@ -144,7 +152,24 @@ void AmrAgentNode::onRegisterResponse(const RobotRegisterResponse& response)
 
     m_map_ready = m_mapManager && m_mapManager->isReady();
     if(m_map_ready)
+    {
+        publishInitialPoseIfReady();
         publishRobotStatus("IDLE");
+    }
+}
+
+void AmrAgentNode::publishInitialPoseIfReady()
+{
+    if(m_initial_pose_published || !m_mapManager || !m_mapManager->isReady())
+        return;
+
+    amr_interfaces::msg::InitialPose msg;
+    msg.x = m_initial_x;
+    msg.y = m_initial_y;
+    msg.yaw = m_initial_yaw;
+    m_initial_pose_pub->publish(msg);
+    m_initial_pose_published = true;
+    LOG_INFO("publish initial pose x=%.2f y=%.2f yaw=%.2f", msg.x, msg.y, msg.yaw);
 }
 
 void AmrAgentNode::publishRobotStatus(const std::string& state)

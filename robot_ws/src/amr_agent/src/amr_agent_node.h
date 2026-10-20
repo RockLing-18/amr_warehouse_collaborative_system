@@ -2,6 +2,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include "types.h"
 #include "amr_interfaces/msg/edge_status.hpp"
+#include "amr_interfaces/msg/initial_pose.hpp"
 
 namespace amr_agent
 {
@@ -23,6 +24,7 @@ private:
     void sendRegisterRequest();
     void onRegisterResponse(const RobotRegisterResponse& response);
     void publishRobotStatus(const std::string& state);
+    void publishInitialPoseIfReady();
 
 private:
     std::shared_ptr<EdgeCommunication> m_communication;
@@ -35,9 +37,14 @@ private:
     std::string m_robot_id;
     std::string m_warehouse_id;
     std::string m_map_version;
+    double m_initial_x = 0.0;
+    double m_initial_y = 0.0;
+    double m_initial_yaw = 0.0;
+    bool m_initial_pose_published = false;
     bool m_registered = false;
     bool m_map_ready = false;
     rclcpp::Publisher<amr_interfaces::msg::EdgeStatus>::SharedPtr m_edge_status_pub;
+    rclcpp::Publisher<amr_interfaces::msg::InitialPose>::SharedPtr m_initial_pose_pub;
     rclcpp::TimerBase::SharedPtr m_register_timer;
     rclcpp::TimerBase::SharedPtr m_heartbeat_timer;
 };

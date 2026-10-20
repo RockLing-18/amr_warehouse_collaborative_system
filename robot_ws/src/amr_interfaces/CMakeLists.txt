@@ -23,6 +23,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TaskCommand.msg"
   "msg/TaskEvent.msg"
   "msg/EdgeStatus.msg"
+  "msg/InitialPose.msg"
   DEPENDENCIES geometry_msgs builtin_interfaces
 )
 

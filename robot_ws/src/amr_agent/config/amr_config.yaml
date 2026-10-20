@@ -1,5 +1,9 @@
 robot:
   id: "robot01"
+  initial_pose:
+    x: 0.0
+    y: 0.0
+    yaw: 0.0
 
 edge_server:
   host: "192.168.8.211"

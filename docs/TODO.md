@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：修复 AMR 侧 StationInfo 仍读取已删除 station.type 导致的加载失败；amr_behavior_manager 编译通过。
+当前执行：增加 InitialPose 消息，amr_agent 从配置读取初始位姿并发布，navigation_server 在 Nav2 lifecycle 启动后发布 /initialpose；编译通过。
 
 ## 3. 状态图例
 

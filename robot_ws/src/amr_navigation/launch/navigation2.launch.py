@@ -19,6 +19,8 @@ def generate_launch_description():
         'map', default=os.path.join(pkg_dir, 'maps', 'room.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
         'params_file', default=os.path.join(pkg_dir, 'config', 'nav2_params.yaml'))
+    autostart = launch.substitutions.LaunchConfiguration(
+        'autostart', default='false')
 
     return launch.LaunchDescription([
         # 声明新的 Launch 参数
@@ -28,6 +30,8 @@ def generate_launch_description():
                                              description='Full path to map file to load'),
         launch.actions.DeclareLaunchArgument('params_file', default_value=nav2_param_path,
                                              description='Full path to param file to load'),
+        launch.actions.DeclareLaunchArgument('autostart', default_value=autostart,
+                                             description='Automatically startup nav2'),
 
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -36,7 +40,8 @@ def generate_launch_description():
             launch_arguments={
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
-                'params_file': nav2_param_path}.items(),
+                'params_file': nav2_param_path,
+                'autostart': autostart}.items(),
         ),
         launch_ros.actions.Node(
             package='rviz2',

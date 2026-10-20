@@ -40,6 +40,17 @@ bool Bootstrap::loadLocalConfig(const std::string& cfgPath, BootstrapInfo& info)
             m_robotId = info.robot_id;
         }
 
+        if(config["robot"] && config["robot"]["initial_pose"])
+        {
+            auto pose = config["robot"]["initial_pose"];
+            if(pose["x"])
+                info.initial_x = pose["x"].as<double>();
+            if(pose["y"])
+                info.initial_y = pose["y"].as<double>();
+            if(pose["yaw"])
+                info.initial_yaw = pose["yaw"].as<double>();
+        }
+
         if(config["edge_server"])
         {
             if(config["edge_server"]["host"])

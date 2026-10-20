@@ -10,6 +10,7 @@
 //   ros2 run amr_navigation navigation_server --ros-args -r __ns:=/robot_namespace
 
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <functional>
 #include <memory>
@@ -26,6 +27,9 @@
 #include "amr_interfaces/msg/navigation_state.hpp"
 #include "amr_interfaces/msg/robot_pose.hpp"
 #include "amr_interfaces/msg/map_info.hpp"
+#include "amr_interfaces/msg/initial_pose.hpp"
+#include "nav2_msgs/srv/manage_lifecycle_nodes.hpp"
+#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "amr_navigation/tf_helper.h"
 #include "amr_navigation/navigation_manager.h"
 #include "amr_common/ros_interface_names.h"
@@ -41,6 +45,9 @@ public:
 	using GetRobotPose = amr_interfaces::srv::GetRobotPose;
 	using RobotPoseMsg = amr_interfaces::msg::RobotPose;
 	using NavigationState = amr_interfaces::msg::NavigationState;
+	using ManageLifecycleNodes = nav2_msgs::srv::ManageLifecycleNodes;
+	using InitialPose = amr_interfaces::msg::InitialPose;
+	using PoseWithCovarianceStamped = geometry_msgs::msg::PoseWithCovarianceStamped;
 	
 	NavigationServer() : Node("navigation_server")
 	{
@@ -92,9 +99,29 @@ public:
 				bool was_ready = m_map_ready;
 				m_map_ready = msg && msg->ready;
 				if(m_map_ready && !was_ready)
+				{
 					RCLCPP_INFO(get_logger(), "map info ready, navigation enabled");
+					startNav2Lifecycle();
+					publishInitialPoseIfReady();
+				}
 				else if(!m_map_ready && was_ready)
 					RCLCPP_WARN(get_logger(), "map info not ready");
+			});
+
+		m_lifecycle_nav_client = this->create_client<ManageLifecycleNodes>(
+			"/lifecycle_manager_navigation/manage_nodes");
+		m_lifecycle_loc_client = this->create_client<ManageLifecycleNodes>(
+			"/lifecycle_manager_localization/manage_nodes");
+
+		m_initial_pose_pub = this->create_publisher<PoseWithCovarianceStamped>(
+			"/initialpose", 10);
+		m_initial_pose_sub = this->create_subscription<InitialPose>(
+			amr_common::topic::INITIAL_POSE,
+			10,
+			[this](const InitialPose::SharedPtr pose)
+			{
+				m_initial_pose = pose;
+				publishInitialPoseIfReady();
 			});
 	
 		RCLCPP_INFO(this->get_logger(), "navigation_server init done");
@@ -317,6 +344,53 @@ private:
 		out_state = m_navigation_result;
 		return true;
 	}
+
+	void startNav2Lifecycle()
+	{
+		if(m_nav2_started)
+			return;
+
+		auto sendStartup =
+			[this](rclcpp::Client<ManageLifecycleNodes>::SharedPtr client)
+			{
+				if(!client || !client->wait_for_service(std::chrono::seconds(5)))
+				{
+					RCLCPP_WARN(get_logger(), "nav2 lifecycle service not available");
+					return;
+				}
+
+				auto request = std::make_shared<ManageLifecycleNodes::Request>();
+				request->command = ManageLifecycleNodes::Request::STARTUP;
+				client->async_send_request(request);
+			};
+
+		sendStartup(m_lifecycle_nav_client);
+		sendStartup(m_lifecycle_loc_client);
+		m_nav2_started = true;
+	}
+
+	void publishInitialPoseIfReady()
+	{
+		if(!m_nav2_started || !m_initial_pose)
+			return;
+
+		PoseWithCovarianceStamped msg;
+		msg.header.frame_id = "map";
+		msg.header.stamp = this->now();
+		msg.pose.pose.position.x = m_initial_pose->x;
+		msg.pose.pose.position.y = m_initial_pose->y;
+
+		double half_yaw = m_initial_pose->yaw * 0.5;
+		msg.pose.pose.orientation.z = std::sin(half_yaw);
+		msg.pose.pose.orientation.w = std::cos(half_yaw);
+		m_initial_pose_pub->publish(msg);
+		RCLCPP_INFO(
+			get_logger(),
+			"publish initial pose x=%.2f y=%.2f yaw=%.2f",
+			m_initial_pose->x,
+			m_initial_pose->y,
+			m_initial_pose->yaw);
+	}
 	
 	// ---------------- members ----------------
 	std::shared_ptr<TFHelper> m_tf_helper;
@@ -334,6 +408,12 @@ private:
 	std::shared_ptr<GoalHandle> m_active_goal_handle;
 	rclcpp::Subscription<amr_interfaces::msg::MapInfo>::SharedPtr m_map_info_sub;
 	bool m_map_ready = false;
+	bool m_nav2_started = false;
+	rclcpp::Client<ManageLifecycleNodes>::SharedPtr m_lifecycle_nav_client;
+	rclcpp::Client<ManageLifecycleNodes>::SharedPtr m_lifecycle_loc_client;
+	rclcpp::Publisher<PoseWithCovarianceStamped>::SharedPtr m_initial_pose_pub;
+	rclcpp::Subscription<InitialPose>::SharedPtr m_initial_pose_sub;
+	InitialPose::SharedPtr m_initial_pose;
 };
 }
 
