@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：修正 amr_config 路径、增强 zones/stations 加载错误日志、删除未使用 navigation_node/waypoint_navigator，并减少 map_info 重复日志；编译通过。
+当前执行：修复 AMR 侧 StationInfo 仍读取已删除 station.type 导致的加载失败；amr_behavior_manager 编译通过。
 
 ## 3. 状态图例
 

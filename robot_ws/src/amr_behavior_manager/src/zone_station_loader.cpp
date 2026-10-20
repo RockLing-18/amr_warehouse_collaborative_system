@@ -47,7 +47,6 @@ bool ZoneStationLoader::load(const std::string& zone_file, const std::string& st
                 StationInfo station;
                 station.id = node["id"].as<std::string>();
                 station.name = node["name"].as<std::string>();
-                station.type = node["type"].as<std::string>();
                 station.zone_id = node["zone_id"].as<std::string>();
                 if(node["locations"])
                 {
