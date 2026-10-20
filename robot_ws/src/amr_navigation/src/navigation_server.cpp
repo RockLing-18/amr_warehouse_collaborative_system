@@ -89,10 +89,11 @@ public:
 			map_info_qos,
 			[this](const amr_interfaces::msg::MapInfo::SharedPtr msg)
 			{
+				bool was_ready = m_map_ready;
 				m_map_ready = msg && msg->ready;
-				if(m_map_ready)
+				if(m_map_ready && !was_ready)
 					RCLCPP_INFO(get_logger(), "map info ready, navigation enabled");
-				else
+				else if(!m_map_ready && was_ready)
 					RCLCPP_WARN(get_logger(), "map info not ready");
 			});
 	

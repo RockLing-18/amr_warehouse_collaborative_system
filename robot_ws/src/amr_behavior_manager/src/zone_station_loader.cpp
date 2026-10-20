@@ -1,6 +1,7 @@
 #include "amr_behavior_manager/zone_station_loader.h"
 
 #include <yaml-cpp/yaml.h>
+#include <iostream>
 
 namespace amr_behavior_manager
 {
@@ -32,6 +33,7 @@ bool ZoneStationLoader::load(const std::string& zone_file, const std::string& st
     }
     catch(const std::exception& e)
     {
+        std::cerr << "load zones failed:" << e.what() << std::endl;
         return false;
     }
 
@@ -66,6 +68,7 @@ bool ZoneStationLoader::load(const std::string& zone_file, const std::string& st
     }
     catch(const std::exception& e)
     {
+        std::cerr << "load stations failed:" << e.what() << std::endl;
         return false;
     }
 

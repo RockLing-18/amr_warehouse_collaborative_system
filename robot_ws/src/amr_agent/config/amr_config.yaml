@@ -6,4 +6,4 @@ edge_server:
   port: 8080
 
 map:
-  path: "/opt/amr/data/arm_runtime/map"
+  path: "/opt/amr/data/amr_runtime/map"
