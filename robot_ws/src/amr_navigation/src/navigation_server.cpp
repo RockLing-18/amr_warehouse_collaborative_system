@@ -16,6 +16,10 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
@@ -52,6 +56,15 @@ public:
 	NavigationServer() : Node("navigation_server")
 	{
 		this->declare_parameter("pose_publish_rate_hz", 1.0);
+		this->declare_parameter<std::string>(
+			"nav2_params_file",
+			"/home/zyr/code/amr_warehouse_collaborative_system/robot_ws/src/amr_navigation/config/nav2_params.yaml");
+		this->declare_parameter<bool>("use_sim_time", true);
+	}
+
+	~NavigationServer()
+	{
+		stopNav2Process();
 	}
 	
 	void init()
@@ -97,15 +110,32 @@ public:
 			[this](const amr_interfaces::msg::MapInfo::SharedPtr msg)
 			{
 				bool was_ready = m_map_ready;
-				m_map_ready = msg && msg->ready;
-				if(m_map_ready && !was_ready)
+				bool ready = msg && msg->ready;
+				if(ready)
 				{
-					RCLCPP_INFO(get_logger(), "map info ready, navigation enabled");
-					startNav2Lifecycle();
-					publishInitialPoseIfReady();
+					if(m_nav2_pid > 0 && m_current_map_yaml != msg->map_yaml)
+					{
+						RCLCPP_INFO(get_logger(), "map changed, restart nav2");
+						stopNav2Process();
+						m_nav2_started = false;
+					}
+
+					m_map_ready = true;
+					launchNav2Process(msg->map_yaml);
+					if(!was_ready)
+						RCLCPP_INFO(get_logger(), "map info ready, navigation enabled");
+					if(!m_nav2_started)
+					{
+						startNav2Lifecycle();
+						publishInitialPoseIfReady();
+					}
 				}
-				else if(!m_map_ready && was_ready)
-					RCLCPP_WARN(get_logger(), "map info not ready");
+				else
+				{
+					m_map_ready = false;
+					if(was_ready)
+						RCLCPP_WARN(get_logger(), "map info not ready");
+				}
 			});
 
 		m_lifecycle_nav_client = this->create_client<ManageLifecycleNodes>(
@@ -122,6 +152,17 @@ public:
 			{
 				m_initial_pose = pose;
 				publishInitialPoseIfReady();
+			});
+
+		m_lifecycle_retry_timer = this->create_wall_timer(
+			std::chrono::seconds(5),
+			[this]()
+			{
+				if(m_map_ready && !m_nav2_started)
+				{
+					startNav2Lifecycle();
+					publishInitialPoseIfReady();
+				}
 			});
 	
 		RCLCPP_INFO(this->get_logger(), "navigation_server init done");
@@ -356,17 +397,64 @@ private:
 				if(!client || !client->wait_for_service(std::chrono::seconds(5)))
 				{
 					RCLCPP_WARN(get_logger(), "nav2 lifecycle service not available");
-					return;
+					return false;
 				}
 
 				auto request = std::make_shared<ManageLifecycleNodes::Request>();
 				request->command = ManageLifecycleNodes::Request::STARTUP;
 				client->async_send_request(request);
+				return true;
 			};
 
-		sendStartup(m_lifecycle_nav_client);
-		sendStartup(m_lifecycle_loc_client);
-		m_nav2_started = true;
+		bool navStarted = sendStartup(m_lifecycle_nav_client);
+		bool locStarted = sendStartup(m_lifecycle_loc_client);
+		m_nav2_started = navStarted && locStarted;
+	}
+
+	void launchNav2Process(const std::string& map_yaml)
+	{
+		if(m_nav2_pid > 0)
+			return;
+
+		std::string paramsFile = this->get_parameter("nav2_params_file").as_string();
+		bool useSimTime = this->get_parameter("use_sim_time").as_bool();
+
+		pid_t pid = fork();
+		if(pid < 0)
+		{
+			RCLCPP_ERROR(get_logger(), "fork nav2 process failed");
+			return;
+		}
+
+		if(pid == 0)
+		{
+			execlp(
+				"ros2",
+				"ros2",
+				"launch",
+				"amr_navigation",
+				"navigation2.launch.py",
+				("map:=" + map_yaml).c_str(),
+				("params_file:=" + paramsFile).c_str(),
+				("use_sim_time:=" + std::string(useSimTime ? "true" : "false")).c_str(),
+				"autostart:=false",
+				static_cast<char*>(nullptr));
+			_exit(127);
+		}
+
+		m_nav2_pid = pid;
+		m_current_map_yaml = map_yaml;
+		RCLCPP_INFO(get_logger(), "launched nav2 process pid=%d", m_nav2_pid);
+	}
+
+	void stopNav2Process()
+	{
+		if(m_nav2_pid <= 0)
+			return;
+
+		kill(m_nav2_pid, SIGINT);
+		waitpid(m_nav2_pid, nullptr, WNOHANG);
+		m_nav2_pid = -1;
 	}
 
 	void publishInitialPoseIfReady()
@@ -414,6 +502,9 @@ private:
 	rclcpp::Publisher<PoseWithCovarianceStamped>::SharedPtr m_initial_pose_pub;
 	rclcpp::Subscription<InitialPose>::SharedPtr m_initial_pose_sub;
 	InitialPose::SharedPtr m_initial_pose;
+	rclcpp::TimerBase::SharedPtr m_lifecycle_retry_timer;
+	pid_t m_nav2_pid = -1;
+	std::string m_current_map_yaml;
 };
 }
 

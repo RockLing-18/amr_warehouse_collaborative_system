@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：增加 InitialPose 消息，amr_agent 从配置读取初始位姿并发布，navigation_server 在 Nav2 lifecycle 启动后发布 /initialpose；编译通过。
+当前执行：navigation_server 支持 map 包变更时先关闭旧 Nav2 子进程，再按新 map_yaml 重启 Nav2；编译通过。
 
 ## 3. 状态图例
 
