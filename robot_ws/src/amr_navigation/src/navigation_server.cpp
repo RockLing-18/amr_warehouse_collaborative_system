@@ -45,6 +45,17 @@ namespace amr_navigation
 class NavigationServer : public rclcpp::Node
 {
 public:
+	enum class Nav2State
+	{
+		STOPPED,
+		STARTING_PROCESS,
+		STARTING_LIFECYCLE,
+		WAITING_FOR_LOCALIZATION,
+		READY,
+		STOPPING,
+		FAILED
+	};
+
 	using AmrNavigateToPose = amr_interfaces::action::AmrNavigateToPose;
 	using GoalHandle = rclcpp_action::ServerGoalHandle<AmrNavigateToPose>;
 	using GetRobotPose = amr_interfaces::srv::GetRobotPose;
@@ -109,42 +120,16 @@ public:
 			map_info_qos,
 			[this](const amr_interfaces::msg::MapInfo::SharedPtr msg)
 			{
-				bool was_ready = m_map_ready;
-				bool ready = msg && msg->ready;
-				if(ready)
-				{
-					if(m_nav2_pid > 0 && m_current_map_yaml != msg->map_yaml)
-					{
-						RCLCPP_INFO(get_logger(), "map changed, restart nav2");
-						stopNav2Process();
-						m_nav2_started = false;
-					}
-
-					m_map_ready = true;
-					launchNav2Process(msg->map_yaml);
-					if(!was_ready)
-						RCLCPP_INFO(get_logger(), "map info ready, navigation enabled");
-					if(!m_nav2_started)
-					{
-						startNav2Lifecycle();
-						publishInitialPoseIfReady();
-					}
-				}
-				else
-				{
-					m_map_ready = false;
-					if(was_ready)
-						RCLCPP_WARN(get_logger(), "map info not ready");
-				}
+				handleMapInfo(msg);
 			});
 
 		m_lifecycle_nav_client = this->create_client<ManageLifecycleNodes>(
-			"/lifecycle_manager_navigation/manage_nodes");
+			"lifecycle_manager_navigation/manage_nodes");
 		m_lifecycle_loc_client = this->create_client<ManageLifecycleNodes>(
-			"/lifecycle_manager_localization/manage_nodes");
+			"lifecycle_manager_localization/manage_nodes");
 
 		m_initial_pose_pub = this->create_publisher<PoseWithCovarianceStamped>(
-			"/initialpose", 10);
+			"initialpose", 10);
 		m_initial_pose_sub = this->create_subscription<InitialPose>(
 			amr_common::topic::INITIAL_POSE,
 			10,
@@ -158,11 +143,7 @@ public:
 			std::chrono::seconds(5),
 			[this]()
 			{
-				if(m_map_ready && !m_nav2_started)
-				{
-					startNav2Lifecycle();
-					publishInitialPoseIfReady();
-				}
+				handleStateMachineTick();
 			});
 	
 		RCLCPP_INFO(this->get_logger(), "navigation_server init done");
@@ -391,19 +372,70 @@ private:
 		return true;
 	}
 
-	void startNav2Lifecycle()
+	void handleMapInfo(const amr_interfaces::msg::MapInfo::SharedPtr msg)
 	{
-		if(m_nav2_started)
+		bool ready = msg && msg->ready;
+		if(!ready)
+		{
+			m_map_ready = false;
+			if(m_nav2_state != Nav2State::STOPPED)
+				requestStopNav2();
+			return;
+		}
+
+		bool mapChanged =
+			m_current_map_yaml != msg->map_yaml ||
+			m_current_map_version != msg->map_version;
+
+		if(m_nav2_pid > 0 && mapChanged)
+		{
+			RCLCPP_INFO(get_logger(), "map changed, restart nav2");
+			requestStopNav2();
+		}
+
+		m_map_ready = true;
+		m_current_map_yaml = msg->map_yaml;
+		m_current_map_version = msg->map_version;
+
+		if(m_nav2_state == Nav2State::STOPPED ||
+		   m_nav2_state == Nav2State::FAILED)
+		{
+			launchNav2Process(msg->map_yaml);
+			m_nav2_state = Nav2State::STARTING_PROCESS;
+		}
+	}
+
+	void handleStateMachineTick()
+	{
+		if(!m_map_ready)
 			return;
 
+		switch(m_nav2_state)
+		{
+		case Nav2State::STARTING_PROCESS:
+		case Nav2State::STARTING_LIFECYCLE:
+			startNav2Lifecycle();
+			break;
+		case Nav2State::WAITING_FOR_LOCALIZATION:
+			publishInitialPoseIfReady();
+			if(m_initial_pose_published)
+			{
+				m_nav2_state = Nav2State::READY;
+				RCLCPP_INFO(get_logger(), "navigation ready");
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	void startNav2Lifecycle()
+	{
 		auto sendStartup =
 			[this](rclcpp::Client<ManageLifecycleNodes>::SharedPtr client)
 			{
 				if(!client || !client->wait_for_service(std::chrono::seconds(5)))
-				{
-					RCLCPP_WARN(get_logger(), "nav2 lifecycle service not available");
 					return false;
-				}
 
 				auto request = std::make_shared<ManageLifecycleNodes::Request>();
 				request->command = ManageLifecycleNodes::Request::STARTUP;
@@ -413,7 +445,10 @@ private:
 
 		bool navStarted = sendStartup(m_lifecycle_nav_client);
 		bool locStarted = sendStartup(m_lifecycle_loc_client);
-		m_nav2_started = navStarted && locStarted;
+		if(navStarted && locStarted)
+			m_nav2_state = Nav2State::WAITING_FOR_LOCALIZATION;
+		else
+			m_nav2_state = Nav2State::STARTING_LIFECYCLE;
 	}
 
 	void launchNav2Process(const std::string& map_yaml)
@@ -423,10 +458,14 @@ private:
 
 		std::string paramsFile = this->get_parameter("nav2_params_file").as_string();
 		bool useSimTime = this->get_parameter_or("use_sim_time", true);
+		std::string robot_namespace = this->get_namespace();
+		if(robot_namespace == "/")
+			robot_namespace.clear();
 
 		pid_t pid = fork();
 		if(pid < 0)
 		{
+			m_nav2_state = Nav2State::FAILED;
 			RCLCPP_ERROR(get_logger(), "fork nav2 process failed");
 			return;
 		}
@@ -434,15 +473,8 @@ private:
 		if(pid == 0)
 		{
 			setpgid(0, 0);
-
-			std::string logPath =
-				"/tmp/amr_navigation_logs/nav2_" +
-				std::to_string(getpid()) +
-				".log";
-			int logFd = open(
-				logPath.c_str(),
-				O_WRONLY | O_CREAT | O_TRUNC,
-				0644);
+			std::string logPath = "/tmp/amr_navigation_logs/nav2_" + std::to_string(getpid()) + ".log";
+			int logFd = open(logPath.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
 			if(logFd >= 0)
 			{
 				dup2(logFd, STDOUT_FILENO);
@@ -459,14 +491,24 @@ private:
 				("map:=" + map_yaml).c_str(),
 				("params_file:=" + paramsFile).c_str(),
 				("use_sim_time:=" + std::string(useSimTime ? "true" : "false")).c_str(),
+				("namespace:=" + robot_namespace).c_str(),
 				"autostart:=false",
 				static_cast<char*>(nullptr));
 			_exit(127);
 		}
 
 		m_nav2_pid = pid;
-		m_current_map_yaml = map_yaml;
 		RCLCPP_INFO(get_logger(), "launched nav2 process pid=%d", m_nav2_pid);
+	}
+
+	void requestStopNav2()
+	{
+		if(m_nav2_state == Nav2State::STOPPING || m_nav2_state == Nav2State::STOPPED)
+			return;
+
+		m_nav2_state = Nav2State::STOPPING;
+		stopNav2Process();
+		m_nav2_state = Nav2State::STOPPED;
 	}
 
 	void stopNav2Process()
@@ -475,14 +517,35 @@ private:
 			return;
 
 		killpg(-m_nav2_pid, SIGINT);
-		killpg(-m_nav2_pid, SIGTERM);
-		waitpid(m_nav2_pid, nullptr, WNOHANG);
+		for(int i = 0; i < 30; ++i)
+		{
+			int status = 0;
+			pid_t ret = waitpid(m_nav2_pid, &status, WNOHANG);
+			if(ret == m_nav2_pid || ret < 0)
+				break;
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+
+		if(waitpid(m_nav2_pid, nullptr, WNOHANG) == 0)
+		{
+			killpg(-m_nav2_pid, SIGTERM);
+			std::this_thread::sleep_for(std::chrono::seconds(1));
+		}
+
+		if(waitpid(m_nav2_pid, nullptr, WNOHANG) == 0)
+			killpg(-m_nav2_pid, SIGKILL);
+
 		m_nav2_pid = -1;
+		m_initial_pose_published = false;
 	}
 
 	void publishInitialPoseIfReady()
 	{
-		if(!m_nav2_started || !m_initial_pose)
+		if(m_nav2_state != Nav2State::WAITING_FOR_LOCALIZATION &&
+		   m_nav2_state != Nav2State::READY)
+			return;
+
+		if(!m_initial_pose || m_initial_pose_published)
 			return;
 
 		PoseWithCovarianceStamped msg;
@@ -495,12 +558,9 @@ private:
 		msg.pose.pose.orientation.z = std::sin(half_yaw);
 		msg.pose.pose.orientation.w = std::cos(half_yaw);
 		m_initial_pose_pub->publish(msg);
-		RCLCPP_INFO(
-			get_logger(),
-			"publish initial pose x=%.2f y=%.2f yaw=%.2f",
-			m_initial_pose->x,
-			m_initial_pose->y,
-			m_initial_pose->yaw);
+		m_initial_pose_published = true;
+		RCLCPP_INFO(get_logger(), "publish initial pose x=%.2f y=%.2f yaw=%.2f",
+			m_initial_pose->x, m_initial_pose->y, m_initial_pose->yaw);
 	}
 	
 	// ---------------- members ----------------
@@ -519,7 +579,6 @@ private:
 	std::shared_ptr<GoalHandle> m_active_goal_handle;
 	rclcpp::Subscription<amr_interfaces::msg::MapInfo>::SharedPtr m_map_info_sub;
 	bool m_map_ready = false;
-	bool m_nav2_started = false;
 	rclcpp::Client<ManageLifecycleNodes>::SharedPtr m_lifecycle_nav_client;
 	rclcpp::Client<ManageLifecycleNodes>::SharedPtr m_lifecycle_loc_client;
 	rclcpp::Publisher<PoseWithCovarianceStamped>::SharedPtr m_initial_pose_pub;
@@ -528,6 +587,9 @@ private:
 	rclcpp::TimerBase::SharedPtr m_lifecycle_retry_timer;
 	pid_t m_nav2_pid = -1;
 	std::string m_current_map_yaml;
+	std::string m_current_map_version;
+	Nav2State m_nav2_state = Nav2State::STOPPED;
+	bool m_initial_pose_published = false;
 };
 }
 

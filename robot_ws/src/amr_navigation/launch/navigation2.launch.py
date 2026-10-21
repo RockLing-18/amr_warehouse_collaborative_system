@@ -21,6 +21,8 @@ def generate_launch_description():
         'params_file', default=os.path.join(pkg_dir, 'config', 'nav2_params.yaml'))
     autostart = launch.substitutions.LaunchConfiguration(
         'autostart', default='false')
+    namespace = launch.substitutions.LaunchConfiguration(
+        'namespace', default='')
 
     return launch.LaunchDescription([
         # 声明新的 Launch 参数
@@ -32,6 +34,8 @@ def generate_launch_description():
                                              description='Full path to param file to load'),
         launch.actions.DeclareLaunchArgument('autostart', default_value=autostart,
                                              description='Automatically startup nav2'),
+        launch.actions.DeclareLaunchArgument('namespace', default_value=namespace,
+                                             description='Robot namespace'),
 
         launch.actions.IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
@@ -41,7 +45,8 @@ def generate_launch_description():
                 'map': map_yaml_path,
                 'use_sim_time': use_sim_time,
                 'params_file': nav2_param_path,
-                'autostart': autostart}.items(),
+                'autostart': autostart,
+                'namespace': namespace}.items(),
         ),
         launch_ros.actions.Node(
             package='rviz2',

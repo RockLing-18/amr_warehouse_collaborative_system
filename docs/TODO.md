@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：增加 rclcpp on_shutdown 清理 Nav2 子进程，Ctrl+C 时也能杀进程组；amr_navigation 编译通过。
+当前执行：navigation_server 引入 Nav2 状态机，namespace 化 lifecycle/initialpose/Nav2 launch，支持 map_version 变更检测和进程组优雅停止；编译通过。
 
 ## 3. 状态图例
 
