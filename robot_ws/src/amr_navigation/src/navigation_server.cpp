@@ -168,6 +168,11 @@ public:
 		RCLCPP_INFO(this->get_logger(), "navigation_server init done");
 	}
 
+	void shutdownNav2Process()
+	{
+		stopNav2Process();
+	}
+
 private:
 	// ---------------- robot_pose 发布 ----------------
 	void publishPose()
@@ -531,6 +536,11 @@ int main(int argc, char ** argv)
 	rclcpp::init(argc, argv);
 	auto node = std::make_shared<amr_navigation::NavigationServer>();
 	node->init();
+	rclcpp::on_shutdown(
+		[node]()
+		{
+			node->shutdownNav2Process();
+		});
 	rclcpp::spin(node);
 	rclcpp::shutdown();
 	return 0;
