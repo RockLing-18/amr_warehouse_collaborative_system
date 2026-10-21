@@ -400,6 +400,7 @@ private:
 		if(m_nav2_state == Nav2State::STOPPED ||
 		   m_nav2_state == Nav2State::FAILED)
 		{
+			RCLCPP_INFO(get_logger(), "map info ready, launching nav2");
 			launchNav2Process(msg->map_yaml);
 			m_nav2_state = Nav2State::STARTING_PROCESS;
 		}
@@ -446,7 +447,10 @@ private:
 		bool navStarted = sendStartup(m_lifecycle_nav_client);
 		bool locStarted = sendStartup(m_lifecycle_loc_client);
 		if(navStarted && locStarted)
+		{
 			m_nav2_state = Nav2State::WAITING_FOR_LOCALIZATION;
+			RCLCPP_INFO(get_logger(), "nav2 lifecycle startup requested");
+		}
 		else
 			m_nav2_state = Nav2State::STARTING_LIFECYCLE;
 	}

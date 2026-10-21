@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：navigation_server 引入 Nav2 状态机，namespace 化 lifecycle/initialpose/Nav2 launch，支持 map_version 变更检测和进程组优雅停止；编译通过。
+当前执行：增加 Nav2 状态机日志，navigation2.launch.py 的 rviz2 应用 namespace，解决地图显示 topic 不一致；编译通过。
 
 ## 3. 状态图例
 
