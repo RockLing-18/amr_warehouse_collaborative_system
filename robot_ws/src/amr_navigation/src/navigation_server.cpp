@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <fcntl.h>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
@@ -427,6 +428,23 @@ private:
 
 		if(pid == 0)
 		{
+			setpgid(0, 0);
+
+			std::string logPath =
+				"/tmp/amr_navigation_logs/nav2_" +
+				std::to_string(getpid()) +
+				".log";
+			int logFd = open(
+				logPath.c_str(),
+				O_WRONLY | O_CREAT | O_TRUNC,
+				0644);
+			if(logFd >= 0)
+			{
+				dup2(logFd, STDOUT_FILENO);
+				dup2(logFd, STDERR_FILENO);
+				close(logFd);
+			}
+
 			execlp(
 				"ros2",
 				"ros2",
@@ -451,7 +469,8 @@ private:
 		if(m_nav2_pid <= 0)
 			return;
 
-		kill(m_nav2_pid, SIGINT);
+		killpg(-m_nav2_pid, SIGINT);
+		killpg(-m_nav2_pid, SIGTERM);
 		waitpid(m_nav2_pid, nullptr, WNOHANG);
 		m_nav2_pid = -1;
 	}

@@ -22,7 +22,7 @@
 
 当前 SRS 版本：V0.12。
 
-当前执行：修复 navigation_server 重复声明 use_sim_time 导致的启动崩溃；amr_navigation 编译通过。
+当前执行：navigation_server 子进程改为进程组管理并独立日志，关闭 navigation_server 时能终止整个 Nav2 launch；编译通过。
 
 ## 3. 状态图例
 
