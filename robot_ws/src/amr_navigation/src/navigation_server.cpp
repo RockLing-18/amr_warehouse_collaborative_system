@@ -140,7 +140,7 @@ public:
 			});
 
 		m_lifecycle_retry_timer = this->create_wall_timer(
-			std::chrono::seconds(5),
+			std::chrono::seconds(1),
 			[this]()
 			{
 				handleStateMachineTick();
@@ -403,6 +403,7 @@ private:
 			RCLCPP_INFO(get_logger(), "map info ready, launching nav2");
 			launchNav2Process(msg->map_yaml);
 			m_nav2_state = Nav2State::STARTING_PROCESS;
+			handleStateMachineTick();
 		}
 	}
 
