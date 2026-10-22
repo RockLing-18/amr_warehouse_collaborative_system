@@ -94,6 +94,7 @@ private:
     std::thread m_messageThread;
     IdGeneratorU64_t m_idGenerator;
     WebSocketServerOptions m_options;
+    std::string m_protocolName;
 };
 
 

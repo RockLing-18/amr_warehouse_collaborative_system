@@ -87,6 +87,14 @@ bool MessageCodec::decodeRobotRegisterResp(const std::string& msg, RobotRegister
         resp.map_version = root.value("map_version", "");
         resp.map_update = root.value("map_update", false);
         resp.map_download_url = root.value("map_download_url", "");
+
+        if(root.contains("initial_pose") && root["initial_pose"].is_object())
+        {
+            resp.initial_x = root["initial_pose"].value("x", 0.0);
+            resp.initial_y = root["initial_pose"].value("y", 0.0);
+            resp.initial_yaw = root["initial_pose"].value("yaw", 0.0);
+            resp.has_initial_pose = true;
+        }
     }
     catch(const std::exception& e)
     {

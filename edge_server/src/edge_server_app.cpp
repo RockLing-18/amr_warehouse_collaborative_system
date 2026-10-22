@@ -20,6 +20,7 @@
 #include "service/bootstrap_service.h"
 #include "service/map_service.h"
 #include "service/task_service.h"
+#include "service/idle_point_allocator.h"
 
 #include "communication/amr_communication.h"
 
@@ -63,6 +64,7 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     m_topicManager = std::make_shared<TopicManager>(m_webSocketServer);
     m_webSocketMessageRouter = std::make_shared<WebSocketMessageRouter>(m_topicManager);
     m_robotManager = std::make_shared<RobotManager>();
+
     m_robotListPublisher = std::make_shared<RobotListPublisher>(m_robotManager, m_topicManager);
     m_robotListPublisher->start(config.robot.list_period_ms);
 
@@ -117,6 +119,56 @@ bool EdgeServerApp::init(const std::string& cfgPath)
 
     m_serviceContext->getMapService()->init(config.warehouse.id);
     m_serviceContext->getTaskService()->init(config.warehouse.id);
+
+    m_idlePointAllocator = std::make_shared<IdlePointAllocator>();
+
+    MapPackage activeMap;
+    if(m_serviceContext->getMapService()->getActiveMap(config.warehouse.id, activeMap))
+    {
+        if(!m_idlePointAllocator->load(activeMap.package_path))
+        {
+            LOG_WARN("load idle points failed path={}", activeMap.package_path);
+        }
+    }
+    else
+    {
+        LOG_WARN("no active map, idle point allocation unavailable");
+    }
+
+    m_robotManager->setPoseAllocator(
+        [this](Pose2D& pose)
+        {
+            if(!m_idlePointAllocator)
+                return false;
+            return m_idlePointAllocator->allocate(pose);
+        });
+
+    std::weak_ptr<IdlePointAllocator> allocatorWeak = m_idlePointAllocator;
+    m_serviceContext->getMapService()->setActiveMapChangedCallback(
+        [allocatorWeak](const MapPackage& package)
+        {
+            auto allocator = allocatorWeak.lock();
+            if(allocator && !allocator->load(package.package_path))
+            {
+                LOG_WARN("reload idle points failed path={}", package.package_path);
+            }
+        });
+
+    std::vector<RobotBaseInfo> restoredRobots;
+    std::vector<RobotRunningStatus> restoredStatuses;
+    if(SQLiteDB::Instance().LoadRobots(restoredRobots, restoredStatuses))
+    {
+        for(size_t i = 0; i < restoredRobots.size() && i < restoredStatuses.size(); ++i)
+        {
+            m_idlePointAllocator->markOccupied(restoredStatuses[i].pose);
+            m_robotManager->restoreRobot(restoredRobots[i], restoredStatuses[i]);
+        }
+        LOG_INFO("restore robots from db count={}", restoredRobots.size());
+    }
+    else
+    {
+        LOG_WARN("load robots from db failed");
+    }
 
     RobotServiceRuntime runtimeInfo;
     runtimeInfo.mapService = m_serviceContext->getMapService();

@@ -2,10 +2,10 @@
 
 **项目名称：** AMR 云边协同多机器人协调系统
 **英文名称：** Warehouse AMR Cloud-Edge Collaborative System
-**文档版本：** V0.17
+**文档版本：** V0.18
 **当前开发基线：** V1
 **文档状态：** Draft（已按当前代码基线校对）
-**最后更新：** 2026-10-10
+**最后更新：** 2026-10-22
 **运行环境：** Ubuntu 22.04、ROS2 Humble、Gazebo 11
 
 ---
@@ -114,7 +114,10 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 | D-048 | `map -> zone -> station -> location` 为货物点位映射关系。 | Confirmed |
 | D-049 | `zones.yaml` 中 zone 使用 `goods_ids` 列表记录可处理的货物。 | Confirmed |
 | D-050 | 任务消息不携带 target zone/station/location，由 AMR 按 `goods_id + task_type` 推导。 | Confirmed |
-| D-051 | V1 先假设所有 zone 均为货物相关区域；非货物区域后续再增加字段区分。 | Confirmed |
+| D-051 | V1 通过 `zone.type` 区分货物区域与充电区域（`IDLE`），其余 zone 默认货物相关；非货物区域后续再增加字段区分。 | Confirmed |
+| D-052 | `location.type` 使用 `WORK` / `WAIT` / `IDLE`，`zone.type` 使用 `UNLOAD` / `LOAD` / `STORAGE` / `IDLE`，工具端以选择方式录入。 | Confirmed |
+| D-053 | Edge 从当前生效地图包解析 `zones.yaml` / `stations.yaml`，将 `type=IDLE` 的 location 作为充电点，按顺序分配且检测占用。 | Confirmed |
+| D-054 | Edge 在注册响应中返回 `initial_pose {x, y, yaw}`，AMR 据此发布初始位姿。 | Confirmed |
 
 详细接口结构、消息字段和幂等规则见 `docs/requirements/interface-contract.md` 和 `docs/architecture/adr/`。
 
@@ -395,7 +398,7 @@ AMR 获取接入配置后，应能够连接 Edge-side MQTT Broker，并完成机
 
 Edge Server 应记录注册结果，并维护已接入 AMR 的基本信息。
 
-注册响应应至少包含 `code`、`message`、`robot_id`、`request_id`。当需要同步地图时，还应包含目标 `map_version` 和 `map_download_url`。
+注册响应应至少包含 `code`、`message`、`robot_id`、`request_id`。当需要同步地图时，还应包含目标 `map_version` 和 `map_download_url`。Edge 还应返回分配给该 AMR 的初始点位 `initial_pose`（`x`、`y`、`yaw`），V1 由 IDLE 充电点按顺序分配得到。
 
 注册失败时，AMR 应能够识别失败状态，并根据错误类型进行重试或等待处理。
 
@@ -1190,3 +1193,4 @@ V2 规划项不应自动转化为 V1 的开发任务。
 | V0.15 | 2026-10-12 | 确认 AMR 内部 ROS2 接口、新消息类型、货物申请、点位映射和导航失败处理。 |
 | V0.16 | 2026-10-12 | 确认 map/zone/station/location 关系、zone.goods_ids 映射和任务不携带 target 字段。 |
 | V0.17 | 2026-10-12 | 确认 `goods_ids` 使用列表，V1 先假设所有 zone 均为货物相关区域。 |
+| V0.18 | 2026-10-22 | 增加 IDLE 充电区域/点位类型与工具选择录入；Edge 解析地图包分配 IDLE 点；注册响应返回 `initial_pose`。 |

@@ -1,0 +1,13 @@
+robot:
+  id: "robot02"
+  initial_pose:
+    x: 1.0
+    y: 1.0
+    yaw: 0.0
+
+edge_server:
+  host: "192.168.8.211"
+  port: 8080
+
+map:
+  path: "/opt/amr/data/amr_runtime/map"

@@ -56,6 +56,9 @@ void AmrCommunication::setSubscribe()
     std::string sAMRStatusTopic = fmt::format(mqtt_topic::ROBOT_STATUS, "+");
     m_mqtt->setSubscribe(sAMRStatusTopic, 1);
 
+    // AMR 离线 Will
+    m_mqtt->setSubscribe(fmt::format(mqtt_topic::ROBOT_WILL, "+"), 1);
+
     m_mqtt->setSubscribe(fmt::format(mqtt_topic::AMR_TASK_GOODS_REQUEST, "+"), 1);
     m_mqtt->setSubscribe(fmt::format(mqtt_topic::AMR_TASK_STATUS, "+"), 1);
 }
@@ -70,7 +73,7 @@ void AmrCommunication::registerHandler()
         });
     
     m_router->registerHandler(
-        mqtt_topic::ROBOT_STATUS,
+        fmt::format(mqtt_topic::ROBOT_STATUS, "+"),
         [this](const std::string& msg)
         {
             robotStatusHandler(msg);

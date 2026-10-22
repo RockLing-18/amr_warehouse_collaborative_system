@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <functional>
 #include "types.h"
 
 
@@ -29,6 +30,9 @@ public:
 
     bool checkMapUpdate(const std::string& warehouse_id, const std::string& robot_version, MapUpdateInfo& info);
 
+    using ActiveMapChangedCallback = std::function<void(const MapPackage&)>;
+    void setActiveMapChangedCallback(ActiveMapChangedCallback callback);
+
 private:
     bool checkRequest(const MapUploadRequest& request);
     bool prepareMapDirectory(const std::string& warehouse_id, const std::string& version, std::string& target_path);
@@ -36,6 +40,7 @@ private:
 
 private:
     std::string m_warehouseId;
+    ActiveMapChangedCallback m_activeMapChangedCallback;
 };
 
 

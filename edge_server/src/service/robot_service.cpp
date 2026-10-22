@@ -2,6 +2,7 @@
 #include "robot/robot_manager.h"
 #include "mqtt/mqtt_client.h"
 #include "mqtt/mqtt_topic.h"
+#include "database/sqlite_db.h"
 
 #include "nlohmann/json.hpp"
 #include "utils/LogDefine.h"
@@ -39,6 +40,21 @@ bool RobotService::handleRegister(const RobotRegisterRequest& req, RobotRegister
         resp.code = -1;
         resp.message = "register failed";
         return false;
+    }
+
+    RobotBaseInfo registeredRobot;
+    RobotRunningStatus registeredStatus;
+    if(m_robotManager->getRobotBaseInfo(robot.robot_id, registeredRobot) &&
+       m_robotManager->getRobotStatus(robot.robot_id, registeredStatus))
+    {
+        SQLiteDB::Instance().UpsertRobot(registeredRobot, registeredStatus);
+
+        resp.initial_pose = registeredStatus.pose;
+        resp.has_initial_pose = true;
+    }
+    else
+    {
+        LOG_WARN("persist robot failed, cannot read back registered robot id={}", robot.robot_id);
     }
 
     MapUpdateInfo mapInfo;

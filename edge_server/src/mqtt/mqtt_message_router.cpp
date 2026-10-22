@@ -1,5 +1,6 @@
 #include "mqtt/mqtt_message_router.h"
 #include "utils/LogDefine.h"
+#include <vector>
 #include "mqtt/mqtt_topic.h"
 #include "mqtt/mqtt_client.h"
 #include "robot/robot_manager.h"
@@ -83,13 +84,64 @@ void MqttMessageRouter::messageConsumerThread()
 void MqttMessageRouter::messageRouter(const std::string& topic, const std::string& message)
 {
     auto iter = m_msgHandlers.find(topic);
-    if(iter == m_msgHandlers.end())
+    if(iter != m_msgHandlers.end())
     {
-        LOG_WARN("unknown mqtt topic {}", topic);
+        iter->second(message);
         return;
     }
 
-    iter->second(message);
+    for(const auto& item : m_msgHandlers)
+    {
+        if(topicMatches(item.first, topic))
+        {
+            item.second(message);
+            return;
+        }
+    }
+
+    LOG_WARN("unknown mqtt topic {}", topic);
+}
+
+bool MqttMessageRouter::topicMatches(const std::string& filter, const std::string& topic)
+{
+    auto split = [](const std::string& input, std::vector<std::string>& levels)
+    {
+        std::size_t start = 0;
+        while(start <= input.size())
+        {
+            std::size_t pos = input.find('/', start);
+            if(pos == std::string::npos)
+            {
+                levels.push_back(input.substr(start));
+                break;
+            }
+
+            levels.push_back(input.substr(start, pos - start));
+            start = pos + 1;
+        }
+    };
+
+    std::vector<std::string> filterLevels;
+    std::vector<std::string> topicLevels;
+    split(filter, filterLevels);
+    split(topic, topicLevels);
+
+    for(std::size_t i = 0; i < filterLevels.size(); ++i)
+    {
+        const std::string& level = filterLevels[i];
+        if(level == "#")
+        {
+            return i == filterLevels.size() - 1;
+        }
+
+        if(i >= topicLevels.size())
+            return false;
+
+        if(level != "+" && level != topicLevels[i])
+            return false;
+    }
+
+    return filterLevels.size() == topicLevels.size();
 }
 
 }

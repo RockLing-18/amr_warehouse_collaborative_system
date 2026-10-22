@@ -193,7 +193,7 @@ map -> zone -> station -> location
 <warehouse_dir>/stations.yaml
 ```
 
-`location.type` 需要支持多种类型，例如 `load`、`unload`、`wait`、`park`、`work`。
+`location.type` 使用 `WORK` / `WAIT` / `IDLE`：`WORK` 为作业点、`WAIT` 为等待点、`IDLE` 为充电点。
 
 `location.pose.yaw` 需要支持编辑，不再固定为 0。
 
@@ -203,17 +203,17 @@ map -> zone -> station -> location
 zones:
   - id: "unload_zone_A"
     name: "A 卸货区"
-    type: "unload"
+    type: "UNLOAD"
     goods_ids: ["A"]
     polygon: [...]
 ```
 
 规则：
 
-- `UNLOAD` 任务：在 `type=unload` 且 `goods_ids` 包含目标货物的 zone 中找目标 station/location。
-- `LOAD` 任务：在 `type=load` 且 `goods_ids` 包含目标货物的 zone 中找目标 station/location。
+- `UNLOAD` 任务：在 `type=UNLOAD` 且 `goods_ids` 包含目标货物的 zone 中找目标 station/location。
+- `LOAD` 任务：在 `type=LOAD` 且 `goods_ids` 包含目标货物的 zone 中找目标 station/location。
 - 任务消息不携带 `target_zone_id`、`target_station_id`、`target_location_id`。
-- V1 先假设 `zones.yaml` 中的 zone 都是货物相关区域；后续如出现非货物区域，再增加字段区分。
+- V1 通过 `zone.type` 区分货物区域与充电区域（`IDLE`）；其余 zone 默认货物相关，后续如出现其他非货物区域，再增加字段区分。
 
 ### 9.4 心跳
 

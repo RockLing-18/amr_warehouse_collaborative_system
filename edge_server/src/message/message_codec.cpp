@@ -66,6 +66,9 @@ std::string MessageCodec::encodeRegisterResp(const RobotRegisterResponse& resp)
     rsp["map_update"] = resp.map_update;
     rsp["map_version"] = resp.map_version;
     rsp["map_download_url"] = resp.map_download_url;
+    rsp["initial_pose"]["x"] = resp.initial_pose.x;
+    rsp["initial_pose"]["y"] = resp.initial_pose.y;
+    rsp["initial_pose"]["yaw"] = resp.initial_pose.yaw;
     return rsp.dump();
 }
 

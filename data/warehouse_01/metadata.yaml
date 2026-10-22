@@ -1,0 +1,9 @@
+warehouse_id: warehouse_01
+version: '1.0'
+create_time: '2026-10-16 10:26:59'
+files:
+  map: warehouse_01.yaml
+  image: warehouse_01.pgm
+  zone: zones.yaml
+  station: stations.yaml
+  wall: walls.yaml

@@ -43,6 +43,7 @@ private:
     bool m_initial_pose_published = false;
     bool m_registered = false;
     bool m_map_ready = false;
+    bool m_edge_online = false;
     rclcpp::Publisher<amr_interfaces::msg::EdgeStatus>::SharedPtr m_edge_status_pub;
     rclcpp::Publisher<amr_interfaces::msg::InitialPose>::SharedPtr m_initial_pose_pub;
     rclcpp::TimerBase::SharedPtr m_register_timer;

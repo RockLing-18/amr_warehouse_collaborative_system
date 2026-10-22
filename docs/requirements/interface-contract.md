@@ -623,6 +623,65 @@ Edge 处理完 AMR 的 `STATUS`、`CARRY_COMPLETED` 或 `CARRY_ABORTED` 消息�
 
 AMR 收到 ACK 后，删除本地 `pending_task_reports.json` 中对应的待补报记录。
 
+### 4.11 AMR 注册消息
+
+AMR 启动后通过 `amr/register/request` 向 Edge 发起注册，Edge 通过 `amr/register/response/{robot_id}` 返回结果。
+
+注册请求：
+
+```json
+{
+  "robot_id": "robot_01",
+  "warehouse_id": "warehouse_01",
+  "map_version": "",
+  "request_id": "robot_01_1792661398945",
+  "timestamp": 1792661398945
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `robot_id` | string | 是 | 机器人业务身份。 |
+| `warehouse_id` | string | 是 | 所属仓库。 |
+| `map_version` | string | 是 | 本地地图版本，可为空。 |
+| `request_id` | string | 是 | 注册请求幂等标识。 |
+| `timestamp` | integer | 是 | 注册时间戳（毫秒）。 |
+
+注册响应：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "robot_id": "robot_01",
+  "request_id": "robot_01_1792661398945",
+  "map_update": true,
+  "map_version": "1.0",
+  "map_download_url": "/api/maps/download?warehouse_id=warehouse_01",
+  "initial_pose": {
+    "x": 0.0,
+    "y": 0.0,
+    "yaw": 1.57
+  }
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `code` | integer | 是 | 0 表示成功。 |
+| `message` | string | 否 | 可读结果信息。 |
+| `robot_id` | string | 是 | 机器人业务身份。 |
+| `request_id` | string | 是 | 与请求一致。 |
+| `map_update` | boolean | 是 | 是否需要更新地图。 |
+| `map_version` | string | 否 | Edge 当前生效地图版本。 |
+| `map_download_url` | string | 否 | 需要更新地图时的下载地址。 |
+| `initial_pose` | object | 是 | Edge 分配的初始点位（IDLE 充电点）。 |
+| `initial_pose.x` / `initial_pose.y` / `initial_pose.yaw` | double | 是 | 初始位姿。 |
+
 ## 5. AMR 内部 ROS2 接口名称
 
 AMR 内部 Topic/Service/Action 名称统一定义在：

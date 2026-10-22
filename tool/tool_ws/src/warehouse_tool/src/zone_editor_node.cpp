@@ -7,6 +7,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <limits>
 #include "warehouse_tool/yaml_zone_manager.h"
 #include "warehouse_tool/zone_marker_publisher.h"
 
@@ -170,14 +171,42 @@ private:
         std::getline(std::cin, zone.info.id);
         std::cout << "zone name: ";
         std::getline(std::cin, zone.info.name);
-        std::cout << "zone type: ";
-        std::getline(std::cin, zone.info.type);
+        zone.info.type = selectZoneType();
 
         std::string goodsLine;
-        std::cout << "goods_ids (comma separated): ";
+        std::cout << "goods_ids (comma separated, empty for IDLE): ";
         std::getline(std::cin, goodsLine);
         zone.info.goods_ids = splitGoodsIds(goodsLine);
         return zone;
+    }
+
+    std::string selectZoneType()
+    {
+        std::cout
+            << "zone type:\n"
+            << " 1.UNLOAD\n"
+            << " 2.LOAD\n"
+            << " 3.STORAGE\n"
+            << " 4.IDLE\n"
+            << "select: " << std::flush;
+
+        int index = -1;
+        while(!(std::cin >> index))
+        {
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cout << "input number: " << std::flush;
+        }
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+        switch(index)
+        {
+        case 1: return "UNLOAD";
+        case 2: return "LOAD";
+        case 3: return "STORAGE";
+        case 4: return "IDLE";
+        default: return "UNLOAD";
+        }
     }
 
     static std::vector<std::string> splitGoodsIds(const std::string& line)

@@ -57,6 +57,10 @@ struct RobotRegisterResponse
     std::string map_version;
     std::string map_download_url;
     bool map_update = false;
+    double initial_x = 0.0;
+    double initial_y = 0.0;
+    double initial_yaw = 0.0;
+    bool has_initial_pose = false;
 };
 
 }

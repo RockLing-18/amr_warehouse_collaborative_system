@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include "utils/LogDefine.h"
+#include "utils/CommonFunc.h"
 #include "sqlite/sqlite3.h"
 #include "nlohmann/json.hpp"
 
@@ -547,6 +548,246 @@ bool SQLiteDB::SetActiveMap(const std::string& warehouse_id, int64_t package_id,
         nullptr,
         nullptr);
     return result;
+}
+
+bool SQLiteDB::UpsertRobot(const RobotBaseInfo& robot, const RobotRunningStatus& status)
+{
+    std::lock_guard<std::mutex> lock(m_Mu);
+    if(!m_pDB)
+    {
+        LOG_ERROR("database not opened");
+        return false;
+    }
+
+    std::string now = std::to_string(utils::getCurrentTimeMs());
+    std::string registerTimestamp = std::to_string(robot.register_timestamp);
+
+    BeginTransaction();
+
+    const char* robotSql = R"(
+        INSERT INTO tbl_robot
+        (
+            robot_id,
+            warehouse_id,
+            robot_name,
+            register_timestamp,
+            updated_at
+        )
+        VALUES(?,?,?,?,?)
+        ON CONFLICT(robot_id) DO UPDATE SET
+            warehouse_id=excluded.warehouse_id,
+            robot_name=excluded.robot_name,
+            register_timestamp=excluded.register_timestamp,
+            updated_at=excluded.updated_at;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, robotSql, -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_ERROR("prepare upsert robot failed:{}", sqlite3_errmsg(m_pDB));
+        Rollback();
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, robot.robot_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, robot.warehouse_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, registerTimestamp.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, now.c_str(), -1, SQLITE_TRANSIENT);
+
+    if(sqlite3_step(stmt) != SQLITE_DONE)
+    {
+        LOG_ERROR("upsert robot failed:{}", sqlite3_errmsg(m_pDB));
+        sqlite3_finalize(stmt);
+        Rollback();
+        return false;
+    }
+    sqlite3_finalize(stmt);
+
+    if(!robot.instance_id.empty())
+    {
+        std::string modelName = "amr_" + robot.robot_id + "_" + robot.instance_id;
+
+        const char* instanceSql = R"(
+            INSERT INTO tbl_robot_instance
+            (
+                robot_id,
+                instance_id,
+                model_name,
+                lifecycle_state,
+                created_at,
+                updated_at
+            )
+            VALUES(?,?,?,?,?,?)
+            ON CONFLICT(robot_id, instance_id) DO UPDATE SET
+                model_name=excluded.model_name,
+                lifecycle_state=excluded.lifecycle_state,
+                updated_at=excluded.updated_at;
+        )";
+
+        sqlite3_stmt* instanceStmt = nullptr;
+        if(sqlite3_prepare_v2(m_pDB, instanceSql, -1, &instanceStmt, nullptr) != SQLITE_OK)
+        {
+            LOG_ERROR("prepare upsert robot instance failed:{}", sqlite3_errmsg(m_pDB));
+            Rollback();
+            return false;
+        }
+
+        sqlite3_bind_text(instanceStmt, 1, robot.robot_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(instanceStmt, 2, robot.instance_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(instanceStmt, 3, modelName.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(instanceStmt, 4, "REGISTERED", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(instanceStmt, 5, registerTimestamp.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(instanceStmt, 6, now.c_str(), -1, SQLITE_TRANSIENT);
+
+        if(sqlite3_step(instanceStmt) != SQLITE_DONE)
+        {
+            LOG_ERROR("upsert robot instance failed:{}", sqlite3_errmsg(m_pDB));
+            sqlite3_finalize(instanceStmt);
+            Rollback();
+            return false;
+        }
+        sqlite3_finalize(instanceStmt);
+    }
+
+    nlohmann::json poseJson;
+    poseJson["x"] = status.pose.x;
+    poseJson["y"] = status.pose.y;
+    poseJson["yaw"] = status.pose.yaw;
+
+    const char* statusSql = R"(
+        INSERT INTO tbl_robot_status
+        (
+            robot_id,
+            state,
+            online,
+            battery,
+            pose,
+            current_task_id,
+            updated_at
+        )
+        VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(robot_id) DO UPDATE SET
+            state=excluded.state,
+            online=excluded.online,
+            battery=excluded.battery,
+            pose=excluded.pose,
+            current_task_id=excluded.current_task_id,
+            updated_at=excluded.updated_at;
+    )";
+
+    sqlite3_stmt* statusStmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, statusSql, -1, &statusStmt, nullptr) != SQLITE_OK)
+    {
+        LOG_ERROR("prepare upsert robot status failed:{}", sqlite3_errmsg(m_pDB));
+        Rollback();
+        return false;
+    }
+
+    sqlite3_bind_text(statusStmt, 1, robot.robot_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statusStmt, 2, RobotStateToString(status.state).c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(statusStmt, 3, status.online ? 1 : 0);
+    sqlite3_bind_double(statusStmt, 4, status.battery);
+    sqlite3_bind_text(statusStmt, 5, poseJson.dump().c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statusStmt, 6, status.task_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statusStmt, 7, now.c_str(), -1, SQLITE_TRANSIENT);
+
+    if(sqlite3_step(statusStmt) != SQLITE_DONE)
+    {
+        LOG_ERROR("upsert robot status failed:{}", sqlite3_errmsg(m_pDB));
+        sqlite3_finalize(statusStmt);
+        Rollback();
+        return false;
+    }
+    sqlite3_finalize(statusStmt);
+
+    Commit();
+    return true;
+}
+
+bool SQLiteDB::LoadRobots(std::vector<RobotBaseInfo>& robots, std::vector<RobotRunningStatus>& statuses)
+{
+    std::lock_guard<std::mutex> lock(m_Mu);
+    if(!m_pDB)
+    {
+        LOG_ERROR("database not opened");
+        return false;
+    }
+
+    robots.clear();
+    statuses.clear();
+
+    const char* sql = R"(
+        SELECT
+            r.robot_id,
+            r.warehouse_id,
+            r.register_timestamp,
+            (SELECT i.instance_id FROM tbl_robot_instance i
+              WHERE i.robot_id = r.robot_id ORDER BY i.id DESC LIMIT 1) AS instance_id,
+            s.state,
+            s.online,
+            s.battery,
+            s.pose,
+            s.current_task_id
+        FROM tbl_robot r
+        LEFT JOIN tbl_robot_status s ON s.robot_id = r.robot_id;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, sql, -1, &stmt, nullptr) != SQLITE_OK)
+    {
+        LOG_ERROR("prepare load robots failed:{}", sqlite3_errmsg(m_pDB));
+        return false;
+    }
+
+    while(sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        RobotBaseInfo robot;
+        robot.robot_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        robot.warehouse_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+
+        const char* regTs = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        if(regTs)
+        {
+            try { robot.register_timestamp = std::stoull(regTs); }
+            catch(...) { robot.register_timestamp = 0; }
+        }
+
+        const char* instanceId = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        if(instanceId)
+            robot.instance_id = instanceId;
+
+        RobotRunningStatus status;
+        status.robot_id = robot.robot_id;
+        status.state = RobotState::OFFLINE;
+        status.online = false;
+        status.battery = sqlite3_column_double(stmt, 6);
+
+        const char* pose = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
+        if(pose)
+        {
+            try
+            {
+                auto poseJson = nlohmann::json::parse(pose);
+                status.pose.x = poseJson.value("x", 0.0);
+                status.pose.y = poseJson.value("y", 0.0);
+                status.pose.yaw = poseJson.value("yaw", 0.0);
+            }
+            catch(...)
+            {
+            }
+        }
+
+        const char* taskId = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
+        if(taskId)
+            status.task_id = taskId;
+
+        robots.push_back(robot);
+        statuses.push_back(status);
+    }
+
+    sqlite3_finalize(stmt);
+    return true;
 }
 
 bool SQLiteDB::CreateTask(const TransportTask& task)

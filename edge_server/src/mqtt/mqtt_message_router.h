@@ -27,6 +27,7 @@ public:
 private:
     void messageConsumerThread();
     void messageRouter(const std::string& topic, const std::string& message);
+    static bool topicMatches(const std::string& filter, const std::string& topic);
 
 private:
     std::atomic<bool> m_running{false};

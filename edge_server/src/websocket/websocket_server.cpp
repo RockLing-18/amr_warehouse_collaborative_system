@@ -119,10 +119,12 @@ bool WebSocketServer::start(const std::string &/*host*/, int port, const std::st
 {
     if(m_running)
         return false;
-    
+
+    m_protocolName = protocolName;
+
     m_impl->protocols[0] =
      {
-        protocolName.c_str(),
+        m_protocolName.c_str(),
         wsCallback,
         sizeof(uint64_t), // 存客户端 ID
         4096,

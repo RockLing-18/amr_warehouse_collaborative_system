@@ -21,6 +21,7 @@ find_package(nav2_msgs REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(amr_interfaces REQUIRED)
 find_package(amr_common REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 # ============================
 # TF Helper Library
@@ -89,6 +90,7 @@ ament_target_dependencies(
     nav2_msgs
     amr_interfaces
     amr_common
+    ament_index_cpp
 )
 
 # ============================

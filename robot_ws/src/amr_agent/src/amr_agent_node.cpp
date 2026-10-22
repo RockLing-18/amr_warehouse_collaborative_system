@@ -71,6 +71,15 @@ bool AmrAgentNode::init()
             amr_interfaces::msg::EdgeStatus msg;
             msg.online = online;
             m_edge_status_pub->publish(msg);
+
+            bool wasOnline = m_edge_online;
+            m_edge_online = online;
+            if(online && !wasOnline)
+            {
+                LOG_INFO("edge recovered, re-register robot");
+                m_registered = false;
+                sendRegisterRequest();
+            }
         });
 
     m_mapManager = std::make_shared<MapManager>(shared_from_this());
@@ -79,8 +88,6 @@ bool AmrAgentNode::init()
         LOG_ERROR("map manager init failed");
         return false;
     }
-
-    publishInitialPoseIfReady();
 
     m_taskBridge = std::make_shared<TaskBridge>(
         shared_from_this(),
@@ -149,6 +156,16 @@ void AmrAgentNode::onRegisterResponse(const RobotRegisterResponse& response)
 
     if(response.code == 0)
         m_registered = true;
+
+    if(response.has_initial_pose)
+    {
+        m_initial_x = response.initial_x;
+        m_initial_y = response.initial_y;
+        m_initial_yaw = response.initial_yaw;
+        LOG_INFO(
+            "receive initial pose x=%.2f y=%.2f yaw=%.2f",
+            m_initial_x, m_initial_y, m_initial_yaw);
+    }
 
     m_map_ready = m_mapManager && m_mapManager->isReady();
     if(m_map_ready)

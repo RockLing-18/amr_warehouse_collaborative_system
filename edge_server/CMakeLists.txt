@@ -22,6 +22,13 @@ pkg_check_modules(
     libwebsockets
 )
 
+pkg_check_modules(
+    LIBZIP
+    REQUIRED
+    IMPORTED_TARGET
+    libzip
+)
+
 # ===============================
 # source files
 # ===============================
@@ -68,6 +75,7 @@ target_link_libraries(
     PRIVATE
     Threads::Threads
     PkgConfig::LIBWEBSOCKETS
+    PkgConfig::LIBZIP
     yaml-cpp
     PahoMqttCpp::paho-mqttpp3
 )

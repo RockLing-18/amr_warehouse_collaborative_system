@@ -10,6 +10,12 @@ void RobotManager::setEventCallback(RobotEventCallback cb)
     m_callback = std::move(cb);
 }
 
+void RobotManager::setPoseAllocator(PoseAllocator allocator)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_poseAllocator = std::move(allocator);
+}
+
 bool RobotManager::registerRobot(const RobotBaseInfo& robot)
 {
     if (robot.robot_id.empty())
@@ -18,29 +24,26 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
         return false;
     }
 
-    std::string instanceId = utils::ms_to_md_hms(robot.register_timestamp);
     std::lock_guard<std::mutex> lock(m_mutex);
     auto iter = m_robots.find(robot.robot_id);
     if(iter != m_robots.end())
     {
-        // 存在消息重复的可能, 避免重复
-        if (iter->second.getInstanceInfo().instance_id == instanceId)
-            return false;
+        // 已存在（含重启后从数据库恢复的机器人）：保留原 instance_id，
+        // 仅刷新基础信息，避免 instance_id 变化导致仿真侧误判需要重建模型。
+        RobotBaseInfo robotNew(robot);
+        robotNew.instance_id = iter->second.getInstanceInfo().instance_id;
+        iter->second.updateBaseInfo(robotNew);
 
-        // // 已存在，可以理解为重新上线
-        // RobotBaseInfo robotNew;
-        // robotNew = robot;
-        // robotNew.instance_id = instanceId;
-        // iter->second.updateBaseInfo(robotNew);
+        LOG_INFO("robot re-register, robot_id={} instance_id={}",
+            robotNew.robot_id, robotNew.instance_id);
 
-        // LOG_INFO("robot re-register, robot_id={} instance_id={}", robot.robot_id, instanceId);
+        if(m_callback)
+            m_callback(RobotEvent::REGISTER);
 
-        // if(m_callback)
-        //     m_callback(RobotEvent::REGISTER);
-
-        // return true;
+        return true;
     }
 
+    std::string instanceId = utils::ms_to_md_hms(robot.register_timestamp);
     RobotEntity robotEntity;
     RobotBaseInfo robotNew(robot);
     robotNew.instance_id = instanceId;
@@ -50,8 +53,10 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
     robotStatus.online = true;
     robotStatus.timestamp = utils::getCurrentTime();
 
-    // 获取AMR 位置, 1.充电点  2.最后的位置
-    robotStatus.pose = getRobotPose(robotNew.robot_id);
+    // 获取AMR 初始点位：优先分配 IDLE 充电点，失败回退到原点
+    robotStatus.pose = Pose2D{};
+    if(m_poseAllocator)
+        m_poseAllocator(robotStatus.pose);
     robotEntity.updateStatus(robotStatus);
     m_robots[robotNew.robot_id] = robotEntity;
 
@@ -60,6 +65,40 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
     if(m_callback)
         m_callback(RobotEvent::REGISTER);
 
+    return true;
+}
+
+void RobotManager::restoreRobot(const RobotBaseInfo& robot, const RobotRunningStatus& status)
+{
+    if(robot.robot_id.empty())
+        return;
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if(m_robots.find(robot.robot_id) != m_robots.end())
+        return;
+
+    RobotEntity entity;
+    entity.updateBaseInfo(robot);
+
+    RobotRunningStatus restored = status;
+    restored.robot_id = robot.robot_id;
+    restored.online = false;
+    restored.state = RobotState::OFFLINE;
+    entity.updateStatus(restored);
+
+    m_robots[robot.robot_id] = entity;
+    LOG_INFO("robot restored from db, robot_id={} instance_id={}",
+        robot.robot_id.c_str(), robot.instance_id.c_str());
+}
+
+bool RobotManager::getRobotBaseInfo(const std::string& robot_id, RobotBaseInfo& robot)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto iter = m_robots.find(robot_id);
+    if(iter == m_robots.end())
+        return false;
+
+    robot = iter->second.getBaseInfo();
     return true;
 }
 
@@ -122,25 +161,6 @@ std::vector<RobotInstanceInfo> RobotManager::getRobotList()
     }
 
     return vRobot;
-}
-
-Pose2D RobotManager::getRobotPose(const std::string& robot_id)
-{
-    Pose2D pose;
-    if(robot_id == "robot001")
-    {
-        pose.x = 0.0;
-        pose.y = 0.0;
-        pose.yaw = 1.57;
-    }
-    else if(robot_id == "robot002")
-    {
-        pose.x = 1.0;
-        pose.y = 1.0;
-        pose.yaw = 0;
-    }
-
-    return pose;
 }
 
 }

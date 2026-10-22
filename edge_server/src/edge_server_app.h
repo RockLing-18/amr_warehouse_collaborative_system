@@ -12,6 +12,7 @@ class ServiceContext;
 class AmrCommunication;
 
 class RobotManager;
+class IdlePointAllocator;
 class WebSocketServer;
 class RobotListPublisher;
 class TopicManager;
@@ -35,6 +36,7 @@ private:
     std::shared_ptr<AmrCommunication> m_amrCommunication;
 
     std::shared_ptr<RobotManager> m_robotManager;
+    std::shared_ptr<IdlePointAllocator> m_idlePointAllocator;
     std::shared_ptr<WebSocketServer> m_webSocketServer;
     std::shared_ptr<RobotListPublisher> m_robotListPublisher;
     std::shared_ptr<TopicManager> m_topicManager;

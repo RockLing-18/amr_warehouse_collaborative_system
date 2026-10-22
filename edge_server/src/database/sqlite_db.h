@@ -28,6 +28,10 @@ public:
     bool GetActiveMap(const std::string& warehouse_id, MapPackage& package);
     bool SetActiveMap(const std::string& warehouse_id, int64_t package_id, const std::string& version);
 
+    // robot
+    bool UpsertRobot(const RobotBaseInfo& robot, const RobotRunningStatus& status);
+    bool LoadRobots(std::vector<RobotBaseInfo>& robots, std::vector<RobotRunningStatus>& statuses);
+
     // task
     bool CreateTask(const TransportTask& task);
     bool GetTask(const std::string& task_id, TransportTask& task);

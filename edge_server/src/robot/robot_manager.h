@@ -35,6 +35,12 @@ public:
     // 注册机器人
     bool registerRobot(const RobotBaseInfo& robot);
 
+    // 启动时从数据库恢复机器人
+    void restoreRobot(const RobotBaseInfo& robot, const RobotRunningStatus& status);
+
+    // 获取机器人基础信息
+    bool getRobotBaseInfo(const std::string& robot_id, RobotBaseInfo& robot);
+
     // 注销机器人
     bool unregisterRobot(const std::string& robot_id);
 
@@ -47,11 +53,13 @@ public:
     // 获取所有机器人 推送给仿真管理服务
     std::vector<RobotInstanceInfo> getRobotList();
 
-    // 获取机器人位置
-    Pose2D getRobotPose(const std::string& robot_id);
+    // 初始点位分配器（IDLE 充电点）
+    using PoseAllocator = std::function<bool(Pose2D&)>;
+    void setPoseAllocator(PoseAllocator allocator);
 
 private:
     RobotEventCallback m_callback;
+    PoseAllocator m_poseAllocator;
     std::unordered_map<std::string, RobotEntity> m_robots;
     std::mutex m_mutex;
 };

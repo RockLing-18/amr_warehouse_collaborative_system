@@ -224,10 +224,7 @@ private:
         m_preview_location.pose.x = m_pending_x;
         m_preview_location.pose.y = m_pending_y;
 
-        std::cout << "location type (WORK/WAIT): ";
-        std::getline(std::cin, m_preview_location.type);
-        if(m_preview_location.type != "WORK" && m_preview_location.type != "WAIT")
-            m_preview_location.type = "WORK";
+        m_preview_location.type = selectLocationType();
 
         std::cout << "location yaw: ";
         std::string yawLine;
@@ -252,6 +249,33 @@ private:
         m_pending_location = false;
         if(m_collecting)
             m_receiver->start();
+    }
+
+    std::string selectLocationType()
+    {
+        std::cout
+            << "location type:\n"
+            << " 1.WORK\n"
+            << " 2.WAIT\n"
+            << " 3.IDLE\n"
+            << "select: " << std::flush;
+
+        int index = -1;
+        while(!(std::cin >> index))
+        {
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cout << "input number: " << std::flush;
+        }
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+        switch(index)
+        {
+        case 1: return "WORK";
+        case 2: return "WAIT";
+        case 3: return "IDLE";
+        default: return "WORK";
+        }
     }
 
     void onPointClicked(const geometry_msgs::msg::PointStamped& point)

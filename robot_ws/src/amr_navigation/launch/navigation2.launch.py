@@ -46,6 +46,7 @@ def generate_launch_description():
                 'use_sim_time': use_sim_time,
                 'params_file': nav2_param_path,
                 'autostart': autostart,
+                'use_namespace': 'true',
                 'namespace': namespace}.items(),
         ),
         launch_ros.actions.Node(

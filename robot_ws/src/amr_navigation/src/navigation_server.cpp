@@ -38,6 +38,7 @@
 #include "amr_navigation/tf_helper.h"
 #include "amr_navigation/navigation_manager.h"
 #include "amr_common/ros_interface_names.h"
+#include "ament_index_cpp/get_package_share_directory.hpp"
 
 namespace amr_navigation
 {
@@ -68,9 +69,20 @@ public:
 	NavigationServer() : Node("navigation_server")
 	{
 		this->declare_parameter("pose_publish_rate_hz", 1.0);
-		this->declare_parameter<std::string>(
-			"nav2_params_file",
-			"/home/zyr/code/amr_warehouse_collaborative_system/robot_ws/src/amr_navigation/config/nav2_params.yaml");
+
+		std::string defaultParamsFile;
+		try
+		{
+			defaultParamsFile =
+				ament_index_cpp::get_package_share_directory("amr_navigation") +
+				"/config/nav2_params.yaml";
+		}
+		catch(const std::exception& e)
+		{
+			RCLCPP_WARN(get_logger(), "resolve amr_navigation share dir failed: %s", e.what());
+		}
+
+		this->declare_parameter<std::string>("nav2_params_file", defaultParamsFile);
 	}
 
 	~NavigationServer()

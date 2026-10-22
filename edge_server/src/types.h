@@ -209,6 +209,8 @@ struct RobotRegisterResponse
     std::string map_version;
     std::string map_download_url;
     bool map_update = false;
+    Pose2D initial_pose;
+    bool has_initial_pose = false;
 };
 
 struct RobotRegWillPush
@@ -298,7 +300,7 @@ inline std::string RobotStateToString(RobotState s)
 {
     switch(s)
     {
-        case RobotState::OFFLINE: return "UNKOFFLINENOWN";
+        case RobotState::OFFLINE: return "OFFLINE";
         case RobotState::INITIALIZING: return "INITIALIZING";
         case RobotState::IDLE: return "IDLE";
         case RobotState::WORKING: return "WORKING";

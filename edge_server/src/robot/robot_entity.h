@@ -21,6 +21,11 @@ public:
         return info;
     }
 
+    RobotBaseInfo getBaseInfo() const
+    {
+        return m_info;
+    }
+
     void updateBaseInfo(RobotBaseInfo info)
     {
         m_info = info;

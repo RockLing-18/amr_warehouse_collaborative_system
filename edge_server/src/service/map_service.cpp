@@ -17,6 +17,11 @@ void MapService::init(const std::string& warehouseId)
     m_warehouseId = warehouseId;
 }
 
+void MapService::setActiveMapChangedCallback(ActiveMapChangedCallback callback)
+{
+    m_activeMapChangedCallback = std::move(callback);
+}
+
 bool MapService::uploadMap(const MapUploadRequest& request)
 {
     if(!checkRequest(request))
@@ -56,6 +61,12 @@ bool MapService::uploadMap(const MapUploadRequest& request)
         "upload map success warehouse:{} version:{}",
         package.warehouse_id,
         package.version);
+
+    if(package.activate && m_activeMapChangedCallback)
+    {
+        m_activeMapChangedCallback(package);
+    }
+
     return true;
 }
 
@@ -90,7 +101,13 @@ bool MapService::activateMap(const std::string& warehouse_id, const std::string&
     }
 
     // 设置active
-    return db.SetActiveMap(warehouse_id, package.id, package.version);
+    bool ret = db.SetActiveMap(warehouse_id, package.id, package.version);
+    if(ret && m_activeMapChangedCallback)
+    {
+        m_activeMapChangedCallback(package);
+    }
+
+    return ret;
 }
 
 bool MapService::checkRequest(const MapUploadRequest& request)
