@@ -79,3 +79,19 @@ stations:
           x: -2.8506159782409668
           y: -2.8002879619598389
           yaw: 0
+  - id: station06
+    name: station_idle
+    zone_id: zone06
+    locations:
+      - id: station06_location_1
+        type: IDLE
+        pose:
+          x: 0.47981682419776917
+          y: 3.2517311573028564
+          yaw: 0
+      - id: station06_location_2
+        type: IDLE
+        pose:
+          x: 0.50803667306900024
+          y: 2.1513612270355225
+          yaw: 0

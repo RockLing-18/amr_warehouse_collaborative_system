@@ -11,6 +11,8 @@ inline constexpr char TASK_EVENT[] = "task_event";
 inline constexpr char EDGE_STATUS[] = "edge_status";
 inline constexpr char INITIAL_POSE[] = "initial_pose";
 inline constexpr char ROBOT_POSE[] = "robot_pose";
+inline constexpr char NAVIGATION_STATUS[] = "navigation_status";
+inline constexpr char BEHAVIOR_STATUS[] = "behavior_status";
 
 }
 

@@ -17,6 +17,7 @@
 #include "amr_interfaces/msg/task_event.hpp"
 #include "amr_interfaces/msg/map_info.hpp"
 #include "amr_interfaces/msg/edge_status.hpp"
+#include "amr_interfaces/msg/component_status.hpp"
 
 namespace amr_behavior_manager
 {
@@ -30,6 +31,7 @@ public:
     using TaskEvent = amr_interfaces::msg::TaskEvent;
     using TaskGoods = amr_interfaces::msg::TaskGoods;
     using TaskGoodsStatus = amr_interfaces::msg::TaskGoodsStatus;
+    using ComponentStatus = amr_interfaces::msg::ComponentStatus;
 
     AmrBehaviorManagerNode()
         : Node("amr_behavior_manager")
@@ -45,6 +47,8 @@ public:
             amr_common::topic::ROBOT_STATUS, 10);
         m_task_status_pub = this->create_publisher<TaskStatus>(
             amr_common::topic::TASK_STATUS, 10);
+        m_component_status_pub = this->create_publisher<ComponentStatus>(
+            amr_common::topic::BEHAVIOR_STATUS, 10);
         m_task_command_sub = this->create_subscription<TaskCommand>(
             amr_common::topic::TASK_COMMAND,
             10,
@@ -390,6 +394,28 @@ private:
         rs.navigating = m_task_state == "TRANSPORTING";
         rs.current_task_id = m_current_task_id;
         m_robot_status_pub->publish(rs);
+
+        publishComponentStatus();
+    }
+
+    void publishComponentStatus()
+    {
+        ComponentStatus msg;
+        msg.stamp = this->now();
+
+        if(!m_map_ready)
+            msg.state = ComponentStatus::STATE_INITIALIZING;
+        else if(m_task_state == "INTERRUPTED")
+            msg.state = ComponentStatus::STATE_ERROR;
+        else if(m_task_state == "ACCEPTED" ||
+                m_task_state == "GRASPING" ||
+                m_task_state == "TRANSPORTING" ||
+                m_task_state == "PLACING")
+            msg.state = ComponentStatus::STATE_WORKING;
+        else
+            msg.state = ComponentStatus::STATE_IDLE;
+
+        m_component_status_pub->publish(msg);
     }
 
     void publishTaskEvent(
@@ -442,6 +468,7 @@ private:
     std::shared_ptr<GoodsPointResolver> m_goods_point_resolver;
     rclcpp::Publisher<RobotStatus>::SharedPtr m_robot_status_pub;
     rclcpp::Publisher<TaskStatus>::SharedPtr m_task_status_pub;
+    rclcpp::Publisher<ComponentStatus>::SharedPtr m_component_status_pub;
     rclcpp::Subscription<TaskCommand>::SharedPtr m_task_command_sub;
     rclcpp::Publisher<TaskEvent>::SharedPtr m_task_event_pub;
     rclcpp::Subscription<amr_interfaces::msg::MapInfo>::SharedPtr m_map_info_sub;

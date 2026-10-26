@@ -49,7 +49,7 @@ bool RobotService::handleRegister(const RobotRegisterRequest& req, RobotRegister
     {
         SQLiteDB::Instance().UpsertRobot(registeredRobot, registeredStatus);
 
-        resp.initial_pose = registeredStatus.pose;
+        resp.initial_pose = registeredRobot.initial_pose;
         resp.has_initial_pose = true;
     }
     else

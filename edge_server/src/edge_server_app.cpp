@@ -160,7 +160,7 @@ bool EdgeServerApp::init(const std::string& cfgPath)
     {
         for(size_t i = 0; i < restoredRobots.size() && i < restoredStatuses.size(); ++i)
         {
-            m_idlePointAllocator->markOccupied(restoredStatuses[i].pose);
+            m_idlePointAllocator->markOccupied(restoredRobots[i].initial_pose);
             m_robotManager->restoreRobot(restoredRobots[i], restoredStatuses[i]);
         }
         LOG_INFO("restore robots from db count={}", restoredRobots.size());

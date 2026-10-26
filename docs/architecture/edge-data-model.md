@@ -88,7 +88,8 @@ CREATE TABLE IF NOT EXISTS tbl_robot
     warehouse_id        TEXT NOT NULL,
     robot_name          TEXT,
     register_timestamp  TEXT NOT NULL,
-    updated_at          TEXT NOT NULL
+    updated_at          TEXT NOT NULL,
+    initial_pose        TEXT
 );
 ```
 
@@ -98,6 +99,7 @@ CREATE TABLE IF NOT EXISTS tbl_robot
 - `warehouse_id`：所属仓库。
 - `register_timestamp`：首次注册时间。
 - `robot_name`：显示名，可选。
+- `initial_pose`：注册时分配的初始点位 JSON，例如 `{"x":1.0,"y":2.0,"yaw":0.5}`，与 `tbl_robot_status.pose`（实时位置）分离。
 
 ### 4.2 tbl_robot_instance
 

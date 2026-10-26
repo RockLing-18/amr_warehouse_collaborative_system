@@ -126,7 +126,8 @@ bool SQLiteDB::InitTaskTables()
             warehouse_id        TEXT NOT NULL,
             robot_name          TEXT,
             register_timestamp  TEXT NOT NULL,
-            updated_at          TEXT NOT NULL
+            updated_at          TEXT NOT NULL,
+            initial_pose        TEXT
         );
 
         CREATE TABLE IF NOT EXISTS tbl_robot_instance
@@ -261,6 +262,35 @@ bool SQLiteDB::InitTaskTables()
         LOG_ERROR("init task tables failed:{}", err);
         sqlite3_free(err);
         return false;
+    }
+
+    // 迁移：旧库 tbl_robot 可能没有 initial_pose 列
+    {
+        sqlite3_stmt* stmt = nullptr;
+        bool hasInitialPose = false;
+        if(sqlite3_prepare_v2(m_pDB, "PRAGMA table_info(tbl_robot);", -1, &stmt, nullptr) == SQLITE_OK)
+        {
+            while(sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+                if(name && std::string(name) == "initial_pose")
+                {
+                    hasInitialPose = true;
+                    break;
+                }
+            }
+            sqlite3_finalize(stmt);
+        }
+
+        if(!hasInitialPose)
+        {
+            char* alterErr = nullptr;
+            if(sqlite3_exec(m_pDB, "ALTER TABLE tbl_robot ADD COLUMN initial_pose TEXT;", nullptr, nullptr, &alterErr) != SQLITE_OK)
+            {
+                LOG_WARN("add tbl_robot.initial_pose failed:{}", alterErr ? alterErr : "");
+                if(alterErr) sqlite3_free(alterErr);
+            }
+        }
     }
 
     return true;
@@ -571,14 +601,16 @@ bool SQLiteDB::UpsertRobot(const RobotBaseInfo& robot, const RobotRunningStatus&
             warehouse_id,
             robot_name,
             register_timestamp,
-            updated_at
+            updated_at,
+            initial_pose
         )
-        VALUES(?,?,?,?,?)
+        VALUES(?,?,?,?,?,?)
         ON CONFLICT(robot_id) DO UPDATE SET
             warehouse_id=excluded.warehouse_id,
             robot_name=excluded.robot_name,
             register_timestamp=excluded.register_timestamp,
-            updated_at=excluded.updated_at;
+            updated_at=excluded.updated_at,
+            initial_pose=excluded.initial_pose;
     )";
 
     sqlite3_stmt* stmt = nullptr;
@@ -589,11 +621,17 @@ bool SQLiteDB::UpsertRobot(const RobotBaseInfo& robot, const RobotRunningStatus&
         return false;
     }
 
+    nlohmann::json initialPoseJson;
+    initialPoseJson["x"] = robot.initial_pose.x;
+    initialPoseJson["y"] = robot.initial_pose.y;
+    initialPoseJson["yaw"] = robot.initial_pose.yaw;
+
     sqlite3_bind_text(stmt, 1, robot.robot_id.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, robot.warehouse_id.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 3, "", -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 4, registerTimestamp.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 5, now.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, initialPoseJson.dump().c_str(), -1, SQLITE_TRANSIENT);
 
     if(sqlite3_step(stmt) != SQLITE_DONE)
     {
@@ -728,7 +766,8 @@ bool SQLiteDB::LoadRobots(std::vector<RobotBaseInfo>& robots, std::vector<RobotR
             s.online,
             s.battery,
             s.pose,
-            s.current_task_id
+            s.current_task_id,
+            r.initial_pose
         FROM tbl_robot r
         LEFT JOIN tbl_robot_status s ON s.robot_id = r.robot_id;
     )";
@@ -781,6 +820,21 @@ bool SQLiteDB::LoadRobots(std::vector<RobotBaseInfo>& robots, std::vector<RobotR
         const char* taskId = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
         if(taskId)
             status.task_id = taskId;
+
+        const char* initialPose = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 9));
+        if(initialPose)
+        {
+            try
+            {
+                auto initialPoseJson = nlohmann::json::parse(initialPose);
+                robot.initial_pose.x = initialPoseJson.value("x", 0.0);
+                robot.initial_pose.y = initialPoseJson.value("y", 0.0);
+                robot.initial_pose.yaw = initialPoseJson.value("yaw", 0.0);
+            }
+            catch(...)
+            {
+            }
+        }
 
         robots.push_back(robot);
         statuses.push_back(status);

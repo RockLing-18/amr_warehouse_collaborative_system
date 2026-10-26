@@ -17,6 +17,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MapInfo.msg"
   "msg/RobotPose.msg"
   "msg/RobotStatus.msg"
+  "msg/ComponentStatus.msg"
   "msg/TaskStatus.msg"
   "msg/TaskGoods.msg"
   "msg/TaskGoodsStatus.msg"

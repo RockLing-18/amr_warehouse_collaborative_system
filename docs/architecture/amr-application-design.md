@@ -97,8 +97,12 @@
 | Topic | `robot_status` | 机器人聚合状态。 |
 | Topic | `task_status` | 当前任务快照。 |
 | Topic | `robot_pose` | 当前位姿。 |
+| Topic | `navigation_status` | 导航模块统一状态。 |
+| Topic | `behavior_status` | 行为编排模块统一状态。 |
 | Action | `amr_navigate_to_pose` | 单点导航。 |
 | Service | `get_robot_pose` | 查询位姿。 |
+
+模块状态统一枚举定义在 `amr_common/robot_state.h`，消息类型为 `amr_interfaces/msg/ComponentStatus`，枚举顺序为 `ERROR < INITIALIZING < WORKING < IDLE`。`amr_agent` 订阅 `navigation_status` 与 `behavior_status`，取两者最小值聚合为 AMR 对外状态。
 
 待补充：
 
@@ -218,6 +222,10 @@ zones:
 ### 9.4 心跳
 
 AMR 每 5 秒通过 `amr/{robot_id}/task/status` 上报一次 `STATUS`。
+
+### 9.5 TF 帧前缀与 nav2 参数
+
+AMR URDF 中所有 TF 帧使用 `robot_id + "_"` 前缀（例如 `robot01_base_footprint`、`robot01_odom`、`robot01_laser_link`），`map` 帧保持无前缀。`navigation_server` 启动 nav2 前会读取 `nav2_params.yaml` 模板，把其中的 `<robot_prefix>` 占位符替换为 `robot_id_`，生成 `/tmp/amr_nav2_params_{robot_id}.yaml` 后传入 nav2，保证 AMCL、costmap 等使用的帧名与机器人实际 TF 一致。
 
 ## 10. 已确认决策
 

@@ -694,6 +694,8 @@ AMR 内部 Topic/Service/Action 名称统一定义在：
 | Topic | `amr_common::topic::ROBOT_STATUS` | `robot_status` |
 | Topic | `amr_common::topic::TASK_STATUS` | `task_status` |
 | Topic | `amr_common::topic::ROBOT_POSE` | `robot_pose` |
+| Topic | `amr_common::topic::NAVIGATION_STATUS` | `navigation_status` |
+| Topic | `amr_common::topic::BEHAVIOR_STATUS` | `behavior_status` |
 | Service | `amr_common::service::GET_ROBOT_POSE` | `get_robot_pose` |
 | Action | `amr_common::action::AMR_NAVIGATE_TO_POSE` | `amr_navigate_to_pose` |
 

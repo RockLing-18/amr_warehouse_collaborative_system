@@ -1,5 +1,6 @@
 #include "amr_agent_node.h"
 #include <chrono>
+#include <algorithm>
 #include "types.h"
 #include "bootstrap/bootstrap.h"
 #include "communication/edge_communication.h"
@@ -10,6 +11,7 @@
 #include "mqtt/mqtt_topic.h"
 #include "utils/CommonFunc.h"
 #include "amr_common/ros_interface_names.h"
+#include "amr_common/robot_state.h"
 
 using json = nlohmann::json;
 
@@ -62,8 +64,29 @@ bool AmrAgentNode::init()
     m_edge_status_pub = this->create_publisher<amr_interfaces::msg::EdgeStatus>(
         amr_common::topic::EDGE_STATUS, 10);
 
+    auto initial_pose_qos = rclcpp::QoS(rclcpp::KeepLast(1));
+    initial_pose_qos.reliable();
+    initial_pose_qos.transient_local();
     m_initial_pose_pub = this->create_publisher<amr_interfaces::msg::InitialPose>(
-        amr_common::topic::INITIAL_POSE, 10);
+        amr_common::topic::INITIAL_POSE, initial_pose_qos);
+
+    m_nav_status_sub = this->create_subscription<amr_interfaces::msg::ComponentStatus>(
+        amr_common::topic::NAVIGATION_STATUS,
+        10,
+        [this](const amr_interfaces::msg::ComponentStatus::SharedPtr msg)
+        {
+            if(msg)
+                m_nav_state = msg->state;
+        });
+
+    m_behavior_status_sub = this->create_subscription<amr_interfaces::msg::ComponentStatus>(
+        amr_common::topic::BEHAVIOR_STATUS,
+        10,
+        [this](const amr_interfaces::msg::ComponentStatus::SharedPtr msg)
+        {
+            if(msg)
+                m_behavior_state = msg->state;
+        });
 
     m_communication->setEdgeStatusCallback(
         [this](bool online)
@@ -117,8 +140,8 @@ bool AmrAgentNode::init()
         std::chrono::seconds(5),
         [this]()
         {
-            if(m_map_ready)
-                publishRobotStatus("IDLE");
+            if(m_registered)
+                publishRobotStatus();
         });
 
     return true;
@@ -171,7 +194,7 @@ void AmrAgentNode::onRegisterResponse(const RobotRegisterResponse& response)
     if(m_map_ready)
     {
         publishInitialPoseIfReady();
-        publishRobotStatus("IDLE");
+        publishRobotStatus();
     }
 }
 
@@ -189,10 +212,14 @@ void AmrAgentNode::publishInitialPoseIfReady()
     LOG_INFO("publish initial pose x=%.2f y=%.2f yaw=%.2f", msg.x, msg.y, msg.yaw);
 }
 
-void AmrAgentNode::publishRobotStatus(const std::string& state)
+void AmrAgentNode::publishRobotStatus()
 {
     if(!m_communication)
         return;
+
+    int aggregated = std::min(m_nav_state, m_behavior_state);
+    const char* state = amr_common::robotStateToString(
+        static_cast<amr_common::RobotState>(aggregated));
 
     json root;
     root["robot_id"] = m_robot_id;

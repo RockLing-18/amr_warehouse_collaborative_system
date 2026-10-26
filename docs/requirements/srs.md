@@ -118,6 +118,8 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 | D-052 | `location.type` 使用 `WORK` / `WAIT` / `IDLE`，`zone.type` 使用 `UNLOAD` / `LOAD` / `STORAGE` / `IDLE`，工具端以选择方式录入。 | Confirmed |
 | D-053 | Edge 从当前生效地图包解析 `zones.yaml` / `stations.yaml`，将 `type=IDLE` 的 location 作为充电点，按顺序分配且检测占用。 | Confirmed |
 | D-054 | Edge 在注册响应中返回 `initial_pose {x, y, yaw}`，AMR 据此发布初始位姿。 | Confirmed |
+| D-055 | AMR 内部模块共享状态枚举（`ERROR < INITIALIZING < WORKING < IDLE`），`amr_agent` 取 `navigation_status` 与 `behavior_status` 的最小值作为 AMR 对外状态。 | Confirmed |
+| D-056 | AMR TF 帧使用 `robot_id + "_"` 前缀（`map` 帧除外），`navigation_server` 按 `robot_id` 生成带前缀的 nav2 参数文件。 | Confirmed |
 
 详细接口结构、消息字段和幂等规则见 `docs/requirements/interface-contract.md` 和 `docs/architecture/adr/`。
 
@@ -349,6 +351,8 @@ AMR 搬运申请使用 `amr/{robot_id}/task/goods/request`，Edge 响应使用 `
 | Topic | `robot_status` | `amr_behavior_manager` → 其他 AMR 节点 | 发布机器人聚合状态。 |
 | Topic | `task_status` | `amr_behavior_manager` → 其他 AMR 节点 | 发布当前任务状态快照。 |
 | Topic | `robot_pose` | `amr_navigation` → 其他 AMR 节点 | 发布当前位姿。 |
+| Topic | `navigation_status` | `amr_navigation` → `amr_agent` | 发布导航模块统一状态。 |
+| Topic | `behavior_status` | `amr_behavior_manager` → `amr_agent` | 发布行为编排模块统一状态。 |
 | Action | `amr_navigate_to_pose` | `amr_behavior_manager` → `amr_navigation` | 提交单点导航目标并获取执行结果。 |
 | Service | `get_robot_pose` | `amr_behavior_manager` → `amr_navigation` | 按需查询机器人位姿。 |
 

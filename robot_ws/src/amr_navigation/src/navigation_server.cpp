@@ -17,6 +17,8 @@
 #include <mutex>
 #include <thread>
 #include <unistd.h>
+#include <fstream>
+#include <sstream>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
@@ -30,6 +32,7 @@
 #include "amr_interfaces/action/amr_navigate_to_pose.hpp"
 #include "amr_interfaces/srv/get_robot_pose.hpp"
 #include "amr_interfaces/msg/navigation_state.hpp"
+#include "amr_interfaces/msg/component_status.hpp"
 #include "amr_interfaces/msg/robot_pose.hpp"
 #include "amr_interfaces/msg/map_info.hpp"
 #include "amr_interfaces/msg/initial_pose.hpp"
@@ -62,6 +65,7 @@ public:
 	using GetRobotPose = amr_interfaces::srv::GetRobotPose;
 	using RobotPoseMsg = amr_interfaces::msg::RobotPose;
 	using NavigationState = amr_interfaces::msg::NavigationState;
+	using ComponentStatus = amr_interfaces::msg::ComponentStatus;
 	using ManageLifecycleNodes = nav2_msgs::srv::ManageLifecycleNodes;
 	using InitialPose = amr_interfaces::msg::InitialPose;
 	using PoseWithCovarianceStamped = geometry_msgs::msg::PoseWithCovarianceStamped;
@@ -102,6 +106,10 @@ public:
 		// 位姿话题（相对名：/robot_namespace/robot_pose）
 		m_robot_pose_pub = this->create_publisher<RobotPoseMsg>(
             amr_common::topic::ROBOT_POSE, 10);
+
+		// 导航模块状态（供 amr_agent 聚合）
+		m_component_status_pub = this->create_publisher<ComponentStatus>(
+            amr_common::topic::NAVIGATION_STATUS, 10);
 	
 		// 位姿查询服务（相对名：/robot_namespace/get_robot_pose）
 		m_get_robot_pose_srv = this->create_service<GetRobotPose>(
@@ -142,9 +150,12 @@ public:
 
 		m_initial_pose_pub = this->create_publisher<PoseWithCovarianceStamped>(
 			"initialpose", 10);
+		auto initial_pose_qos = rclcpp::QoS(rclcpp::KeepLast(1));
+		initial_pose_qos.reliable();
+		initial_pose_qos.transient_local();
 		m_initial_pose_sub = this->create_subscription<InitialPose>(
 			amr_common::topic::INITIAL_POSE,
-			10,
+			initial_pose_qos,
 			[this](const InitialPose::SharedPtr pose)
 			{
 				m_initial_pose = pose;
@@ -170,6 +181,8 @@ private:
 	// ---------------- robot_pose 发布 ----------------
 	void publishPose()
 	{
+		publishComponentStatus();
+
 		RobotPoseMsg msg;
 		msg.pose.header.frame_id = "map";
 		msg.pose.header.stamp = this->now();
@@ -188,6 +201,23 @@ private:
 		}
 		
 		m_robot_pose_pub->publish(msg);
+	}
+
+	void publishComponentStatus()
+	{
+		ComponentStatus msg;
+		msg.stamp = this->now();
+
+		if(m_nav2_state == Nav2State::FAILED)
+			msg.state = ComponentStatus::STATE_ERROR;
+		else if(m_navigating)
+			msg.state = ComponentStatus::STATE_WORKING;
+		else if(m_nav2_state == Nav2State::READY)
+			msg.state = ComponentStatus::STATE_IDLE;
+		else
+			msg.state = ComponentStatus::STATE_INITIALIZING;
+
+		m_component_status_pub->publish(msg);
 	}
 	
 	// ---------------- get_robot_pose 服务 ----------------
@@ -293,6 +323,8 @@ private:
 			m_active_goal_handle = goal_handle;
 		}
 
+		m_navigating = true;
+
 		// 发送初始 NAVIGATING feedback
 		auto feedback = std::make_shared<AmrNavigateToPose::Feedback>();
 		feedback->state.navigation_state = NavigationState::NAVIGATING;
@@ -359,6 +391,8 @@ private:
 	
 	void onNavigationResult(amr_navigation::NavigationExecutionState state)
 	{
+		m_navigating = false;
+
 		{
 			std::lock_guard<std::mutex> lock(m_navigation_mutex);
 			m_navigation_result = state;
@@ -479,6 +513,56 @@ private:
 		if(robot_namespace == "/")
 			robot_namespace.clear();
 
+		// 生成带 TF 帧前缀的 nav2 参数文件（例如 /robot01 -> robot01_）
+		{
+			std::string prefix;
+			if(!robot_namespace.empty())
+			{
+				std::string robotId = robot_namespace;
+				if(robotId.front() == '/')
+					robotId.erase(robotId.begin());
+				prefix = robotId + "_";
+			}
+
+			std::ifstream ifs(paramsFile);
+			std::stringstream ss;
+			if(ifs.is_open())
+			{
+				ss << ifs.rdbuf();
+				ifs.close();
+			}
+
+			std::string content = ss.str();
+			const std::string placeholder = "<robot_prefix>";
+			std::size_t pos = 0;
+			while((pos = content.find(placeholder, pos)) != std::string::npos)
+			{
+				content.replace(pos, placeholder.size(), prefix);
+				pos += prefix.size();
+			}
+
+			std::string tmpId = robot_namespace;
+			if(tmpId.empty())
+				tmpId = "default";
+			else if(tmpId.front() == '/')
+				tmpId.erase(tmpId.begin());
+			std::string tmpFile = "/tmp/amr_nav2_params_" + tmpId + ".yaml";
+
+			std::ofstream ofs(tmpFile, std::ios::trunc);
+			if(ofs.is_open())
+			{
+				ofs << content;
+				ofs.close();
+				paramsFile = tmpFile;
+				RCLCPP_INFO(get_logger(), "generated nav2 params prefix=%s file=%s",
+					prefix.c_str(), tmpFile.c_str());
+			}
+			else
+			{
+				RCLCPP_WARN(get_logger(), "write nav2 params failed, use template %s", paramsFile.c_str());
+			}
+		}
+
 		pid_t pid = fork();
 		if(pid < 0)
 		{
@@ -584,6 +668,7 @@ private:
 	std::shared_ptr<TFHelper> m_tf_helper;
 	std::shared_ptr<amr_navigation::NavigationManager> m_navigation_manager;
 	rclcpp::Publisher<RobotPoseMsg>::SharedPtr m_robot_pose_pub;
+	rclcpp::Publisher<ComponentStatus>::SharedPtr m_component_status_pub;
 	rclcpp::Service<GetRobotPose>::SharedPtr m_get_robot_pose_srv;
 	rclcpp_action::Server<AmrNavigateToPose>::SharedPtr m_nav_action_server;
 	rclcpp::TimerBase::SharedPtr m_pose_timer;
@@ -607,6 +692,7 @@ private:
 	std::string m_current_map_version;
 	Nav2State m_nav2_state = Nav2State::STOPPED;
 	bool m_initial_pose_published = false;
+	bool m_navigating = false;
 };
 }
 

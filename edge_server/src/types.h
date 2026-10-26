@@ -104,6 +104,7 @@ struct RobotBaseInfo
     std::string warehouse_id;
     std::string map_version;
     uint64_t register_timestamp;  // 注册的时间戳, 暂时以其作为instance_i
+    Pose2D initial_pose;          // 注册时分配的初始点位（IDLE 充电点），与实时位置分离
 };
 
 struct RobotRunningStatus

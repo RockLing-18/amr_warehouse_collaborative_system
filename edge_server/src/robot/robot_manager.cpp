@@ -28,10 +28,11 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
     auto iter = m_robots.find(robot.robot_id);
     if(iter != m_robots.end())
     {
-        // 已存在（含重启后从数据库恢复的机器人）：保留原 instance_id，
+        // 已存在（含重启后从数据库恢复的机器人）：保留原 instance_id 和初始点位，
         // 仅刷新基础信息，避免 instance_id 变化导致仿真侧误判需要重建模型。
         RobotBaseInfo robotNew(robot);
         robotNew.instance_id = iter->second.getInstanceInfo().instance_id;
+        robotNew.initial_pose = iter->second.getBaseInfo().initial_pose;
         iter->second.updateBaseInfo(robotNew);
 
         LOG_INFO("robot re-register, robot_id={} instance_id={}",
@@ -47,7 +48,6 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
     RobotEntity robotEntity;
     RobotBaseInfo robotNew(robot);
     robotNew.instance_id = instanceId;
-    robotEntity.updateBaseInfo(robotNew);
     RobotRunningStatus robotStatus;
     robotStatus.state = RobotState::INITIALIZING;
     robotStatus.online = true;
@@ -57,6 +57,10 @@ bool RobotManager::registerRobot(const RobotBaseInfo& robot)
     robotStatus.pose = Pose2D{};
     if(m_poseAllocator)
         m_poseAllocator(robotStatus.pose);
+
+    // 初始点位与实时位置分离：注册瞬间两者相等，后续心跳只更新实时位置
+    robotNew.initial_pose = robotStatus.pose;
+    robotEntity.updateBaseInfo(robotNew);
     robotEntity.updateStatus(robotStatus);
     m_robots[robotNew.robot_id] = robotEntity;
 
