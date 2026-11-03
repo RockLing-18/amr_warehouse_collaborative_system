@@ -37,6 +37,8 @@
 #include "amr_interfaces/msg/map_info.hpp"
 #include "amr_interfaces/msg/initial_pose.hpp"
 #include "nav2_msgs/srv/manage_lifecycle_nodes.hpp"
+#include "lifecycle_msgs/msg/state.hpp"
+#include "lifecycle_msgs/msg/transition_event.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "amr_navigation/tf_helper.h"
 #include "amr_navigation/navigation_manager.h"
@@ -67,12 +69,22 @@ public:
 	using NavigationState = amr_interfaces::msg::NavigationState;
 	using ComponentStatus = amr_interfaces::msg::ComponentStatus;
 	using ManageLifecycleNodes = nav2_msgs::srv::ManageLifecycleNodes;
+	using TransitionEvent = lifecycle_msgs::msg::TransitionEvent;
 	using InitialPose = amr_interfaces::msg::InitialPose;
 	using PoseWithCovarianceStamped = geometry_msgs::msg::PoseWithCovarianceStamped;
 	
 	NavigationServer() : Node("navigation_server")
 	{
 		this->declare_parameter("pose_publish_rate_hz", 1.0);
+		// 默认不在本进程内 fork 启动 Nav2，
+		// 而是通过 scripts/start_nav2.py 在独立终端中启动，便于分离日志。
+		this->declare_parameter<bool>("launch_nav2", false);
+
+		// rclcpp 已自动声明 use_sim_time，这里只把它置为 true
+		if(this->has_parameter("use_sim_time"))
+			this->set_parameter(rclcpp::Parameter("use_sim_time", true));
+		else
+			this->declare_parameter<bool>("use_sim_time", true);
 
 		std::string defaultParamsFile;
 		try
@@ -147,6 +159,17 @@ public:
 			"lifecycle_manager_navigation/manage_nodes");
 		m_lifecycle_loc_client = this->create_client<ManageLifecycleNodes>(
 			"lifecycle_manager_localization/manage_nodes");
+		m_amcl_transition_sub = this->create_subscription<TransitionEvent>(
+			"amcl/transition_event",
+			10,
+			[this](const TransitionEvent::SharedPtr msg)
+			{
+				if(msg && msg->goal_state.id == lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE)
+				{
+					m_amcl_active = true;
+					publishInitialPoseIfReady();
+				}
+			});
 
 		m_initial_pose_pub = this->create_publisher<PoseWithCovarianceStamped>(
 			"initialpose", 10);
@@ -169,7 +192,9 @@ public:
 				handleStateMachineTick();
 			});
 	
-		RCLCPP_INFO(this->get_logger(), "navigation_server init done");
+		m_launch_nav2 = this->get_parameter("launch_nav2").as_bool();
+		RCLCPP_INFO(get_logger(), "navigation_server init done, launch_nav2=%s",
+			m_launch_nav2 ? "true" : "false");
 	}
 
 	void shutdownNav2Process()
@@ -197,7 +222,6 @@ private:
 			tf2::Quaternion q;
         	q.setRPY(0.0, 0.0, tf_pose.yaw);
 			msg.pose.pose.orientation = tf2::toMsg(q);
-			msg.pose.pose.orientation.w = 1.0;
 		}
 		
 		m_robot_pose_pub->publish(msg);
@@ -438,6 +462,15 @@ private:
 			RCLCPP_INFO(get_logger(), "map changed, restart nav2");
 			requestStopNav2();
 		}
+		else if(mapChanged && !m_launch_nav2 && !m_current_map_yaml.empty())
+		{
+			RCLCPP_WARN(get_logger(),
+				"map changed, nav2 is managed externally; "
+				"close current nav2 terminal and let navigation_server relaunch it");
+			m_nav2_state = Nav2State::STARTING_PROCESS;
+			m_amcl_active = false;
+			m_initial_pose_published = false;
+		}
 
 		m_map_ready = true;
 		m_current_map_yaml = msg->map_yaml;
@@ -446,8 +479,17 @@ private:
 		if(m_nav2_state == Nav2State::STOPPED ||
 		   m_nav2_state == Nav2State::FAILED)
 		{
-			RCLCPP_INFO(get_logger(), "map info ready, launching nav2");
-			launchNav2Process(msg->map_yaml);
+			if(m_launch_nav2)
+			{
+				RCLCPP_INFO(get_logger(), "map info ready, launching nav2");
+				launchNav2Process(msg->map_yaml);
+			}
+			else
+			{
+				RCLCPP_INFO(get_logger(),
+					"map info ready, triggering start_nav2.py in a separate terminal");
+				launchExternalNav2(msg->map_yaml);
+			}
 			m_nav2_state = Nav2State::STARTING_PROCESS;
 			handleStateMachineTick();
 		}
@@ -482,7 +524,7 @@ private:
 		auto sendStartup =
 			[this](rclcpp::Client<ManageLifecycleNodes>::SharedPtr client)
 			{
-				if(!client || !client->wait_for_service(std::chrono::seconds(5)))
+				if(!client || !client->service_is_ready())
 					return false;
 
 				auto request = std::make_shared<ManageLifecycleNodes::Request>();
@@ -506,6 +548,8 @@ private:
 	{
 		if(m_nav2_pid > 0)
 			return;
+
+		m_amcl_active = false;
 
 		std::string paramsFile = this->get_parameter("nav2_params_file").as_string();
 		bool useSimTime = this->get_parameter_or("use_sim_time", true);
@@ -602,6 +646,69 @@ private:
 		RCLCPP_INFO(get_logger(), "launched nav2 process pid=%d", m_nav2_pid);
 	}
 
+	void launchExternalNav2(const std::string& map_yaml)
+	{
+		std::string robot_namespace = this->get_namespace();
+		std::string robotId = robot_namespace;
+		if(!robotId.empty() && robotId.front() == '/')
+			robotId.erase(robotId.begin());
+		if(robotId.empty())
+			robotId = "default";
+
+		std::string scriptPath;
+		try
+		{
+			scriptPath =
+				ament_index_cpp::get_package_share_directory("amr_navigation") +
+				"/scripts/start_nav2.py";
+		}
+		catch(const std::exception& e)
+		{
+			RCLCPP_ERROR(get_logger(), "resolve start_nav2.py failed: %s", e.what());
+			m_nav2_state = Nav2State::FAILED;
+			return;
+		}
+
+		bool useSimTime = this->get_parameter_or("use_sim_time", true);
+
+		pid_t pid = fork();
+		if(pid < 0)
+		{
+			RCLCPP_ERROR(get_logger(), "fork start_nav2.py failed");
+			m_nav2_state = Nav2State::FAILED;
+			return;
+		}
+
+		if(pid == 0)
+		{
+			// 中间进程立即退出，python3 在孙进程中执行，避免产生僵尸进程。
+			setpgid(0, 0);
+			pid_t inner = fork();
+			if(inner < 0)
+				_exit(127);
+			if(inner == 0)
+			{
+				execlp(
+					"python3",
+					"python3",
+					scriptPath.c_str(),
+					robotId.c_str(),
+					"--map", map_yaml.c_str(),
+					"--use-sim-time", useSimTime ? "true" : "false",
+					"--autostart", "false",
+					"--terminal-title", ("Nav2-" + robotId).c_str(),
+					static_cast<char*>(nullptr));
+				_exit(127);
+			}
+			_exit(0);
+		}
+
+		int status = 0;
+		waitpid(pid, &status, 0);
+		RCLCPP_INFO(get_logger(), "triggered start_nav2.py robot=%s map=%s",
+			robotId.c_str(), map_yaml.c_str());
+	}
+
 	void requestStopNav2()
 	{
 		if(m_nav2_state == Nav2State::STOPPING || m_nav2_state == Nav2State::STOPPED)
@@ -649,6 +756,9 @@ private:
 		if(!m_initial_pose || m_initial_pose_published)
 			return;
 
+		if(!m_amcl_active)
+			return;
+
 		PoseWithCovarianceStamped msg;
 		msg.header.frame_id = "map";
 		msg.header.stamp = this->now();
@@ -683,15 +793,18 @@ private:
 	bool m_map_ready = false;
 	rclcpp::Client<ManageLifecycleNodes>::SharedPtr m_lifecycle_nav_client;
 	rclcpp::Client<ManageLifecycleNodes>::SharedPtr m_lifecycle_loc_client;
+	rclcpp::Subscription<TransitionEvent>::SharedPtr m_amcl_transition_sub;
 	rclcpp::Publisher<PoseWithCovarianceStamped>::SharedPtr m_initial_pose_pub;
 	rclcpp::Subscription<InitialPose>::SharedPtr m_initial_pose_sub;
 	InitialPose::SharedPtr m_initial_pose;
 	rclcpp::TimerBase::SharedPtr m_lifecycle_retry_timer;
 	pid_t m_nav2_pid = -1;
+	bool m_launch_nav2 = false;
 	std::string m_current_map_yaml;
 	std::string m_current_map_version;
 	Nav2State m_nav2_state = Nav2State::STOPPED;
 	bool m_initial_pose_published = false;
+	bool m_amcl_active = false;
 	bool m_navigating = false;
 };
 }

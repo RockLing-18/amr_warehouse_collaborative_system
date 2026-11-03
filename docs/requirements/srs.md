@@ -1031,26 +1031,26 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 
 | 需求 | 当前状态 | 说明 |
 | --- | --- | --- |
-| FR-001 AMR Bootstrap | Partial | Bootstrap HTTP 已实现，响应字段仍待补全。 |
-| FR-002 AMR 注册 | Partial | 注册请求/响应和 RobotManager 已实现，地图更新逻辑部分完成。 |
-| FR-003 通信重连与状态恢复 | Planned | MQTT 重连有基础，任务状态恢复和补报未完整实现。 |
-| FR-004 地图包管理 | Partial | 上传、下载、激活接口已有，校验和元数据仍需完善。 |
-| FR-005 AMR 地图同步 | Partial | 下载和解压已有，版本判断与校验需完善。 |
-| FR-006 导航初始化 | Partial | Nav2 相关模块和接口存在，端到端初始化流程未完成。 |
-| FR-007 Edge 侧任务注入 | Partial | HTTP API 和 TaskService 已实现基础创建、查询、取消；AMR 可用性校验未完成。 |
-| FR-008 Edge 任务下发 | Planned | Task Service 和 AMR 任务 Topic 未实现。 |
-| FR-009 任务接收与执行编排 | Partial | `amr_behavior_manager` 只有骨架。 |
-| FR-010 导航目标执行 | Partial | Nav2 Action 和 navigation server 已有，任务层未接通。 |
-| FR-011 任务状态管理 | Planned | 状态枚举和规则已定义，持久化和状态机未实现。 |
-| FR-012 任务取消 | Planned | 取消接口和流程已定义，未实现。 |
-| FR-013 通信中断续行 | Planned | 策略已定义，AMR 本地待补报未实现。 |
-| FR-014 结果补报 | Planned | ACK 和文件格式已定义，未实现。 |
-| FR-015 AMR 状态上报 | Partial | RobotStatus 和 MQTT status 已有基础，任务状态字段不完整。 |
-| FR-016 仿真 AMR 生命周期 | Partial | Simulation Manager 已有核心生命周期类。 |
-| FR-017 仿真状态同步 | Partial | WebSocket robot_list 已有基础。 |
-| FR-018 多 AMR 仿真 | Partial | 身份隔离机制已有，端到端验证未完成。 |
+| FR-001 AMR Bootstrap | Implemented | Bootstrap HTTP 返回仓库与 MQTT 接入配置。 |
+| FR-002 AMR 注册 | Implemented | 注册请求/响应、RobotManager、初始位姿分配已实现。 |
+| FR-003 通信重连与状态恢复 | Partial | MQTT 自动重连、断连置离线、待补报重传已实现，仍需按 Edge/Broker 两种断网方式验证。 |
+| FR-004 地图包管理 | Implemented | 上传、下载、查询、激活接口已实现。 |
+| FR-005 AMR 地图同步 | Partial | 下载、解压及关键文件存在性校验已实现；无 checksum/size 校验。 |
+| FR-006 导航初始化 | Implemented | `navigation_server` 自动拉起 Nav2 并完成 lifecycle/初始位姿就绪。 |
+| FR-007 Edge 侧任务注入 | Implemented | HTTP API 与 TaskService 创建、查询、取消已实现。 |
+| FR-008 Edge 任务下发 | Implemented | 按 `robot_ids` 向 `amr/{robot_id}/task` 下发任务。 |
+| FR-009 任务接收与执行编排 | Partial | 任务状态机、货物申请、单点导航已接通；同一趟暂按单类货物执行。 |
+| FR-010 导航目标执行 | Implemented | `amr_navigate_to_pose` Action 全链路已通。 |
+| FR-011 任务状态管理 | Implemented | `PENDING→ACCEPTED→RUNNING→SUCCEEDED` 及中断状态持久化已实现。 |
+| FR-012 任务取消 | Partial | 取消指令、导航取消、`CANCELLED` 上报已实现，仍需完整回归。 |
+| FR-013 通信中断续行 | Partial | Edge 离线检测与当前获批搬运完成逻辑已实现，仍需场景验证。 |
+| FR-014 结果补报 | Implemented | `pending_task_reports.json` 原子写入、重传、ACK 清理已实现。 |
+| FR-015 AMR 状态上报 | Implemented | 心跳、位姿、聚合状态及当前 `task_id` 已上报。 |
+| FR-016 仿真 AMR 生命周期 | Partial | Simulation Manager 生命周期与进程管理已有，待完整回归。 |
+| FR-017 仿真状态同步 | Partial | WebSocket `robot_list` 同步已有，待完整回归。 |
+| FR-018 多 AMR 仿真 | Partial | 命名空间与身份隔离已有，双机联测待完成。 |
 | FR-019 Cloud 与 Edge 通信 | Planned | V2 规划，V1 不交付。 |
-| FR-020 端到端业务闭环 | Planned | 依赖任务服务、行为管理和状态持久化。 |
+| FR-020 端到端业务闭环 | Partial | 正常运输闭环已通，取消与断网恢复闭环待完整验证。 |
 | NFR-001 模块化 | Partial | 模块边界已有，但部分实现未完成。 |
 | NFR-002 通信隔离 | Partial | 通信边界清晰，Cloud MQTT 未实现。 |
 | NFR-003 可构建性 | Partial | 当前工作区可构建，但未做干净环境验证。 |

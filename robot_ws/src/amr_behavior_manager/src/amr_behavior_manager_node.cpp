@@ -188,7 +188,10 @@ private:
             m_nav_client->cancelNavigation();
 
         m_task_state = "CANCELLED";
-        publishTaskEvent("CARRY_ABORTED", "INTERRUPTED", m_current_goods, "", "TASK_CANCELLED");
+        if(!m_request_id.empty())
+            publishTaskEvent("CARRY_ABORTED", "CANCELLED", m_current_goods, m_request_id, "TASK_CANCELLED");
+        else
+            publishTaskEvent("STATUS", "CANCELLED", {}, "", "TASK_CANCELLED");
         resetTask();
     }
 
@@ -233,7 +236,8 @@ private:
         if(!m_map_ready)
             return;
 
-        if(m_task_state == "CANCELLED" || m_task_state == "INTERRUPTED" || m_waiting_goods_response)
+        // 只在空闲等待下一趟(ACCEPTED)时申请货物，避免 GRASPING/TRANSPORTING/PLACING 期间重复申请
+        if(m_task_state != "ACCEPTED" || m_waiting_goods_response)
             return;
 
         if(m_current_task_id.empty())
@@ -276,15 +280,22 @@ private:
         publishTaskEvent("STATUS", "GRASPING", m_current_goods, "", "");
 
         double graspSeconds = this->get_parameter("grasp_simulate_seconds").as_double();
-        auto timer = this->create_wall_timer(
+        auto timer = std::make_shared<rclcpp::TimerBase::SharedPtr>();
+        *timer = this->create_wall_timer(
             std::chrono::duration<double>(graspSeconds),
-            [this]()
+            [this, timer]()
             {
+                if(*timer)
+                    (*timer)->cancel();
+
+                if(m_task_state != "GRASPING" || m_current_goods.empty())
+                    return;
+
                 m_task_state = "TRANSPORTING";
                 publishTaskEvent("STATUS", "TRANSPORTING", m_current_goods, "", "");
                 navigateToGoodsDestination();
             });
-        m_one_shot_timers.push_back(timer);
+        m_one_shot_timers.push_back(*timer);
     }
 
     void navigateToGoodsDestination()
@@ -328,7 +339,11 @@ private:
             }
         }
 
-        m_nav_client->navigateToPose(goal);
+        if(!m_nav_client->navigateToPose(goal))
+        {
+            RCLCPP_ERROR(get_logger(), "navigation action server unavailable, abort carry");
+            onNavigationResult(false);
+        }
     }
 
     void onNavigationResult(bool success)
@@ -339,7 +354,7 @@ private:
         if(!success)
         {
             m_task_state = "INTERRUPTED";
-            publishTaskEvent("CARRY_ABORTED", "INTERRUPTED", m_current_goods, "", "NAVIGATION_FAILED");
+            publishTaskEvent("CARRY_ABORTED", "INTERRUPTED", m_current_goods, m_request_id, "NAVIGATION_FAILED");
             return;
         }
 
@@ -347,11 +362,18 @@ private:
         publishTaskEvent("STATUS", "PLACING", m_current_goods, "", "");
 
         double placeSeconds = this->get_parameter("place_simulate_seconds").as_double();
-        auto timer = this->create_wall_timer(
+        auto timer = std::make_shared<rclcpp::TimerBase::SharedPtr>();
+        *timer = this->create_wall_timer(
             std::chrono::duration<double>(placeSeconds),
-            [this]()
+            [this, timer]()
             {
-                publishTaskEvent("CARRY_COMPLETED", "TRANSPORTING", m_current_goods, "", "");
+                if(*timer)
+                    (*timer)->cancel();
+
+                if(m_task_state != "PLACING")
+                    return;
+
+                publishTaskEvent("CARRY_COMPLETED", "TRANSPORTING", m_current_goods, m_request_id, "");
                 m_current_goods.clear();
                 if(m_edge_online)
                 {
@@ -364,7 +386,7 @@ private:
                     resetTask();
                 }
             });
-        m_one_shot_timers.push_back(timer);
+        m_one_shot_timers.push_back(*timer);
     }
 
     void publishPeriodicTaskStatus()

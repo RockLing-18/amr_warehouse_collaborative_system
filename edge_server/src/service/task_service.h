@@ -14,6 +14,7 @@ public:
 
     bool createTask(const TransportTask& task, int& code, std::string& message);
     bool getTask(const std::string& task_id, TransportTask& task);
+    bool getTaskGoodsStatus(const std::string& task_id, std::vector<TaskGoodsStatus>& statusList);
     bool cancelTask(const std::string& task_id, int& code, std::string& message);
     bool handleGoodsApply(const GoodsApplyRequest& request, GoodsApplyResult& result);
     bool handleAmrTaskStatus(const AmrTaskStatusEvent& event);

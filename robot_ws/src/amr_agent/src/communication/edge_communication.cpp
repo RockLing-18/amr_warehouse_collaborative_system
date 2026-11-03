@@ -33,6 +33,13 @@ bool EdgeCommunication::init(const BootstrapInfo& cfg, rclcpp::Node::SharedPtr n
         return false;
     }
 
+    m_mqtt->setConnectionLostCallback(
+        [this]()
+        {
+            if(m_edgeStatusCallback)
+                m_edgeStatusCallback(false);
+        });
+
     registerHandler();
     setSubscribe();
 

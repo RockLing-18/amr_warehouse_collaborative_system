@@ -135,6 +135,11 @@ bool TaskService::getTask(const std::string& task_id, TransportTask& task)
     return SQLiteDB::Instance().GetTask(task_id, task);
 }
 
+bool TaskService::getTaskGoodsStatus(const std::string& task_id, std::vector<TaskGoodsStatus>& statusList)
+{
+    return SQLiteDB::Instance().GetTaskGoodsStatus(task_id, statusList);
+}
+
 bool TaskService::cancelTask(const std::string& task_id, int& code, std::string& message)
 {
     TransportTask task;

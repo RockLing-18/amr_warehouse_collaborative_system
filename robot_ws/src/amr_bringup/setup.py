@@ -22,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             "init_amr_pose=amr_bringup.init_amr_pose:main",
+            "start_amr=amr_bringup.start_amr:main",
         ],
     },
 )

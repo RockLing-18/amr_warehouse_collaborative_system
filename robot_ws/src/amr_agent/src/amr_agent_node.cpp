@@ -1,6 +1,7 @@
 #include "amr_agent_node.h"
 #include <chrono>
 #include <algorithm>
+#include <cmath>
 #include "types.h"
 #include "bootstrap/bootstrap.h"
 #include "communication/edge_communication.h"
@@ -75,8 +76,11 @@ bool AmrAgentNode::init()
         10,
         [this](const amr_interfaces::msg::ComponentStatus::SharedPtr msg)
         {
-            if(msg)
-                m_nav_state = msg->state;
+            if(!msg)
+                return;
+            m_nav_state = msg->state;
+            m_nav_last_update = this->now();
+            m_nav_has_update = true;
         });
 
     m_behavior_status_sub = this->create_subscription<amr_interfaces::msg::ComponentStatus>(
@@ -84,8 +88,61 @@ bool AmrAgentNode::init()
         10,
         [this](const amr_interfaces::msg::ComponentStatus::SharedPtr msg)
         {
-            if(msg)
-                m_behavior_state = msg->state;
+            if(!msg)
+                return;
+            m_behavior_state = msg->state;
+            m_behavior_last_update = this->now();
+            m_behavior_has_update = true;
+        });
+
+    m_robot_status_sub = this->create_subscription<amr_interfaces::msg::RobotStatus>(
+        amr_common::topic::ROBOT_STATUS,
+        10,
+        [this](const amr_interfaces::msg::RobotStatus::SharedPtr msg)
+        {
+            if(!msg)
+                return;
+            m_current_task_id = msg->current_task_id;
+        });
+
+    m_robot_pose_sub = this->create_subscription<amr_interfaces::msg::RobotPose>(
+        amr_common::topic::ROBOT_POSE,
+        10,
+        [this](const amr_interfaces::msg::RobotPose::SharedPtr msg)
+        {
+            if(!msg)
+                return;
+            m_pose_valid = msg->pose_valid;
+            if(m_pose_valid)
+            {
+                m_pose_x = msg->pose.pose.position.x;
+                m_pose_y = msg->pose.pose.position.y;
+
+                const auto& q = msg->pose.pose.orientation;
+                double siny_cosp = 2.0 * (q.w * q.z + q.x * q.y);
+                double cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z);
+                m_pose_yaw = std::atan2(siny_cosp, cosy_cosp);
+            }
+        });
+
+    m_status_watchdog_timer = this->create_wall_timer(
+        std::chrono::seconds(1),
+        [this]()
+        {
+            auto now = this->now();
+            constexpr double kStaleSeconds = 3.0;
+
+            if(m_nav_has_update &&
+               (now - m_nav_last_update).seconds() > kStaleSeconds)
+            {
+                m_nav_state = amr_interfaces::msg::ComponentStatus::STATE_ERROR;
+            }
+
+            if(m_behavior_has_update &&
+               (now - m_behavior_last_update).seconds() > kStaleSeconds)
+            {
+                m_behavior_state = amr_interfaces::msg::ComponentStatus::STATE_ERROR;
+            }
         });
 
     m_communication->setEdgeStatusCallback(
@@ -226,10 +283,10 @@ void AmrAgentNode::publishRobotStatus()
     root["state"] = state;
     root["online"] = true;
     root["battery"] = 100.0;
-    root["pose"]["x"] = 0.0;
-    root["pose"]["y"] = 0.0;
-    root["pose"]["yaw"] = 0.0;
-    root["task_id"] = "";
+    root["pose"]["x"] = m_pose_valid ? m_pose_x : 0.0;
+    root["pose"]["y"] = m_pose_valid ? m_pose_y : 0.0;
+    root["pose"]["yaw"] = m_pose_valid ? m_pose_yaw : 0.0;
+    root["task_id"] = m_current_task_id;
     root["timestamp"] = utils::getCurrentTimeMs();
 
     m_communication->publish(

@@ -137,6 +137,7 @@ def launch_robot(context, *args, **kwargs):
         package='robot_state_publisher',
         executable='robot_state_publisher',
         namespace=robot_id,
+        remappings=[('/tf', 'tf'), ('/tf_static', 'tf_static')],
         parameters=[
             {'robot_description': robot_description},
             {'use_sim_time': True},

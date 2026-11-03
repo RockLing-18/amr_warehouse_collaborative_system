@@ -22,6 +22,7 @@ find_package(rclcpp_action REQUIRED)
 find_package(amr_interfaces REQUIRED)
 find_package(amr_common REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(lifecycle_msgs REQUIRED)
 
 # ============================
 # TF Helper Library
@@ -91,6 +92,7 @@ ament_target_dependencies(
     amr_interfaces
     amr_common
     ament_index_cpp
+    lifecycle_msgs
 )
 
 # ============================
@@ -113,6 +115,18 @@ install(
 )
 
 install(DIRECTORY launch config rviz DESTINATION share/${PROJECT_NAME})
+
+install(
+    FILES
+        scripts/start_nav2.py
+    DESTINATION share/${PROJECT_NAME}/scripts
+)
+
+install(
+    PROGRAMS
+        scripts/start_nav2.py
+    DESTINATION lib/${PROJECT_NAME}
+)
 
 
 # ============================

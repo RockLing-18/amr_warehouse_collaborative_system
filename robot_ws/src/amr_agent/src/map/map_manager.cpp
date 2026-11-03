@@ -396,6 +396,32 @@ bool MapManager::updateMap(
         return false;
     }
 
+    fs::path imagePath;
+    if(m_mapImage.empty())
+        imagePath = fs::path(m_mapRootPath) / "map.pgm";
+    else
+    {
+        imagePath = fs::path(m_mapImage);
+        if(imagePath.is_relative())
+            imagePath = fs::path(m_mapRootPath) / imagePath;
+    }
+
+    if(!fs::exists(imagePath, ec))
+    {
+        LOG_ERROR(
+            "map image not found after extraction: %s",
+            imagePath.c_str());
+        return false;
+    }
+
+    if(!fs::exists(fs::path(m_mapRootPath) / "zones.yaml", ec) ||
+       !fs::exists(fs::path(m_mapRootPath) / "stations.yaml", ec))
+    {
+        LOG_ERROR(
+            "zones.yaml or stations.yaml not found after extraction");
+        return false;
+    }
+
     /*
      * 保存当前地图信息。
      */

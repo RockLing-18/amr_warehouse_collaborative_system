@@ -55,6 +55,7 @@ def generate_launch_description():
             name='rviz2',
             namespace=namespace,
             arguments=['-d', rviz_config_dir],
+            remappings=[('/tf', 'tf'), ('/tf_static', 'tf_static')],
             parameters=[{'use_sim_time': use_sim_time}],
             output='screen'),
     ])

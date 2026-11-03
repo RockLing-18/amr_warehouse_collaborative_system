@@ -107,12 +107,35 @@ V1 暂不实现 Cloud Platform，由调用方通过 Edge Server 的 HTTP API 注
   "msg": "success",
   "data": {
     "task_id": "task_001",
+    "warehouse_id": "warehouse_01",
+    "task_type": "UNLOAD",
     "state": "RUNNING",
     "robot_ids": ["robot_01", "robot_02"],
+    "goods": [
+      {"goods_id": "A", "goods_name": "A", "quantity": 10},
+      {"goods_id": "B", "goods_name": "B", "quantity": 20}
+    ],
+    "goods_status": [
+      {"goods_id": "A", "goods_name": "A", "total_quantity": 10,
+       "in_progress_quantity": 0, "completed_quantity": 10, "pending_quantity": 0},
+      {"goods_id": "B", "goods_name": "B", "total_quantity": 20,
+       "in_progress_quantity": 10, "completed_quantity": 5, "pending_quantity": 5}
+    ],
+    "total_quantity": 30,
+    "in_progress_quantity": 10,
+    "completed_quantity": 15,
+    "pending_quantity": 5,
+    "reason": "first goods approved",
     "updated_at": "2026-10-10T10:00:00+08:00"
   }
 }
 ```
+
+字段说明：
+
+- `goods`：任务静态货物定义（总量）。
+- `goods_status`：每个货物的搬运进度（`total_quantity = in_progress_quantity + completed_quantity + pending_quantity`）。
+- `total_quantity` / `in_progress_quantity` / `completed_quantity` / `pending_quantity`：任务级汇总，等于 `goods_status` 对应字段之和。
 
 ### 3.3 取消任务
 

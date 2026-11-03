@@ -200,6 +200,11 @@ void MqttClient::setMessageCallback(MessageCallback cb)
     m_callback = cb;
 }
 
+void MqttClient::setConnectionLostCallback(ConnectionLostCallback cb)
+{
+    m_connection_lost_callback = cb;
+}
+
 void MqttClient::setSubscribe(const std::string& topic, int qos)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -242,6 +247,8 @@ void MqttClient::delivery_complete(mqtt::delivery_token_ptr tok)
 void MqttClient::connection_lost(const std::string& cause)
 {
     LOG_WARN("mqtt connection lost:%s", cause.c_str());
+    if(m_connection_lost_callback)
+        m_connection_lost_callback();
 }
 
 void MqttClient::restoreSubscriptions()

@@ -5,6 +5,7 @@
 #include "service/task_service.h"
 #include "nlohmann/json.hpp"
 #include <fstream>
+#include <algorithm>
 
 using json=nlohmann::json;
 
@@ -510,6 +511,43 @@ void HttpServer::registerGetTaskRoute()
             }
             data["reason"] = task.reason;
             data["updated_at"] = task.updated_at;
+
+            std::vector<TaskGoodsStatus> statusList;
+            if(service->getTaskGoodsStatus(task_id, statusList))
+            {
+                int totalQuantity = 0;
+                int inProgressQuantity = 0;
+                int completedQuantity = 0;
+                int pendingQuantity = 0;
+
+                data["goods_status"] = json::array();
+                for(const auto& status : statusList)
+                {
+                    json item;
+                    item["goods_id"] = status.goods_id;
+
+                    auto goodsIt = std::find_if(
+                        task.goods.begin(), task.goods.end(),
+                        [&status](const TaskGoods& g){ return g.goods_id == status.goods_id; });
+                    item["goods_name"] = goodsIt != task.goods.end() ? goodsIt->goods_name : "";
+
+                    item["total_quantity"] = status.total_quantity;
+                    item["in_progress_quantity"] = status.in_progress_quantity;
+                    item["completed_quantity"] = status.completed_quantity;
+                    item["pending_quantity"] = status.pending_quantity;
+                    data["goods_status"].push_back(item);
+
+                    totalQuantity += status.total_quantity;
+                    inProgressQuantity += status.in_progress_quantity;
+                    completedQuantity += status.completed_quantity;
+                    pendingQuantity += status.pending_quantity;
+                }
+
+                data["total_quantity"] = totalQuantity;
+                data["in_progress_quantity"] = inProgressQuantity;
+                data["completed_quantity"] = completedQuantity;
+                data["pending_quantity"] = pendingQuantity;
+            }
 
             json resp;
             resp["code"] = 0;

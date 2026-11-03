@@ -23,12 +23,12 @@ bool NavigationClient::waitForActionServer(const std::chrono::seconds &timeout)
     return m_action_client->wait_for_action_server(timeout);
 }
 
-void NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped &goal)
+bool NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped &goal)
 {
     if(!waitForActionServer(std::chrono::seconds(3)))
     {
         RCLCPP_ERROR(m_node->get_logger(), "navigation action server not available");
-        return;
+        return false;
     }
 
     auto goal_msg = AmrNavigateToPose::Goal();
@@ -41,7 +41,15 @@ void NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped &goa
       if (goal_handle)
           m_current_goal_handle = goal_handle;
       else
+      {
           RCLCPP_WARN(m_node->get_logger(), "navigation goal rejected by server");
+          if(m_result_cb)
+          {
+              GoalHandle::WrappedResult rejected;
+              rejected.code = rclcpp_action::ResultCode::ABORTED;
+              m_result_cb(rejected);
+          }
+      }
     };
 
     send_goal_options.feedback_callback = [this](GoalHandle::SharedPtr, const std::shared_ptr<const AmrNavigateToPose::Feedback> feedback)
@@ -58,6 +66,7 @@ void NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped &goa
         goal.header.frame_id.c_str(), goal.pose.position.x, goal.pose.position.y);
 
     m_action_client->async_send_goal(goal_msg, send_goal_options);
+    return true;
 }
 
 void NavigationClient::cancelNavigation()

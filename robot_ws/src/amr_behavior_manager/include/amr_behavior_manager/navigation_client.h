@@ -35,8 +35,8 @@ public:
     // 等待 navigation server 可用
     bool waitForActionServer(const std::chrono::seconds &timeout = std::chrono::seconds(5));
 
-    // 发送单点导航目标
-    void navigateToPose(const geometry_msgs::msg::PoseStamped &goal);
+    // 发送单点导航目标，返回 false 表示 action server 不可用
+    bool navigateToPose(const geometry_msgs::msg::PoseStamped &goal);
 
     // 取消当前导航
     void cancelNavigation();

@@ -297,7 +297,12 @@ std::pair<std::string, std::string> TaskBridge::buildMqttMessage(const TaskEvent
         return {mqtt_topic::makeAmrTaskGoodsRequestTopic(m_robot_id), root.dump()};
     }
 
-    root["event_type"] = event.event_type;
+    // 内部事件类型 -> MQTT event_type 枚举（STATUS / CARRY_COMPLETED / CARRY_ABORTED）
+    std::string mqttEventType = event.event_type;
+    if(event.event_type == "TASK_ACCEPTED")
+        mqttEventType = "STATUS";
+
+    root["event_type"] = mqttEventType;
     root["task_state"] = event.task_state;
     root["reason"] = event.reason;
     root["request_id"] = event.request_id;

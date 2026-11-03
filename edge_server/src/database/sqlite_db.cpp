@@ -1317,7 +1317,7 @@ bool SQLiteDB::InsertAmrTaskStatusEvent(const AmrTaskStatusEvent& event)
     sqlite3_bind_text(stmt, 7, event.reason.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 8, event.timestamp.c_str(), -1, SQLITE_TRANSIENT);
 
-    bool ok = sqlite3_step(stmt) == SQLITE_DONE;
+    bool ok = sqlite3_step(stmt) == SQLITE_DONE && sqlite3_changes(m_pDB) > 0;
     sqlite3_finalize(stmt);
     return ok;
 }

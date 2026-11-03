@@ -14,6 +14,7 @@ class MqttClient : public virtual mqtt::callback
 {
 public:
     using MessageCallback = std::function<void(const std::string& topic, const std::string& payload)>;
+    using ConnectionLostCallback = std::function<void()>;
 
 public:
     MqttClient();
@@ -27,6 +28,7 @@ public:
     bool publish(const std::string& topic, const std::string& payload, int qos = 1, bool retain = false);
     bool isConnected() const;
     void setMessageCallback(MessageCallback cb);
+    void setConnectionLostCallback(ConnectionLostCallback cb);
     void setSubscribe(const std::string& topic, int qos = 1);  // 仅设置,不立马生效, 连接成功后生效
 
 private:
@@ -42,6 +44,7 @@ private:
     std::unique_ptr<mqtt::async_client> m_client;
     mqtt::connect_options m_options;
     MessageCallback m_callback;
+    ConnectionLostCallback m_connection_lost_callback;
     std::string m_url;
     MqttMessage m_will;
     bool m_willEnable{false};

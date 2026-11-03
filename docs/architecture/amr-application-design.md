@@ -118,7 +118,7 @@
 1. `amr_agent` 收到 `amr/{robot_id}/task`。
 2. `amr_agent` 解码并转发给 `amr_behavior_manager`。
 3. `amr_behavior_manager` 进入 `ACCEPTED`，上报任务接受。
-4. `amr_behavior_manager` 读取共享状态，选择 `pending_quantity > 0` 的货物。
+4. `amr_behavior_manager` 读取共享状态，选择 `pending_quantity > 0` 的货物；V1 每趟只搬运一种 `goods_id`，多货物任务按货物类型顺序拆分为多趟执行。
 5. `amr_agent` 向 Edge 发起货物申请。
 6. Edge 批准后，`amr_agent` 收到 `goods/response`。
 7. `amr_behavior_manager` 进入 `GRASPING`，模拟抓取完成。
@@ -225,7 +225,27 @@ AMR 每 5 秒通过 `amr/{robot_id}/task/status` 上报一次 `STATUS`。
 
 ### 9.5 TF 帧前缀与 nav2 参数
 
-AMR URDF 中所有 TF 帧使用 `robot_id + "_"` 前缀（例如 `robot01_base_footprint`、`robot01_odom`、`robot01_laser_link`），`map` 帧保持无前缀。`navigation_server` 启动 nav2 前会读取 `nav2_params.yaml` 模板，把其中的 `<robot_prefix>` 占位符替换为 `robot_id_`，生成 `/tmp/amr_nav2_params_{robot_id}.yaml` 后传入 nav2，保证 AMCL、costmap 等使用的帧名与机器人实际 TF 一致。
+AMR URDF 中所有 TF 帧使用 `robot_id + "_"` 前缀（例如 `robot01_base_footprint`、`robot01_odom`、`robot01_laser_link`），`map` 帧保持无前缀。`navigation_server` 启动 nav2 前会读取 `nav2_params.yaml` 模板，把其中的 `<robot_prefix>` 占位符替换为 `robot_id_`，生成 `/tmp/amr_nav2_params_{robot_id}.yaml` 后传入 nav2，保证 AMCL、costmap 等使用的帧名与机器人实际 TF 一致。RViz 节点通过 `navigation2.launch.py` 将 `/tf`、`/tf_static` 重映射为相对名，使其订阅到当前机器人命名空间下的 TF。
+
+Nav2 的启动默认与 `navigation_server` 解耦：`amr_bringup` 以 `launch_nav2:=false`
+启动 `navigation_server`，`navigation_server` 收到 `MapInfo` 后用其中的 `map_yaml`
+自动调用 `scripts/start_nav2.py`，由该脚本在独立终端中按 `robot_id`
+生成带前缀的 `/tmp/amr_nav2_params_{robot_id}.yaml` 并执行
+`ros2 launch amr_navigation navigation2.launch.py`。`navigation_server` 自身只负责
+连接 Nav2 的 lifecycle 服务、等待 AMCL 进入 `active` 并下发初始位姿；
+当 `launch_nav2:=true` 时，仍保留由其 fork 启动 Nav2 的兼容模式。
+
+`diff_drive_controller` 侧同样需要与 TF 帧前缀约定保持一致：`amr_ros2_controller.yaml` 中 `tf_frame_prefix_enable: false`（禁止再叠加命名空间前缀），并在 `amr.ros2_control.xacro` 的 gazebo 插件中增加 `<remapping>/tf:=tf</remapping>`，使控制器发布的里程计 TF 进入当前机器人命名空间。
+
+`robot_state_publisher` 同样以绝对话题发布 `/tf`、`/tf_static`，因此在 `spawn_amr.launch.py` 中为其增加 `/tf`、`/tf_static` 到相对名的重映射，使静态 TF（`base_footprint -> base_link -> laser_link` 等）也进入当前机器人命名空间。
+
+### 9.6 模块状态看门狗
+
+`amr_navigation` 与 `amr_behavior_manager` 以 1Hz 向 `amr_agent` 发布 `navigation_status` / `behavior_status`。`amr_agent` 聚合时记录各模块最近更新时间：若某模块超过 3 秒未更新，则将该模块状态降级为 `ERROR`，从而让 AMR 对外状态不再停留在 `IDLE`。
+
+### 9.7 初始位姿下发时序
+
+`navigation_server` 订阅 AMCL 的 `transition_event`，等 AMCL 生命周期进入 `active` 后再发布一次 `initialpose` 并进入 `READY`，避免在 AMCL 尚未完成订阅时丢失一次性初始位姿；同时 `navigation_server` 默认 `use_sim_time=true`，保证 `initialpose` 时间戳与 TF/AMCL 的仿真时间一致。
 
 ## 10. 已确认决策
 
@@ -303,3 +323,5 @@ builtin_interfaces/Time stamp
 - `CARRY_COMPLETED`
 - `CARRY_ABORTED`
 - `STATUS`
+
+`amr_agent` 的 `task_bridge` 负责把内部 `event_type` 翻译为 MQTT 枚举：`TASK_ACCEPTED` 映射为 MQTT `STATUS`（`task_state=ACCEPTED`），`GOODS_REQUEST` 走 `amr/{robot_id}/task/goods/request` 话题，其余 `STATUS` / `CARRY_COMPLETED` / `CARRY_ABORTED` 直接透传。

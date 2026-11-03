@@ -28,6 +28,7 @@
 - [AMR 待补报文件格式](requirements/pending-task-reports-format.md)：`pending_task_reports.json` 结构、写入和清理规则。
 - [项目待办与交付清单](TODO.md)：后续开发、测试和验收的工作清单。
 - [构建与启动说明](development/build-run.md)：Edge、ROS2 workspace、AMR 启动命令。
+- [导航地图/代价图排查记录](development/troubleshooting-navigation.md)：namespace、TF、lifecycle、initialpose 时序的分层排查案例。
 
 ## 架构文档
 
