@@ -18,6 +18,7 @@
 #include "amr_interfaces/msg/map_info.hpp"
 #include "amr_interfaces/msg/edge_status.hpp"
 #include "amr_interfaces/msg/component_status.hpp"
+#include "amr_interfaces/msg/initial_pose.hpp"
 
 namespace amr_behavior_manager
 {
@@ -32,6 +33,7 @@ public:
     using TaskGoods = amr_interfaces::msg::TaskGoods;
     using TaskGoodsStatus = amr_interfaces::msg::TaskGoodsStatus;
     using ComponentStatus = amr_interfaces::msg::ComponentStatus;
+    using InitialPose = amr_interfaces::msg::InitialPose;
 
     AmrBehaviorManagerNode()
         : Node("amr_behavior_manager")
@@ -98,6 +100,23 @@ public:
                 m_edge_online = msg->online;
                 RCLCPP_INFO(get_logger(), "edge online=%s", m_edge_online ? "true" : "false");
             });
+
+        auto initial_pose_qos = rclcpp::QoS(rclcpp::KeepLast(1));
+        initial_pose_qos.reliable();
+        initial_pose_qos.transient_local();
+        m_initial_pose_sub = this->create_subscription<InitialPose>(
+            amr_common::topic::INITIAL_POSE,
+            initial_pose_qos,
+            [this](const InitialPose::SharedPtr pose)
+            {
+                if(!pose)
+                    return;
+                m_home_pose = pose;
+                RCLCPP_INFO(
+                    get_logger(),
+                    "receive home pose x=%.2f y=%.2f yaw=%.2f",
+                    pose->x, pose->y, pose->yaw);
+            });
     }
 
     void init()
@@ -113,7 +132,10 @@ public:
             [this](const NavigationClient::GoalHandle::WrappedResult& result)
             {
                 bool success = result.code == rclcpp_action::ResultCode::SUCCEEDED;
-                onNavigationResult(success);
+                if(m_returning_home)
+                    onReturnHomeResult(success);
+                else
+                    onNavigationResult(success);
             });
 
         double robotStatusRate = this->get_parameter("status_publish_rate_hz").as_double();
@@ -167,6 +189,19 @@ private:
             return;
         }
 
+        if(m_returning_home)
+        {
+            m_returning_home = false;
+            if(m_nav_client)
+                m_nav_client->cancelNavigation();
+        }
+        if(m_home_retry_timer)
+        {
+            m_home_retry_timer->cancel();
+            m_home_retry_timer.reset();
+        }
+        m_home_retry_count = 0;
+
         m_current_task_id = cmd.task_id;
         m_current_warehouse_id = cmd.warehouse_id;
         m_current_task_type = cmd.task_type;
@@ -205,6 +240,7 @@ private:
         {
             m_task_state = "IDLE";
             resetTask();
+            returnToHome();
             return;
         }
 
@@ -276,32 +312,19 @@ private:
 
     void beginGraspThenNavigate()
     {
-        m_task_state = "GRASPING";
-        publishTaskEvent("STATUS", "GRASPING", m_current_goods, "", "");
-
-        double graspSeconds = this->get_parameter("grasp_simulate_seconds").as_double();
-        auto timer = std::make_shared<rclcpp::TimerBase::SharedPtr>();
-        *timer = this->create_wall_timer(
-            std::chrono::duration<double>(graspSeconds),
-            [this, timer]()
-            {
-                if(*timer)
-                    (*timer)->cancel();
-
-                if(m_task_state != "GRASPING" || m_current_goods.empty())
-                    return;
-
-                m_task_state = "TRANSPORTING";
-                publishTaskEvent("STATUS", "TRANSPORTING", m_current_goods, "", "");
-                navigateToGoodsDestination();
-            });
-        m_one_shot_timers.push_back(*timer);
+        m_task_state = "NAVIGATING_TO_PICKUP";
+        publishTaskEvent("STATUS", "NAVIGATING_TO_PICKUP", m_current_goods, "", "");
+        navigateToGoodsPoint(false);
     }
 
-    void navigateToGoodsDestination()
+    void navigateToGoodsPoint(bool toDropoff)
     {
         if(!m_nav_client)
+        {
+            RCLCPP_ERROR(get_logger(), "navigation client not available, abort carry");
+            onNavigationResult(false);
             return;
+        }
 
         geometry_msgs::msg::PoseStamped goal;
         goal.header.frame_id = "map";
@@ -312,10 +335,16 @@ private:
 
         if(!m_current_goods.empty() && m_goods_point_resolver)
         {
+            std::string zone_type;
+            if(m_current_task_type == "LOAD")
+                zone_type = toDropoff ? "LOAD" : "STORAGE";
+            else
+                zone_type = toDropoff ? "STORAGE" : "UNLOAD";
+
             LocationInfo location;
-            if(m_goods_point_resolver->resolve(
+            if(m_goods_point_resolver->resolveForZoneType(
                 m_current_goods.front().goods_id,
-                m_current_task_type,
+                zone_type,
                 location))
             {
                 goal.pose.position.x = location.x;
@@ -326,7 +355,9 @@ private:
                 goal.pose.orientation.w = std::cos(halfYaw);
                 RCLCPP_INFO(
                     get_logger(),
-                    "resolve goods point goods=%s location=%s x=%.2f y=%.2f yaw=%.2f",
+                    "resolve goods point phase=%s zone=%s goods=%s location=%s x=%.2f y=%.2f yaw=%.2f",
+                    toDropoff ? "dropoff" : "pickup",
+                    zone_type.c_str(),
                     m_current_goods.front().goods_id.c_str(),
                     location.id.c_str(),
                     location.x,
@@ -335,8 +366,17 @@ private:
             }
             else
             {
-                RCLCPP_WARN(get_logger(), "resolve goods point failed, use default point");
+                RCLCPP_ERROR(get_logger(), "resolve goods point failed phase=%s, abort carry",
+                    toDropoff ? "dropoff" : "pickup");
+                onNavigationResult(false);
+                return;
             }
+        }
+        else
+        {
+            RCLCPP_ERROR(get_logger(), "no goods or point resolver, abort carry");
+            onNavigationResult(false);
+            return;
         }
 
         if(!m_nav_client->navigateToPose(goal))
@@ -348,13 +388,38 @@ private:
 
     void onNavigationResult(bool success)
     {
-        if(m_task_state != "TRANSPORTING")
+        if(m_task_state != "NAVIGATING_TO_PICKUP" && m_task_state != "TRANSPORTING")
             return;
 
         if(!success)
         {
             m_task_state = "INTERRUPTED";
             publishTaskEvent("CARRY_ABORTED", "INTERRUPTED", m_current_goods, m_request_id, "NAVIGATION_FAILED");
+            return;
+        }
+
+        if(m_task_state == "NAVIGATING_TO_PICKUP")
+        {
+            m_task_state = "GRASPING";
+            publishTaskEvent("STATUS", "GRASPING", m_current_goods, "", "");
+
+            double graspSeconds = this->get_parameter("grasp_simulate_seconds").as_double();
+            auto timer = std::make_shared<rclcpp::TimerBase::SharedPtr>();
+            *timer = this->create_wall_timer(
+                std::chrono::duration<double>(graspSeconds),
+                [this, timer]()
+                {
+                    if(*timer)
+                        (*timer)->cancel();
+
+                    if(m_task_state != "GRASPING")
+                        return;
+
+                    m_task_state = "TRANSPORTING";
+                    publishTaskEvent("STATUS", "TRANSPORTING", m_current_goods, "", "");
+                    navigateToGoodsPoint(true);
+                });
+            m_one_shot_timers.push_back(*timer);
             return;
         }
 
@@ -389,6 +454,83 @@ private:
         m_one_shot_timers.push_back(*timer);
     }
 
+    void returnToHome()
+    {
+        if(m_returning_home)
+            return;
+
+        if(!m_nav_client)
+        {
+            RCLCPP_WARN(get_logger(), "navigation client not available, skip return home");
+            return;
+        }
+
+        if(!m_home_pose)
+        {
+            RCLCPP_WARN(get_logger(), "home pose not received, skip return home");
+            return;
+        }
+
+        geometry_msgs::msg::PoseStamped goal;
+        goal.header.frame_id = "map";
+        goal.header.stamp = this->now();
+        goal.pose.position.x = m_home_pose->x;
+        goal.pose.position.y = m_home_pose->y;
+        double halfYaw = m_home_pose->yaw * 0.5;
+        goal.pose.orientation.z = std::sin(halfYaw);
+        goal.pose.orientation.w = std::cos(halfYaw);
+
+        m_returning_home = true;
+        m_task_state = "NAVIGATING_HOME";
+        RCLCPP_INFO(
+            get_logger(),
+            "return home x=%.2f y=%.2f yaw=%.2f",
+            m_home_pose->x, m_home_pose->y, m_home_pose->yaw);
+
+        if(!m_nav_client->navigateToPose(goal))
+        {
+            RCLCPP_ERROR(get_logger(), "navigation action server unavailable, skip return home");
+            m_returning_home = false;
+            m_task_state = "IDLE";
+        }
+    }
+
+    void onReturnHomeResult(bool success)
+    {
+        m_returning_home = false;
+        m_task_state = "IDLE";
+        if(success)
+        {
+            m_home_retry_count = 0;
+            RCLCPP_INFO(get_logger(), "returned to home");
+        }
+        else
+        {
+            if(m_home_retry_count < 3)
+            {
+                ++m_home_retry_count;
+                RCLCPP_WARN(
+                    get_logger(),
+                    "return home failed, retry %d/3 in 3s",
+                    m_home_retry_count);
+                m_home_retry_timer = this->create_wall_timer(
+                    std::chrono::seconds(3),
+                    [this]()
+                    {
+                        if(m_home_retry_timer)
+                            m_home_retry_timer->cancel();
+                        m_home_retry_timer.reset();
+                        returnToHome();
+                    });
+            }
+            else
+            {
+                m_home_retry_count = 0;
+                RCLCPP_ERROR(get_logger(), "return home failed after retries");
+            }
+        }
+    }
+
     void publishPeriodicTaskStatus()
     {
         if(m_current_task_id.empty())
@@ -411,9 +553,17 @@ private:
             rs.yaw = 0.0;
         }
 
-        rs.state = m_task_state == "TRANSPORTING" ? RobotStatus::STATE_EXECUTING : RobotStatus::STATE_IDLE;
+        bool actionActive =
+            m_task_state == "NAVIGATING_TO_PICKUP" ||
+            m_task_state == "GRASPING" ||
+            m_task_state == "TRANSPORTING" ||
+            m_task_state == "PLACING";
+        rs.state = actionActive ? RobotStatus::STATE_EXECUTING : RobotStatus::STATE_IDLE;
         rs.battery = 100.0f;
-        rs.navigating = m_task_state == "TRANSPORTING";
+        rs.navigating =
+            m_task_state == "NAVIGATING_TO_PICKUP" ||
+            m_task_state == "TRANSPORTING" ||
+            m_returning_home;
         rs.current_task_id = m_current_task_id;
         m_robot_status_pub->publish(rs);
 
@@ -430,6 +580,7 @@ private:
         else if(m_task_state == "INTERRUPTED")
             msg.state = ComponentStatus::STATE_ERROR;
         else if(m_task_state == "ACCEPTED" ||
+                m_task_state == "NAVIGATING_TO_PICKUP" ||
                 m_task_state == "GRASPING" ||
                 m_task_state == "TRANSPORTING" ||
                 m_task_state == "PLACING")
@@ -495,8 +646,10 @@ private:
     rclcpp::Publisher<TaskEvent>::SharedPtr m_task_event_pub;
     rclcpp::Subscription<amr_interfaces::msg::MapInfo>::SharedPtr m_map_info_sub;
     rclcpp::Subscription<amr_interfaces::msg::EdgeStatus>::SharedPtr m_edge_status_sub;
+    rclcpp::Subscription<InitialPose>::SharedPtr m_initial_pose_sub;
     rclcpp::TimerBase::SharedPtr m_robot_status_timer;
     rclcpp::TimerBase::SharedPtr m_task_status_timer;
+    rclcpp::TimerBase::SharedPtr m_home_retry_timer;
     std::vector<rclcpp::TimerBase::SharedPtr> m_one_shot_timers;
 
     std::string m_current_task_id;
@@ -507,6 +660,9 @@ private:
     bool m_waiting_goods_response = false;
     bool m_map_ready = false;
     bool m_edge_online = true;
+    bool m_returning_home = false;
+    int m_home_retry_count = 0;
+    InitialPose::SharedPtr m_home_pose;
     std::vector<TaskGoodsStatus> m_goods_status;
     std::vector<TaskGoods> m_current_goods;
 };

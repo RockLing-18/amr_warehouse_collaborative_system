@@ -41,6 +41,7 @@ private:
     std::string m_warehouse_id;
     std::string m_map_version;
     std::string m_current_task_id;
+    bool m_behavior_navigating = false;
     double m_initial_x = 0.0;
     double m_initial_y = 0.0;
     double m_initial_yaw = 0.0;

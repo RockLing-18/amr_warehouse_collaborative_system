@@ -10,7 +10,7 @@ NavigationManager::NavigationManager(rclcpp::Node::SharedPtr node) : m_logger(no
         );
 }
 
-NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& req)
+NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& req, uint64_t epoch)
 {
     NavigationResponse resp;
     if(!m_action_client->wait_for_action_server(std::chrono::seconds(5)))
@@ -56,6 +56,7 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
         );
 
     m_state = NavigationExecutionState::ACCEPTING;
+    m_current_epoch = epoch;
     m_action_client->async_send_goal(goal, options);
 
     resp.accepted = true;
@@ -73,7 +74,7 @@ void NavigationManager::goalResponseCallback(GoalHandle::SharedPtr goal_handle)
         m_goal_handle.reset();
 
         if(m_result_callback)
-            m_result_callback(NavigationExecutionState::FAILED);
+            m_result_callback(NavigationExecutionState::FAILED, m_current_epoch);
         
         return;
     }
@@ -87,8 +88,10 @@ void NavigationManager::feedbackCallback(GoalHandle::SharedPtr, const std::share
 {
     auto pose = feedback->current_pose;
 
-    RCLCPP_INFO(
+    RCLCPP_INFO_THROTTLE(
         m_logger,
+        m_clock,
+        5000,
         "current(%.2f %.2f), remain %.2f",
         pose.pose.position.x,
         pose.pose.position.y,
@@ -143,7 +146,7 @@ void NavigationManager::resultCallback(const GoalHandle::WrappedResult &result)
     m_state = NavigationExecutionState::IDLE;
 
     if(m_result_callback)
-        m_result_callback(state);
+        m_result_callback(state, m_current_epoch);
 }
 
 void NavigationManager::cancelNavigation()

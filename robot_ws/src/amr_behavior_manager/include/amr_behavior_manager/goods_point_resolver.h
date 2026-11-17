@@ -18,6 +18,11 @@ public:
         const std::string& task_type,
         LocationInfo& location) const;
 
+    bool resolveForZoneType(
+        const std::string& goods_id,
+        const std::string& zone_type,
+        LocationInfo& location) const;
+
 private:
     std::shared_ptr<ZoneStationLoader> m_loader;
 };

@@ -49,7 +49,7 @@ struct NavigationResponse
 class NavigationManager
 {
 public:
-    using ResultCallback = std::function<void(NavigationExecutionState)>;
+    using ResultCallback = std::function<void(NavigationExecutionState, uint64_t)>;
     using FeedbackCallback = std::function<void(const NavigationFeedback&)>;
 
     using NavigateToPose = nav2_msgs::action::NavigateToPose;
@@ -60,7 +60,7 @@ public:
     /**
      * 发送导航目标
      */
-    NavigationResponse navigateToPose(const NavigationRequest& req);
+    NavigationResponse navigateToPose(const NavigationRequest& req, uint64_t epoch);
 
     /**
      * 取消当前导航
@@ -89,6 +89,8 @@ private:
     FeedbackCallback m_feedback_callback;
     ResultCallback m_result_callback;
     NavigationExecutionState m_state{NavigationExecutionState::IDLE};
+    uint64_t m_current_epoch{0};
+    rclcpp::Clock m_clock{RCL_STEADY_TIME};
 };
 
 }

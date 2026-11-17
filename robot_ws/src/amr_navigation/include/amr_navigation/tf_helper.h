@@ -3,7 +3,7 @@
 #include <string>
 #include "rclcpp/rclcpp.hpp"
 #include "tf2_ros/buffer.h"
-#include "tf2_ros/transform_listener.h"
+#include "tf2_msgs/msg/tf_message.hpp"
 
 namespace amr_navigation
 {
@@ -31,7 +31,8 @@ private:
     rclcpp::Node::WeakPtr m_node;
     rclcpp::Logger m_logger;
     std::unique_ptr<tf2_ros::Buffer> m_buffer;
-    std::shared_ptr<tf2_ros::TransformListener> m_listener;
+    rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr m_tf_sub;
+    rclcpp::Subscription<tf2_msgs::msg::TFMessage>::SharedPtr m_tf_static_sub;
 };
 
 

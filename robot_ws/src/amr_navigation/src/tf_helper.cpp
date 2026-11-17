@@ -2,6 +2,7 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2/LinearMath/Matrix3x3.h"
+#include "tf2_ros/qos.hpp"
 
 namespace amr_navigation
 {
@@ -9,20 +10,41 @@ namespace amr_navigation
 TFHelper::TFHelper(rclcpp::Node::SharedPtr node): m_node(node), m_logger(node->get_logger())
 {
     m_buffer = std::make_unique<tf2_ros::Buffer>(node->get_clock());
-    m_listener = std::make_shared<tf2_ros::TransformListener>(*m_buffer);
+
+    // 使用相对名订阅，配合命名空间 TF（/robot01/tf、/robot01/tf_static）
+    m_tf_sub = node->create_subscription<tf2_msgs::msg::TFMessage>(
+        "tf",
+        tf2_ros::DynamicListenerQoS(),
+        [this](const tf2_msgs::msg::TFMessage::SharedPtr msg)
+        {
+            for(const auto& transform : msg->transforms)
+                m_buffer->setTransform(transform, "tf");
+        });
+    m_tf_static_sub = node->create_subscription<tf2_msgs::msg::TFMessage>(
+        "tf_static",
+        tf2_ros::StaticListenerQoS(),
+        [this](const tf2_msgs::msg::TFMessage::SharedPtr msg)
+        {
+            for(const auto& transform : msg->transforms)
+                m_buffer->setTransform(transform, "tf_static", true);
+        });
 }
 
 bool TFHelper::getRobotPose(RobotPose &pose)
 {
     constexpr char target_frame[] = "map";
-    constexpr char source_frame[] = "base_footprint";
+    std::string source_frame = "base_footprint";
 
-    if (!m_buffer->canTransform(
-            target_frame,
-            source_frame,
-            tf2::TimePointZero))
-    {
+    auto node = m_node.lock();
+    if(!node)
         return false;
+
+    std::string ns = node->get_namespace();
+    if(!ns.empty() && ns != "/")
+    {
+        if(ns.front() == '/')
+            ns.erase(ns.begin());
+        source_frame = ns + "_" + source_frame;
     }
 
     try
@@ -50,10 +72,6 @@ bool TFHelper::getRobotPose(RobotPose &pose)
     }
     catch (const tf2::TransformException &ex)
     {
-        auto node = m_node.lock();
-        if(!node)
-            return false;
-
         RCLCPP_WARN_THROTTLE(
             m_logger,
             *node->get_clock(),

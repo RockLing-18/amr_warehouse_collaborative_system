@@ -60,6 +60,7 @@ private:
 
     // 当前目标句柄：取消 / 状态查询用（每次发送后更新）
     GoalHandle::SharedPtr m_current_goal_handle;
+    bool m_goal_active = false;
 
     mutable std::mutex m_pose_mutex;
     RobotPose::SharedPtr m_latest_pose;

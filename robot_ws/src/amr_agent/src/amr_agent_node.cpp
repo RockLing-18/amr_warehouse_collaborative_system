@@ -103,6 +103,7 @@ bool AmrAgentNode::init()
             if(!msg)
                 return;
             m_current_task_id = msg->current_task_id;
+            m_behavior_navigating = msg->navigating;
         });
 
     m_robot_pose_sub = this->create_subscription<amr_interfaces::msg::RobotPose>(
@@ -274,7 +275,17 @@ void AmrAgentNode::publishRobotStatus()
     if(!m_communication)
         return;
 
-    int aggregated = std::min(m_nav_state, m_behavior_state);
+    int aggregated;
+    if(m_behavior_state == amr_interfaces::msg::ComponentStatus::STATE_IDLE &&
+       m_behavior_navigating)
+    {
+        // 返航期间行为模块已可接新任务，对外保持 IDLE，移动由 navigating 字段表达
+        aggregated = amr_interfaces::msg::ComponentStatus::STATE_IDLE;
+    }
+    else
+    {
+        aggregated = std::min(m_nav_state, m_behavior_state);
+    }
     const char* state = amr_common::robotStateToString(
         static_cast<amr_common::RobotState>(aggregated));
 

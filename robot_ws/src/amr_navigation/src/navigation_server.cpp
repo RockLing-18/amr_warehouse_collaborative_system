@@ -113,7 +113,9 @@ public:
 
 		// 注册 NavigationManager 的 feedback/result 回调
 		m_navigation_manager->setFeedbackCallback(std::bind(&NavigationServer::onNavigationFeedback, this, std::placeholders::_1));
-		m_navigation_manager->setResultCallback(std::bind(&NavigationServer::onNavigationResult, this, std::placeholders::_1));
+		m_navigation_manager->setResultCallback(
+			std::bind(&NavigationServer::onNavigationResult, this,
+				std::placeholders::_1, std::placeholders::_2));
 	
 		// 位姿话题（相对名：/robot_namespace/robot_pose）
 		m_robot_pose_pub = this->create_publisher<RobotPoseMsg>(
@@ -171,8 +173,11 @@ public:
 				}
 			});
 
+		auto initial_pose_pub_qos = rclcpp::QoS(rclcpp::KeepLast(1));
+		initial_pose_pub_qos.reliable();
+		initial_pose_pub_qos.transient_local();
 		m_initial_pose_pub = this->create_publisher<PoseWithCovarianceStamped>(
-			"initialpose", 10);
+			"initialpose", initial_pose_pub_qos);
 		auto initial_pose_qos = rclcpp::QoS(rclcpp::KeepLast(1));
 		initial_pose_qos.reliable();
 		initial_pose_qos.transient_local();
@@ -216,11 +221,27 @@ private:
 		msg.pose_valid = m_tf_helper->getRobotPose(tf_pose);
 		if (msg.pose_valid)
 		{
+			m_last_pose = tf_pose;
+			m_has_last_pose = true;
 			msg.pose.pose.position.x = tf_pose.x;
 			msg.pose.pose.position.y = tf_pose.y;
 			// yaw -> 四元数，填充 msg.pose.pose.orientation
 			tf2::Quaternion q;
         	q.setRPY(0.0, 0.0, tf_pose.yaw);
+			msg.pose.pose.orientation = tf2::toMsg(q);
+		}
+		else if(m_has_last_pose)
+		{
+			RCLCPP_WARN_THROTTLE(
+				get_logger(),
+				*this->get_clock(),
+				5000,
+				"robot pose lookup failed, publish last known pose");
+			msg.pose_valid = true;
+			msg.pose.pose.position.x = m_last_pose.x;
+			msg.pose.pose.position.y = m_last_pose.y;
+			tf2::Quaternion q;
+			q.setRPY(0.0, 0.0, m_last_pose.yaw);
 			msg.pose.pose.orientation = tf2::toMsg(q);
 		}
 		
@@ -320,7 +341,9 @@ private:
 		req.goal = goal->goal_pose;
 
 		// 机器人正忙于其他导航：直接取消旧导航（supersede），等待结束后重试本次目标
-		amr_navigation::NavigationResponse resp = m_navigation_manager->navigateToPose(req);
+		uint64_t next_epoch = m_nav_epoch + 1;
+		amr_navigation::NavigationResponse resp =
+			m_navigation_manager->navigateToPose(req, next_epoch);
 		if (!resp.accepted && isBusyState(resp.state))
 		{
 			RCLCPP_WARN(this->get_logger(), "robot busy, cancel current navigation and retry");
@@ -329,7 +352,7 @@ private:
 			if (waitForNavigationResult(old_state))
 				RCLCPP_INFO(this->get_logger(), "old navigation finished, state=%d",
 					static_cast<int>(old_state));
-			resp = m_navigation_manager->navigateToPose(req);
+			resp = m_navigation_manager->navigateToPose(req, next_epoch);
 		}
 
 		if (!resp.accepted)
@@ -346,6 +369,7 @@ private:
 			m_navigation_result_ready = false;
 			m_active_goal_handle = goal_handle;
 		}
+		m_nav_epoch = next_epoch;
 
 		m_navigating = true;
 
@@ -413,8 +437,11 @@ private:
 		gh->publish_feedback(feedback);
 	}
 	
-	void onNavigationResult(amr_navigation::NavigationExecutionState state)
+	void onNavigationResult(amr_navigation::NavigationExecutionState state, uint64_t epoch)
 	{
+		if(epoch != m_nav_epoch)
+			return;
+
 		m_navigating = false;
 
 		{
@@ -507,13 +534,19 @@ private:
 			startNav2Lifecycle();
 			break;
 		case Nav2State::WAITING_FOR_LOCALIZATION:
+		{
 			publishInitialPoseIfReady();
-			if(m_initial_pose_published)
+			amr_navigation::RobotPose robot_pose{};
+			if(m_tf_helper->getRobotPose(robot_pose))
 			{
+				m_last_pose = robot_pose;
+				m_has_last_pose = true;
+				m_initial_pose_published = true;
 				m_nav2_state = Nav2State::READY;
 				RCLCPP_INFO(get_logger(), "navigation ready");
 			}
 			break;
+		}
 		default:
 			break;
 		}
@@ -560,9 +593,10 @@ private:
 		// 生成带 TF 帧前缀的 nav2 参数文件（例如 /robot01 -> robot01_）
 		{
 			std::string prefix;
+			std::string robotId;
 			if(!robot_namespace.empty())
 			{
-				std::string robotId = robot_namespace;
+				robotId = robot_namespace;
 				if(robotId.front() == '/')
 					robotId.erase(robotId.begin());
 				prefix = robotId + "_";
@@ -577,12 +611,20 @@ private:
 			}
 
 			std::string content = ss.str();
-			const std::string placeholder = "<robot_prefix>";
-			std::size_t pos = 0;
-			while((pos = content.find(placeholder, pos)) != std::string::npos)
+			const std::pair<std::string, std::string> placeholders[] = {
+				{"<robot_prefix>", prefix},
+				{"<robot_namespace>", robotId},
+			};
+			for(const auto& item : placeholders)
 			{
-				content.replace(pos, placeholder.size(), prefix);
-				pos += prefix.size();
+				const std::string& placeholder = item.first;
+				const std::string& value = item.second;
+				std::size_t pos = 0;
+				while((pos = content.find(placeholder, pos)) != std::string::npos)
+				{
+					content.replace(pos, placeholder.size(), value);
+					pos += value.size();
+				}
 			}
 
 			std::string tmpId = robot_namespace;
@@ -749,11 +791,10 @@ private:
 
 	void publishInitialPoseIfReady()
 	{
-		if(m_nav2_state != Nav2State::WAITING_FOR_LOCALIZATION &&
-		   m_nav2_state != Nav2State::READY)
+		if(m_nav2_state != Nav2State::WAITING_FOR_LOCALIZATION)
 			return;
 
-		if(!m_initial_pose || m_initial_pose_published)
+		if(!m_initial_pose)
 			return;
 
 		if(!m_amcl_active)
@@ -769,7 +810,6 @@ private:
 		msg.pose.pose.orientation.z = std::sin(half_yaw);
 		msg.pose.pose.orientation.w = std::cos(half_yaw);
 		m_initial_pose_pub->publish(msg);
-		m_initial_pose_published = true;
 		RCLCPP_INFO(get_logger(), "publish initial pose x=%.2f y=%.2f yaw=%.2f",
 			m_initial_pose->x, m_initial_pose->y, m_initial_pose->yaw);
 	}
@@ -788,6 +828,7 @@ private:
 	std::condition_variable m_navigation_cv;
 	bool m_navigation_result_ready{false};
 	amr_navigation::NavigationExecutionState m_navigation_result{amr_navigation::NavigationExecutionState::IDLE};
+	uint64_t m_nav_epoch{0};
 	std::shared_ptr<GoalHandle> m_active_goal_handle;
 	rclcpp::Subscription<amr_interfaces::msg::MapInfo>::SharedPtr m_map_info_sub;
 	bool m_map_ready = false;
@@ -806,6 +847,8 @@ private:
 	bool m_initial_pose_published = false;
 	bool m_amcl_active = false;
 	bool m_navigating = false;
+	amr_navigation::RobotPose m_last_pose{};
+	bool m_has_last_pose = false;
 };
 }
 

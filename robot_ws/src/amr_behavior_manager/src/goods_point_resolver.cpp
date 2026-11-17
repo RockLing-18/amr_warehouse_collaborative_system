@@ -16,11 +16,28 @@ bool GoodsPointResolver::resolve(
     const std::string& task_type,
     LocationInfo& location) const
 {
+    std::string target_zone_type =
+        task_type == "LOAD" ? "LOAD" : "UNLOAD";
+    return resolveForZoneType(goods_id, target_zone_type, location);
+}
+
+bool GoodsPointResolver::resolveForZoneType(
+    const std::string& goods_id,
+    const std::string& zone_type,
+    LocationInfo& location) const
+{
     if(!m_loader)
         return false;
 
-    std::string target_zone_type =
-        task_type == "LOAD" ? "LOAD" : "UNLOAD";
+    std::string target_zone_type = zone_type;
+    std::transform(
+        target_zone_type.begin(),
+        target_zone_type.end(),
+        target_zone_type.begin(),
+        [](unsigned char c)
+        {
+            return static_cast<char>(std::toupper(c));
+        });
 
     const auto& zones = m_loader->getZones();
     auto zoneIt = std::find_if(

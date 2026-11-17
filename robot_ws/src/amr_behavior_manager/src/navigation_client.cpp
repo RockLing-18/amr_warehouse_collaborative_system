@@ -25,6 +25,12 @@ bool NavigationClient::waitForActionServer(const std::chrono::seconds &timeout)
 
 bool NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped &goal)
 {
+    if(m_goal_active)
+    {
+        RCLCPP_WARN(m_node->get_logger(), "navigation goal already active, ignore new goal");
+        return false;
+    }
+
     if(!waitForActionServer(std::chrono::seconds(3)))
     {
         RCLCPP_ERROR(m_node->get_logger(), "navigation action server not available");
@@ -42,6 +48,7 @@ bool NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped &goa
           m_current_goal_handle = goal_handle;
       else
       {
+          m_goal_active = false;
           RCLCPP_WARN(m_node->get_logger(), "navigation goal rejected by server");
           if(m_result_cb)
           {
@@ -59,12 +66,14 @@ bool NavigationClient::navigateToPose(const geometry_msgs::msg::PoseStamped &goa
 
     send_goal_options.result_callback = [this](const GoalHandle::WrappedResult &result)
     {
+        m_goal_active = false;
         if (m_result_cb) { m_result_cb(result); }
     };
 
     RCLCPP_INFO(m_node->get_logger(), "send navigate goal, frame=%s x=%.2f y=%.2f",
         goal.header.frame_id.c_str(), goal.pose.position.x, goal.pose.position.y);
 
+    m_goal_active = true;
     m_action_client->async_send_goal(goal_msg, send_goal_options);
     return true;
 }

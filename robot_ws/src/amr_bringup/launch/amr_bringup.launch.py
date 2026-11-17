@@ -8,6 +8,9 @@ from launch_ros.actions import Node
 
 
 def _make_nodes(robot_id, use_sim_time, launch_nav2):
+    use_sim_time_bool = use_sim_time.lower() == "true"
+    launch_nav2_bool = launch_nav2.lower() == "true"
+
     amr_agent_share = get_package_share_directory("amr_agent")
     amr_behavior_manager_share = get_package_share_directory("amr_behavior_manager")
 
@@ -31,7 +34,7 @@ def _make_nodes(robot_id, use_sim_time, launch_nav2):
         executable="amr_behavior_manager_node",
         name="amr_behavior_manager",
         namespace=robot_id,
-        parameters=[behavior_cfg, {"use_sim_time": use_sim_time}],
+        parameters=[behavior_cfg, {"use_sim_time": use_sim_time_bool}],
         output="screen",
     )
     navigation_server_node = Node(
@@ -41,9 +44,9 @@ def _make_nodes(robot_id, use_sim_time, launch_nav2):
         namespace=robot_id,
         parameters=[
             {
-                "use_sim_time": use_sim_time,
+                "use_sim_time": use_sim_time_bool,
                 "pose_publish_rate_hz": 1.0,
-                "launch_nav2": launch_nav2,
+                "launch_nav2": launch_nav2_bool,
             }
         ],
         output="screen",

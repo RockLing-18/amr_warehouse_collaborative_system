@@ -62,9 +62,9 @@ PENDING -> ACCEPTED -> RUNNING -> SUCCEEDED
 ### 3.1 状态集合
 
 ```text
-IDLE -> ACCEPTED -> GRASPING -> TRANSPORTING -> PLACING -> IDLE
-         |              |            |              |
-         +--------------+------------+--------------+--> INTERRUPTED
+IDLE -> ACCEPTED -> NAVIGATING_TO_PICKUP -> GRASPING -> TRANSPORTING -> PLACING -> IDLE
+         |              |                    |            |              |
+         +--------------+--------------------+------------+--------------+--> INTERRUPTED
 ```
 
 ### 3.2 状态说明
@@ -73,9 +73,11 @@ IDLE -> ACCEPTED -> GRASPING -> TRANSPORTING -> PLACING -> IDLE
 | --- | --- |
 | `IDLE` | 无任务或等待下一步。 |
 | `ACCEPTED` | 已接受任务，等待/申请货物。 |
+| `NAVIGATING_TO_PICKUP` | 已获批货物，正在导航到取货点。 |
 | `GRASPING` | 正在抓取货物。 |
 | `TRANSPORTING` | 正在搬运货物。 |
 | `PLACING` | 正在放置货物。 |
+| `NAVIGATING_HOME` | 任务终态后返回 IDLE 充电点。 |
 | `INTERRUPTED` | 因电量低、导航失败等原因中断。 |
 
 ### 3.3 状态转换表
@@ -83,12 +85,14 @@ IDLE -> ACCEPTED -> GRASPING -> TRANSPORTING -> PLACING -> IDLE
 | 当前状态 | 事件 | 下一状态 | 动作 | 状态 |
 | --- | --- | --- | --- | --- |
 | `IDLE` | 收到任务并接受 | `ACCEPTED` | 上报接受 | 已确认 |
-| `ACCEPTED` | 货物申请获批并到达装货点 | `GRASPING` | 开始抓取 | 已确认 |
-| `GRASPING` | 抓取完成 | `TRANSPORTING` | 更新当前搬运货物 | 已确认 |
-| `TRANSPORTING` | 到达卸货点 | `PLACING` | 开始放置 | 已确认 |
-| `PLACING` | 放置完成且仍有待搬运 | `GRASPING` | 继续下一趟 | 已确认 |
-| `PLACING` | 放置完成且无待搬运 | `IDLE` | 结束任务 | 已确认 |
-| `ACCEPTED` / `GRASPING` / `TRANSPORTING` / `PLACING` | 电量低、导航失败、手动停止 | `INTERRUPTED` | 上报放弃/中断 | 已确认 |
+| `ACCEPTED` | 货物申请获批 | `NAVIGATING_TO_PICKUP` | 导航到取货点 | 已确认 |
+| `NAVIGATING_TO_PICKUP` | 到达取货点 | `GRASPING` | 开始抓取 | 已确认 |
+| `GRASPING` | 抓取完成 | `TRANSPORTING` | 更新当前搬运货物并前往放货点 | 已确认 |
+| `TRANSPORTING` | 到达放货点 | `PLACING` | 开始放置 | 已确认 |
+| `PLACING` | 放置完成且仍有待搬运 | `ACCEPTED` | 继续申请下一趟 | 已确认 |
+| `PLACING` | 放置完成且无待搬运 | `NAVIGATING_HOME` | 返回充电点 | 已确认 |
+| `NAVIGATING_HOME` | 到达充电点 | `IDLE` | 结束任务 | 已确认 |
+| `ACCEPTED` / `NAVIGATING_TO_PICKUP` / `GRASPING` / `TRANSPORTING` / `PLACING` | 电量低、导航失败、手动停止 | `INTERRUPTED` | 上报放弃/中断 | 已确认 |
 | `INTERRUPTED` | 收到恢复/继续指令 | `IDLE` | 等待新任务或新指令 | 已确认 |
 
 ### 3.4 与货物申请的边界
@@ -96,6 +100,7 @@ IDLE -> ACCEPTED -> GRASPING -> TRANSPORTING -> PLACING -> IDLE
 - AMR 在 `ACCEPTED` 状态下申请下一趟货物，只有 `amr/{robot_id}/task/goods/response` 成功后才从 `ACCEPTED` 进入 `GRASPING`。
 - 正在搬运的货物数量对应 `tbl_task_goods_allocation` 中的 `IN_PROGRESS` 分配。
 - Edge 不可用时，AMR 完成当前已获批搬运后不再发起新申请，并把结果写入 `pending_task_reports.json`。
+- 任务进入 `SUCCEEDED` / `CANCELLED` / `INTERRUPTED` 终态后，AMR 导航返回注册时分配的 IDLE 充电点；返航期间机器人状态为 `WORKING`，到达后回到 `IDLE`。
 
 ## 4. 事件与动作
 

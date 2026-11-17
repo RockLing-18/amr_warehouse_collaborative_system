@@ -47,6 +47,7 @@ def generate_launch_description():
                 'params_file': nav2_param_path,
                 'autostart': autostart,
                 'use_namespace': 'true',
+                'use_composition': 'False',
                 'namespace': namespace}.items(),
         ),
         launch_ros.actions.Node(

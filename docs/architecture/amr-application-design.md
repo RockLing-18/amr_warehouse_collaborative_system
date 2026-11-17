@@ -121,12 +121,13 @@
 4. `amr_behavior_manager` 读取共享状态，选择 `pending_quantity > 0` 的货物；V1 每趟只搬运一种 `goods_id`，多货物任务按货物类型顺序拆分为多趟执行。
 5. `amr_agent` 向 Edge 发起货物申请。
 6. Edge 批准后，`amr_agent` 收到 `goods/response`。
-7. `amr_behavior_manager` 进入 `GRASPING`，模拟抓取完成。
-8. `amr_behavior_manager` 根据 `goods_id + task_type` 获取目标点。
-9. `amr_behavior_manager` 调用 `amr_navigate_to_pose`。
-10. 到达后进入 `PLACING`，模拟放置完成。
+7. `amr_behavior_manager` 进入 `NAVIGATING_TO_PICKUP`，导航到取货点后进入 `GRASPING` 模拟抓取完成。
+8. `amr_behavior_manager` 根据 `goods_id + task_type` 获取取货点和放货点。
+9. 抓取完成后进入 `TRANSPORTING`，调用 `amr_navigate_to_pose` 导航到放货点。
+10. 到达放货点后进入 `PLACING`，模拟放置完成。
 11. 如果仍有待搬运货物，返回第 4 步；否则完成当前任务。
 12. `amr_agent` 上报 `CARRY_COMPLETED`。
+13. Edge 发布 `SUCCEEDED` 后，`amr_behavior_manager` 导航返回注册时分配的 IDLE 充电点。
 
 ## 7. 取消流程
 
@@ -214,8 +215,8 @@ zones:
 
 规则：
 
-- `UNLOAD` 任务：在 `type=UNLOAD` 且 `goods_ids` 包含目标货物的 zone 中找目标 station/location。
-- `LOAD` 任务：在 `type=LOAD` 且 `goods_ids` 包含目标货物的 zone 中找目标 station/location。
+- `UNLOAD` 任务：取货点在 `type=UNLOAD` 的 zone，放货点在 `type=STORAGE` 的 zone。
+- `LOAD` 任务：取货点在 `type=STORAGE` 的 zone，放货点在 `type=LOAD` 的 zone。
 - 任务消息不携带 `target_zone_id`、`target_station_id`、`target_location_id`。
 - V1 通过 `zone.type` 区分货物区域与充电区域（`IDLE`）；其余 zone 默认货物相关，后续如出现其他非货物区域，再增加字段区分。
 

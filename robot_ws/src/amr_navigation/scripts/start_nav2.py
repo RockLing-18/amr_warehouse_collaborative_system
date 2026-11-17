@@ -28,6 +28,7 @@ def generate_params_file(robot_id, template_path):
     template = Path(template_path)
     content = template.read_text(encoding="utf-8")
     content = content.replace("<robot_prefix>", f"{robot_id}_")
+    content = content.replace("<robot_namespace>", robot_id)
 
     params_file = Path(f"/tmp/amr_nav2_params_{robot_id}.yaml")
     params_file.write_text(content, encoding="utf-8")
