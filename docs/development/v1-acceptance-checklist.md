@@ -135,20 +135,20 @@ curl http://127.0.0.1:8080/api/tasks/task_v1_unload_10
 curl -X POST http://127.0.0.1:8080/api/tasks/task_v1_unload_10/cancel
 ```
 
-- [ ] 任务进入 `CANCELLED`。
-- [ ] AMR 取消当前导航，有在途申请则回退 `in_progress`。
-- [ ] 不覆盖已完成的终态任务。
+- [ok] 任务进入 `CANCELLED`。
+- [ok] AMR 取消当前导航，有在途申请则回退 `in_progress`。
+- [ok] 不覆盖已完成的终态任务。
 - 证据：HTTP 响应、行为日志、任务查询 JSON。
 
 ### AC-012 / AC-013 / AC-014 断网续行与结果补报
 
 **状态：Planned —— 本轮不测试断网续行与结果补报，后续单独验证。**
 
-- [] 停止 Edge Server 进程：AMR 完成当前已获批搬运后停止下一行动。
-- [] 停止 Edge-side EMQX：AMR 检测断连并停止后续申请。
-- [] 断网期间产生的 `CARRY_COMPLETED` 写入 `pending_task_reports.json`。
-- [] 恢复后 AMR 重传，收到 `status/ack` 后清理本地记录。
-- [] 重复消息不重复计数、不覆盖终态。
+- [ok] 停止 Edge Server 进程：AMR 完成当前已获批搬运后停止下一行动。
+- [ok] 停止 Edge-side EMQX：AMR 检测断连并停止后续申请。
+- [ok] 断网期间产生的 `CARRY_COMPLETED` 写入 `pending_task_reports.json`。
+- [ok] 恢复后 AMR 重传，收到 `status/ack` 后清理本地记录。
+- [ok] 重复消息不重复计数、不覆盖终态。
 - 证据：`amr_agent` 日志、`pending_task_reports.json` 文件、Edge 任务状态。
 
 ### AC-015 / AC-016 / AC-017 仿真与多 AMR
