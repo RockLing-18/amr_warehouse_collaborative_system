@@ -2,7 +2,7 @@
 
 **Status:** Partial
 
-V1 modules are partially implemented. `amr_traffic_manager` and `amr_power_manager` are Planned for V2.
+V1 modules are partially implemented. V2 adds a standalone `amr_power_manager` and an **in-package traffic-right logic `TrafficGate` inside `amr_behavior_manager`** (no standalone traffic module).
 
 ## 1. Overview
 
@@ -22,10 +22,10 @@ The V1 AMR modules are:
 - `amr_behavior_manager`
 - `amr_navigation`
 
-Future modules, not part of V1:
+V2 additions, not part of V1:
 
-- `amr_traffic_manager`
-- `amr_power_manager`
+- `amr_power_manager` — standalone ROS2 package (battery / charging state).
+- `TrafficGate` — traffic-right classes / BT nodes **inside `amr_behavior_manager`**; there is deliberately **no standalone traffic module or package**.
 
 ## 2. Architecture
 
@@ -37,7 +37,7 @@ architecture-beta
         service agent(server)[amr_agent] in amr
         service behavior(server)[amr_behavior_manager] in amr
         service navigation(server)[amr_navigation] in amr
-        service traffic(server)[amr_traffic_manager (V2)] in amr
+        %% V2: traffic-right logic (TrafficGate) lives INSIDE amr_behavior_manager; no standalone service
         service power(server)[amr_power_manager (V2)] in amr
 
     group edge(cloud)[Edge Server]
@@ -52,7 +52,6 @@ architecture-beta
     agent:B -- T:behavior
 
     behavior:B -- T:navigation
-    behavior:R -- L:traffic
     behavior:R -- L:power
 ```
 
@@ -92,7 +91,7 @@ Behavior Tree execution
 Failure handling
 Recovery behavior
 Triggering navigation
-Coordinating traffic management
+V2 traffic-right decision (in-package TrafficGate: trigger / request / wait / release)
 Coordinating power management
 Determining the next behavior based on the current task state
 
@@ -100,10 +99,10 @@ The behavior manager does not directly implement:
 
 Path planning
 Motion control
-Traffic resource management
+Global traffic resource arbitration (Edge-side ResourceBroker)
 Battery hardware management
 
-These responsibilities belong to dedicated modules.
+Path planning / motion control belong to `amr_navigation`; global resource arbitration belongs to Edge Server; battery state belongs to `amr_power_manager`. Traffic-right **decision** is in-package (3.4).
 
 ### 3.3 amr_navigation
 
@@ -130,21 +129,24 @@ Why the robot should move to that position.
 
 That decision belongs to the behavior/task layer.
 
-### 3.4 amr_traffic_manager (V2 / Planned)
+### 3.4 V2 traffic-right logic — TrafficGate (inside amr_behavior_manager)
 
-amr_traffic_manager is a future module. It is not part of V1.
+**There is no standalone traffic module.** Project owner confirmed on 2026-11-20 that V2 traffic-right logic is `TrafficGate`: a set of classes / BT nodes **inside the `amr_behavior_manager` ROS2 package**. All documents and code must not refer to a separate standalone traffic module or package (that name is retired).
 
-amr_traffic_manager manages traffic-related coordination between AMRs.
+**Why in-package**: `current_pose` (action feedback), the 4-point `traffic_gates.yaml` geometry loaded by `traffic_gate_loader`, and `NavigationClient::cancelNavigation()` all live in `amr_behavior_manager`. Moving the logic to `amr_agent` would add three cross-process links (pose forwarding, geometry duplication, a new cancel-navigation interface). See `roadmap/v2-traffic-control-chain.md` §3.
+
+> **V0.20 note (2026-11-22)**: the geometry / trigger model was re-decided — independent `traffic_gates.yaml` (4-point control zone + `wait_poses{l1,l2}`), centre-point in/out edges as the primary judgement, **no `plan` subscription**, and `traffic_gates_editor` for data entry. The earlier directed trigger/release segment and `crossed()` model is retired. Authority: `.workbuddy/artifacts/traffic-gate-8-decisions-frozen.md`.
 
 Responsibilities:
 
-Detecting traffic/resource conflicts
-Requesting traffic permissions from Edge Server
-Handling traffic responses
-Reporting traffic state
-Coordinating with the behavior manager when movement must wait or resume
+- Consume `amr_navigate_to_pose` action feedback `current_pose` only (fill the V1 empty feedback callback). **No `plan` subscription**; the 1 Hz `robot_pose` is never a primary judgement source. Hysteresis (in-shrink on entry / out-expand on exit) damps boundary noise.
+- Load `traffic_gates.yaml` via `traffic_gate_loader`: 4-point convex `polygon` (point order `P1→P2` end edge L1 / `P2→P3` long axis / `P3→P4` end edge L2) and `wait_poses{l1,l2}`; **no** `side` / `forward` / `trigger` / `release` fields. The zone is a lengthened traffic-control area, not the physical 3x2 corridor.
+- `inside = point_in_poly(center, polygon)` edge detection: entering (`false→true`) → publish `TrafficRequest` on ROS2 `traffic_request` with `op` / `request_id` / `resource_id` / `epoch` / `eta_sec` / `lease_ttl_sec`. Compute `entry_side` once per crossing (`s = dot(enter_pose - centroid, long_axis)`; `s<0` → L1, `s>0` → L2), latch it, and pick the nearest wait pose **from that side's group only**. `crossed()` remains only as an auxiliary side-entry anomaly detector.
+- Handle `TrafficResponse` on ROS2 `traffic_response`: `GRANTED` in `REQUESTING` → **zero action** (AC-020); `GRANTED` in `WAITING` → immediately `navigateToPose(D)`; `REJECTED` → cancel navigation, wait for the result callback (`m_goal_active=false`), navigate to the same-side wait point, fixed 10 s retry.
+- Release on the earliest of four triggers (leaving the zone / task end / `lease_ttl` expiry / explicit `CANCEL`). A reroute is covered by leaving the zone or by TTL; there is **no separate `onPlanChanged()` mechanism**.
+- Call `NavigationClient` **in-process**; never connect to MQTT directly (`amr_agent` remains the only MQTT gateway).
 
-The traffic manager does not determine the overall task sequence.
+TrafficGate does not determine the overall task sequence, does not hold global lease state (Edge does), and does not change `task_state` (INV-13).
 
 ### 3.5 amr_power_manager (V2 / Planned)
 
@@ -174,17 +176,17 @@ External Communication
         ▼
 amr_behavior_manager
         │
-   ┌────┼────┐
-   ▼    ▼    ▼
-Navigation Traffic Power
+   ┌────┴────┐
+   ▼         ▼
+Navigation   Power
 
 The responsibilities are intentionally separated:
 
-amr_agent handles external communication and system integration.
-amr_behavior_manager handles task orchestration and decision flow.
-amr_navigation handles robot navigation execution.
-amr_traffic_manager will handle traffic coordination in V2.
-amr_power_manager will handle battery and charging state in V2.
+- `amr_agent` handles external communication and system integration (V2: `TrafficBridge` transparent MQTT ↔ ROS2 bridge); it does not hold pose, geometry or business decisions.
+- `amr_behavior_manager` handles task orchestration, decision flow **and (V2) traffic-right decision** via in-package `TrafficGate`.
+- `amr_navigation` handles robot navigation execution.
+- `amr_power_manager` handles battery and charging state (V2).
+- Edge Server holds the global lease table and FIFO queue; no AMR module sees another AMR's traffic state.
 
 ## 5. Communication
 ### AMR ↔ Edge Server
@@ -236,7 +238,7 @@ Navigation determines:
 
 How should the robot move?
 
-Traffic management determines:
+TrafficGate (inside behavior manager) determines:
 
 Can the robot currently proceed?
 

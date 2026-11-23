@@ -19,6 +19,8 @@
 | AMR Pending Reports Format | Draft |
 | Simulation Architecture | Partial |
 | Interface Contract | Draft |
+| V2 Traffic Control Chain | Planned（设计已冻结） |
+| V2 Implementation Spec | Planned（设计已冻结） |
 
 ## 权威需求
 
@@ -40,6 +42,11 @@
 - [任务状态机与 AMR 行为状态机](architecture/task-state-machine.md)
 - [Simulation 架构](architecture/simulation.md)
 - [架构决策记录](architecture/adr/README.md)
+- [多版本开发路线图与版本边界](architecture/version-roadmap.md)：V1.5 / V2 / V3 / V4 范围、边界、功能细节与验收（内部开发任务书）
+- [V2 交通路权控制链](architecture/roadmap/v2-traffic-control-chain.md)：`amr_behavior_manager`(TrafficGate) / `amr_agent`(TrafficBridge) / Edge 的进程边界、逐跳数据链路、取消导航调用链、五场景时序与实现者检查项（**模块归属与 topic 命名已于 2026-11-20 定案；几何与判据于 2026-11-22 按 V0.20 定案改写为 4 点通行控制区 + 中心点进出边沿 + 无 `plan` 订阅**）
+  - 配套图（人类阅读版）：[进程边界与数据流](assets/v2-traffic-dataflow.svg) · [五场景时序](assets/v2-traffic-sequence.svg)
+  - **[图的可读文字版](architecture/roadmap/v2-traffic-diagrams.md)**：两张 SVG 的 mermaid 纯文字转写，**供写代码的 agent / 纯文本工具读取**（`flowchart` + 4 张 `sequenceDiagram` + `stateDiagram-v2`）；语义真值仍是控制链文档 §4 逐跳表 / §6 五场景
+- [V2 实现规格与功能流程](architecture/roadmap/v2-implementation-spec.md)：**给实现者直接照着写代码的开工依据** —— 已冻结命名与消息字段表、模块/类清单、`TrafficGate` 状态机、逐步伪代码、Edge 仲裁伪代码、全场景功能流程、配置项、错误与竞态处理、实现顺序与自检清单
 
 ## 已确认关键决策
 
@@ -47,7 +54,9 @@
 - README 采用“V1 当前范围 + 未来愿景”结构。
 - V1 暂不实现 Cloud Platform，采用 Edge 侧任务注入。
 - 仿真实例字段统一使用 `instance_id`。
-- `amr_traffic_manager`、`amr_power_manager` 属于后续版本。
+- V2 路权逻辑并入 `amr_behavior_manager`（**不设独立模块、不新建 ROS2 包**）；`amr_power_manager` 为 V2 独立模块。
+- V2 路权专用 ROS2 topic 为 `traffic_request` / `traffic_response`；MQTT 为 `amr/{robot_id}/traffic_rights/request` / `response`，动作由 payload `op` 承载。
+- V2 需求已纳入 [SRS](requirements/srs.md) 第 4.10 / 4.11 节（V0.20）。
 - Cloud → Edge 任务使用 `robot_ids` 指定参与 AMR；Edge → AMR 只下发总量和货物列表。
 - Edge → AMR 任务 Topic 为 `amr/{robot_id}/task`，共享进度 Topic 为 `warehouse/{warehouse_id}/task/{task_id}/state`。
 - 共享进度消息必须包含 `goods_status`，按货物拆分搬运进度。

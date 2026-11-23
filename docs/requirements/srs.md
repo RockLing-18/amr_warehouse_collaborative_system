@@ -1,11 +1,13 @@
 # 软件需求规格说明书（SRS）
 
+> **⚠️ 2026-11-22 V0.20 定案变更**：V2 窄道路权以项目所有者 8 项拍板为唯一权威口径，见 [定案记录](../../.workbuddy/artifacts/traffic-gate-8-decisions-frozen.md)（`.workbuddy/artifacts/traffic-gate-8-decisions-frozen.md`）。旧 `NARROW` zone / `TRAFFIC_WAIT` / 有向触发段 / 外移释放线 / `crossed()` 主判据 / `plan` 只读预判 / `D_trigger` 口径**已废弃**，不得据此实现；本文 1.6、3.4.4、4.10、6.7、7、8、9、10 章已同步为「独立 `traffic_gates.yaml` + 4 点通行控制区 + 中心点进出边沿 + 无 `plan` 订阅」。
+
 **项目名称：** AMR 云边协同多机器人协调系统
 **英文名称：** Warehouse AMR Cloud-Edge Collaborative System
-**文档版本：** V0.18
-**当前开发基线：** V1
-**文档状态：** Draft（已按当前代码基线校对）
-**最后更新：** 2026-10-22
+**文档版本：** V0.20
+**当前开发基线：** V1（已交付）→ V2（设计已冻结，待实现）；V0.20 基线日期 2026-11-22
+**文档状态：** Draft（V1 已按代码基线校对；**V2 需求已于 2026-11-20 正式纳入**；**V2 窄道路权 8 项定案已于 2026-11-22 同步为 V0.20**）
+**最后更新：** 2026-11-22
 **运行环境：** Ubuntu 22.04、ROS2 Humble、Gazebo 11
 
 ---
@@ -68,7 +70,7 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 | D-002 | README 采用“V1 当前范围 + 未来愿景”的结构。 | Confirmed |
 | D-003 | V1 暂不实现 Cloud Platform，采用 Edge 侧任务注入完成运输任务闭环。 | Confirmed |
 | D-004 | 仿真实例字段统一使用 `instance_id`。 | Confirmed |
-| D-005 | `amr_traffic_manager`、`amr_power_manager` 属于后续版本，V1 不作为交付项。 | Confirmed |
+| D-005 | V1 不实现交通路权协调与电量管理；V2 路权逻辑并入 `amr_behavior_manager`（不设独立模块），电量管理由 `amr_power_manager` 承担。 | Confirmed |
 | D-006 | V1 Edge 任务注入使用 HTTP API；后续 Cloud 保留该接口并通过 MQTT 发布任务。 | Confirmed |
 | D-007 | 任务 MQTT Topic 使用 `warehouse/{warehouse_id}/task` 和 `warehouse/{warehouse_id}/task/status`，QoS 1。 | Confirmed |
 | D-008 | 任务消息 JSON 使用 `snake_case`；任务状态枚举与 SRS 一致。 | Confirmed |
@@ -120,6 +122,27 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 | D-054 | Edge 在注册响应中返回 `initial_pose {x, y, yaw}`，AMR 据此发布初始位姿。 | Confirmed |
 | D-055 | AMR 内部模块共享状态枚举（`ERROR < INITIALIZING < WORKING < IDLE`），`amr_agent` 取 `navigation_status` 与 `behavior_status` 的最小值作为 AMR 对外状态。 | Confirmed |
 | D-056 | AMR TF 帧使用 `robot_id + "_"` 前缀（`map` 帧除外），`navigation_server` 按 `robot_id` 生成带前缀的 nav2 参数文件。 | Confirmed |
+
+### 1.6 V2 已确认决策（2026-11-20 第七轮纳入）
+
+> 本节由项目所有者授权写入，是 V2 需求的权威口径。实现任务书与取舍依据见 `docs/architecture/version-roadmap.md` 与 `docs/architecture/roadmap/v2-resource-arbitration-and-bt.md`；实现级细节见 `docs/architecture/roadmap/v2-implementation-spec.md`。
+
+| 决策编号 | 决策内容 | 状态 |
+| --- | --- | --- |
+| D-057 | V2 路权逻辑**不设独立模块 / ROS2 包**，实现为 `amr_behavior_manager` 包内 `TrafficGate`（类 + BT 节点）；全仓禁止再以已废弃的独立模块名指代该逻辑。 | Confirmed |
+| D-058 | V2 路权专用 ROS2 topic 固定为 `traffic_request`（`amr_behavior_manager` → `amr_agent`）与 `traffic_response`（反向），消息 `TrafficRequest.msg` / `TrafficResponse.msg` 定义在 `amr_interfaces`；**不复用** `task_command` / `task_event`。 | Confirmed |
+| D-059 | V2 路权 MQTT topic 固定为 `amr/{robot_id}/traffic_rights/request`（上行）与 `amr/{robot_id}/traffic_rights/response`（下行单播）；Edge 订阅 `amr/+/traffic_rights/request`。动作语义由 payload `op`（`REQUEST` / `CANCEL` / `RELEASE`）承载，**不采用动作分层 topic**。 | Confirmed |
+| D-060 | V2 采用**运行时按需触发主模型**：目标全程 `NavigateToPose(D)`，由 AMR **中心点进区边沿**（`point_in_poly(center, polygon)` 的 `false→true`）触发申请；4 点通行控制区沿通道拉长 `L_pull` 自带提前量，**不订阅 Nav2 `plan`、不做提前预判**；授权提前到达则零动作；仅被拒时 cancel 当前导航、等 result 回调后导航到进入侧组内就近等待点、固定 `T_retry = 10 s`（无 jitter）幂等重发、收到响应立即重发 D。保留 Nav2 动态选路能力。 | Confirmed |
+| D-061 | V2 释放由**AMR 中心点出区边沿**（`inside` 的 `true→false`）触发，四触发取最早（出区边沿 / 任务结束 `SUCCEEDED`+`ABORTED` / `lease_ttl` 到期 / 显式 `CANCEL`）；`SUCCEEDED` 降级为兜底，与导航 Action 结束解耦。**「改道即释放」保留语义、移除独立 `plan` 机制**：改道后驶离控制区由出区边沿释放，停住或位姿断流由 TTL 回收。 | Confirmed |
+| D-062 | V2 路权在 **Edge 中心仲裁**：FIFO 排队、`request_id` 幂等、`epoch` 防陈旧、显式 `cancel` 为一等消息、`lease_ttl` 到期自动回收；不做优先级抢占 / 多资源联合预约 / 死锁检测 / 占用状态广播。 | Confirmed |
+| D-063 | V2 窄道数据为**独立 `traffic_gates.yaml`**：每条含 `resource_id`、4 点凸 `polygon`（通行控制区，点序 `P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2）与 `wait_poses{l1,l2}`（每侧 ≥1）；**只录几何不录路线**，不预求全序列、不下发途经点；不引入 `NavigateThroughPoses` 及独立 `ComputePath` / `FollowPath` Action Client。`MapInfo.msg` 加 `traffic_gates_yaml` 随地图包下发。 | Confirmed |
+| D-064 | V2 电量采用 **B + D 方案**：本地按速率积分、无独立充电源；`amr_behavior_manager` 用 `PowerMode` 声明档位，`amr_power_manager` 查表积分、零判定；充电按时间积分。 | Confirmed |
+| D-065 | V2 单趟执行编排引入 BehaviorTree.CPP（C 方案），BT 完全位于 `amr_behavior_manager` 内部；不改 `task_state`，不动 V1 的 ACK / 待补报 / 取消语义。 | Confirmed |
+| D-066 | V2 的 TBD-020~039 未冻结项（数值参数、表结构、BT 选型、急停落点）不得假定实现方式；需求变更按 10.2 节执行。 | Confirmed |
+
+> **版本口径说明**：早期 SRS 中 FR-019 标注的「V2」泛指后续版本，与 `version-roadmap.md` 的 **V3（Cloud / Web）** 对应；本 1.6 节及 4.10 / 4.11 节的「V2」特指路线图定义的 V2（资源仲裁、行为树、电量、交通路权）。
+>
+> **V0.20 口径（2026-11-22）**：D-060 / D-061 / D-063 已按 8 项拍板改写，**编号不变**；`D_trigger` 转译为 `L_pull`，旧「只读 `plan` 提前申请 / 越过外移释放线 / 改道即释放不可省」实现描述已废弃。完整定案见 `.workbuddy/artifacts/traffic-gate-8-decisions-frozen.md`，变更记录见 10.4。
 
 详细接口结构、消息字段和幂等规则见 `docs/requirements/interface-contract.md` 和 `docs/architecture/adr/`。
 
@@ -179,7 +202,7 @@ V1 主要包含：
 * `amr_behavior_manager` 负责任务生命周期管理、任务步骤编排、导航调用、取消处理和失败处理。
 * `amr_navigation` 负责基于 Nav2 的导航执行。
 
-`amr_traffic_manager` 和 `amr_power_manager` 作为后续扩展模块，V1 不要求实现完整功能。
+V2 新增 `amr_power_manager`（独立 ROS2 包）与**内嵌于 `amr_behavior_manager` 的路权逻辑 `TrafficGate`**（不设独立交通模块）；V1 不要求实现上述功能。
 
 除上述业务模块外，V1 工程还包含以下支撑模块：
 
@@ -335,13 +358,16 @@ V1 通过 Edge 侧 HTTP API 创建任务。后续 Cloud Platform 保留该接口
 | `amr/{robot_id}/status` | AMR → Edge | AMR 运行状态、心跳和任务状态快照。 |
 | `amr/{robot_id}/will` | AMR → Edge | MQTT Last Will，用于标识 AMR 异常离线。 |
 | `warehouse/map/request` | AMR → Edge | 地图请求，预留接口。 |
-| `amr/traffic_rights/request`、`amr/traffic_rights/response/{robot_id}` | 双向 | 未来交通路权申请/响应，预留接口。 |
+| `amr/{robot_id}/traffic_rights/request` | AMR → Edge | **V2 已定名**：路权申请 / 显式取消 / 释放，payload `op` = `REQUEST` / `CANCEL` / `RELEASE`，QoS 1。 |
+| `amr/{robot_id}/traffic_rights/response` | Edge → AMR | **V2 已定名**：路权响应，单播不广播，QoS 1。 |
 
 Cloud → Edge 任务 Topic 使用 `warehouse/{warehouse_id}/task`，Edge → Cloud 任务状态 Topic 使用 `warehouse/{warehouse_id}/task/status`，QoS 1。
 
 Edge → AMR 任务 Topic 使用 `amr/{robot_id}/task`，任务级共享状态 Topic 使用 `warehouse/{warehouse_id}/task/{task_id}/state`，QoS 1。任务下发不包含按 AMR 平均分配的数量。
 
 AMR 搬运申请使用 `amr/{robot_id}/task/goods/request`，Edge 响应使用 `amr/{robot_id}/task/goods/response`，QoS 1。
+
+V2 路权 Topic 由 Edge 以 `amr/+/traffic_rights/request` 通配订阅（`robot_id` 一层通配，新增机器人零配置）；V1 常量 `TRAFFIC_RIGHTS_REQ` / `TRAFFIC_RIGHTS_RSP_PREFIX` 缺 `robot_id` 层，V2 实现时须替换为 `AMR_TRAFFIC_REQUEST` / `AMR_TRAFFIC_RESPONSE` / `AMR_TRAFFIC_SUBSCRIBE`。消息字段与 JSON 编码见 `docs/requirements/interface-contract.md` 第 8 节。
 
 #### 3.4.3 AMR 内部 ROS2 接口
 
@@ -357,6 +383,19 @@ AMR 搬运申请使用 `amr/{robot_id}/task/goods/request`，Edge 响应使用 `
 | Service | `get_robot_pose` | `amr_behavior_manager` → `amr_navigation` | 按需查询机器人位姿。 |
 
 所有 AMR 内部接口优先使用相对名称，在机器人命名空间下解析，避免多 AMR 之间的 Topic、节点和 TF 冲突。
+
+#### 3.4.4 V2 新增 AMR 内部 ROS2 接口（已定名）
+
+| 类型 | 名称 | 常量 | 方向 | 主要用途 |
+| --- | --- | --- | --- | --- |
+| Topic | `traffic_request` | `amr_common::topic::TRAFFIC_REQUEST` | `amr_behavior_manager` → `amr_agent` | 路权申请 / 显式取消 / 释放（`op` 三态）。 |
+| Topic | `traffic_response` | `amr_common::topic::TRAFFIC_RESPONSE` | `amr_agent` → `amr_behavior_manager` | 路权响应（`GRANTED` / `REJECTED` / `PENDING` 等）。 |
+| Topic | `power_mode` | `amr_common::topic::POWER_MODE` | `amr_behavior_manager` → `amr_power_manager` | 声明 IDLE / WORK / CHARGING 档位（D 方案）。 |
+| Topic | `power_level` | `amr_common::topic::POWER_LEVEL` | `amr_power_manager` → `amr_behavior_manager` | 发布 SOC 与低电量标志。 |
+
+新增消息 `TrafficRequest.msg`、`TrafficResponse.msg`、`PowerMode.msg`、`BatteryState.msg` 定义在 `amr_interfaces`；字段表见 `docs/architecture/roadmap/v2-implementation-spec.md` 第 2 节。**V2 不新增、不修改 `TaskCommand.msg` / `TaskEvent.msg`**（D-058）。
+
+**V0.20 补充**：V1 已有实体文件 `MapInfo.msg`（`map_info` topic，含 `map_yaml` / `zones_yaml` / `stations_yaml`）新增 `string traffic_gates_yaml` 字段，用于随地图包下发独立的 `traffic_gates.yaml`；该字段与打包 / 下发 8 处链路、数据结构及 `validator.py` 内容校验见 `docs/requirements/interface-contract.md` 第 8 节。上述 4 个 V2 路权 / 电量 `.msg` 目前尚无实体文件，仅以文本定义于接口契约第 8 节与实现规格第 2 节，V2 实现时创建；字段集合保持不变（`TrafficResponse` 已有 `queue_seq`）。
 
 ---
 
@@ -753,6 +792,82 @@ V1 应能够验证从 Edge 侧任务注入到 AMR 执行任务并反馈结果的
 6. Edge Server 更新有效任务状态。
 7. 调用方通过 Edge Server 获取最终结果。
 
+### 4.10 V2 交通路权与资源仲裁
+
+#### FR-021：运行时按需触发的路权申请与导航连续性
+
+**优先级：** Must
+**版本：** V2
+
+系统应在一趟任务可能经过多个窄道时，**不预先决定走哪条路**：路权挂在 4 点通行控制区上，由 AMR **中心点进区边沿**（`point_in_poly(center, polygon)` 的 `inside` 由 `false→true`）触发申请；区域沿通道拉长 `L_pull` 自带提前量，**不订阅 Nav2 `plan`、不做提前预判**（旧 `D_trigger` /「只读 `plan` 提前预判」口径已废弃）。方向无关，掉头从入口退出天然触发出区。
+
+1. 任务目标全程为最终目的地 D（`NavigateToPose(D)`），由 Nav2 动态选路；不预先求全序列、不录路线顺序、不下发途经点、不引入 `NavigateThroughPoses` 及独立 `ComputePath` / `FollowPath` Action Client。
+2. 授权提前到达时系统应**零动作**：`REQUESTING` 收 `GRANTED` 不减速、不取消导航、不重发 goal、不切分任务（AC-020）；只有 `WAITING` 获批才立即 `navigateToPose(D)`。
+3. 申请被拒或超时时，AMR 应取消当前导航、**等 result 回调 `m_goal_active=false` 后**导航到**进入侧端边外侧（上游）组内就近**的等待点并停稳；等待期间 Nav2 无活动 goal、`cmd_vel` 归零，以规避 `SimpleProgressChecker` 的 20 s 超时。
+4. 等待期间以固定 `T_retry = 10 s`（无 jitter）用同一 `request_id` 幂等重发；收到响应应**立即**重发 `NavigateToPose(D)`，不等轮询。
+5. 一趟任务全程只有一个 `task_state`；路权闸门不得切分任务、不得产生 `INTERRUPTED` 或重复 `CARRY_*` 上报。
+6. `amr_navigation` 的 4 个已知缺陷（无条件 `ACCEPT_AND_EXECUTE` 的 supersede、60 s 结果超时只 abort 不 cancel Nav2 goal、`m_nav_epoch` 竞态、`accepted` 语义混淆）为**实施前置阻塞项**，接入路权前必须先修复。
+
+#### FR-022：Edge 侧中心仲裁与 lease 生命周期
+
+**优先级：** Must
+**版本：** V2
+
+Edge Server 应作为唯一持有全局 lease 视图的一方，对 `TRAFFIC_RIGHT` / `GOODS_QUOTA` / `CHARGE_POINT` 提供统一仲裁：
+
+1. 同一资源同一时刻只能有一个 holder；`PENDING`（排队中）不占资源，按 FIFO `queue_seq` 依次授权。
+2. 请求以 `request_id` 幂等去重；以 `epoch` 丢弃迟到陈旧消息；`robot_id` 须与 MQTT topic 中的 `{robot_id}` 交叉校验。
+3. **取消必须是一等显式消息**（payload `op = CANCEL`），不得靠「不再重试 / 断线 / 静默」推断；排队中取消 = 出队，已授权取消 = 释放 lease 并回退配额。
+4. 申请携带 `lease_ttl`（权限占用时限），授权时写入 `lease_expires_at`；到期、心跳超时、Last Will 触发或取消消息丢失时自动回收，不得出现资源永久被锁。
+5. Edge 重启后应能从 SQLite 重建占用状态与 `PENDING` 队列（或显式作废），不得留下幽灵排队项。
+6. 响应走单播，路权占用状态**不得广播给其他 AMR**。
+7. 复杂度边界：不做优先级抢占、多资源联合预约、死锁检测与回滚、AMR 侧排队状态广播。
+
+#### FR-023：路权释放与导航结果解耦
+
+**优先级：** Must
+**版本：** V2
+
+1. 释放由**AMR 中心点出区边沿**（`inside` 的 `true→false`，配合边沿检测 + 滞回双阈值）的空间事件触发，与导航 Action 的返回结果解耦；车不停、不改 goal。
+2. 四个触发取**最早者**：① 出区边沿；② 导航 `SUCCEEDED` / 任务结束 / 异常 `ABORTED`；③ `lease_ttl` 到期由 Edge 自动回收；④ 显式 `op=CANCEL`。
+3. **「改道即释放」保留语义、移除独立机制**：授权后改选绕行路的车驶离通行控制区时由「出区边沿」释放；停住区内 / 位姿断流由 `lease_ttl` 回收；不设 `onPlanChanged()` / `pathIntersects*` / 位姿远离判定 / 改道去抖，也不订阅 `plan`。
+4. 主判据只用中心点 `point_in_poly`，不做逐帧 `footprint` / 车尾判定；由 `min_release_clearance` 把「中心过端边 ⇒ 车尾已出窄道」变成录入时的一次性静态几何约束；`crossed()` 已废弃为主判据，仅保留作侧边异常穿入识别辅助。
+
+#### FR-024：窄道几何数据模型与模块归属
+
+**优先级：** Must
+**版本：** V2
+
+1. 窄道数据为**独立 `traffic_gates.yaml`**，不写回 `zones.yaml` / `stations.yaml`：每条含 `resource_id`、4 点凸 `polygon`（点序冻结：`P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2）与 `wait_poses{l1,l2}`（每侧 ≥1 个，位于入口端边外侧 / 上游）；**无 `side` / `forward` / `trigger` / `release` 字段**，只录几何不录路线。不新建 station、不复用 `WAIT`、不需要 `TRAFFIC_WAIT` 类型；`zone.type` 扩展 `NARROW`、窄道 zone 下挂 station、成对有向触发段 / 外移释放线与 `side` 的 V0.19 口径**已废弃**。
+2. 几何 = **端边外移 + 侧边拉长的通行控制区**，不是 3×2 物理窄道：端边外移 `min_release_clearance`，侧边沿通道拉长 `L_pull ≥ v_max×(RTT_拒绝_p99 + T_cancel + T_newgoal_accept) + v_max²/(2·abs(a_dec)) + d_safety`（数值留 TBD-021 / 038 待 V1.5 实测）；端边不压分叉点，保走绕行路的车「从不进区」→ 零申请（S6）。旧 `D_trigger` 已废弃，其提前量语义由 `L_pull` 转译承接。
+3. 主判据 = **AMR 中心点 `point_in_poly(center, polygon)` 的 `inside` 边沿**：进区 `false→true` 发 `REQUEST`，出区 `true→false` 发 `RELEASE`；数据源为 `amr_navigate_to_pose` action feedback 的 `current_pose`，**1 Hz `robot_pose` 禁止作主判据**；必须**边沿检测 + 滞回双阈值**（内缩进入 / 外扩离开，TBD-038）+ 状态过滤。方向无关，掉头从入口退出天然触发出区；`crossed()` 已废弃为主判据，仅作侧边异常穿入识别辅助（按 `s` 兜底 + `LOG_WARN`）。
+4. 进入侧算法：边沿时刻按 `long_axis=normalize(P3-P2)`、`centroid=mean(P1..P4)`、`s=dot(enter_pose-centroid, long_axis)` 定侧（`s<0→L1/wait_poses.l1`，`s>0→L2/wait_poses.l2`），组内 `argmin dist` 就近选点；**`entry_side` 在本次穿越周期锁存，不得每帧重算**。多车默认组内 `argmin dist` + validator 点间距校验，备选 `queue_seq % N_side`（`TrafficResponse` 已有 `queue_seq`，不新增字段）。不订阅 `plan`、不引入 `NavigateThroughPoses` / 独立 `ComputePath` / `FollowPath`。
+5. 工具侧新增 `traffic_gates_editor` **两阶段**（阶段 A 录 4 点 zone、阶段 B 录 N 个等待点并按几何自动归档到 `l1` / `l2`），复用 `ClickedPointReceiver` / `ZoneMarkerPublisher`；**不复用** `zone_editor` 节点本体 / `YamlZoneManager` / `ZoneInfo` / `selectZoneType()`，不扩展 zone / station type 菜单。`map_tool/validator.py` 现状只查文件存在，须新增 7 条内容校验：① `polygon` 恰为 4 点凸四边形、点序连续、面积 > 0；② 两条端边近似平行且与长轴近似垂直、间距 `L_pull` 达下限；③ 端边与 `walls.yaml` 不冲突且通道宽度 ≥ 车宽 + 余量；④ `wait_poses.l1` / `.l2` 各 ≥1、在对应端边外侧且不在 `polygon` 内、同侧相邻点间距 ≥ 车宽 + `d_queue_spacing`；⑤ 端边到真实窄道出口净距 ≥ `min_release_clearance`；⑥ 区域不与分叉点之前的公共通道重叠（保 S6 零误触发）；⑦ `resource_id` 全局唯一非空。
+6. `MapInfo.msg` 新增 `traffic_gates_yaml` 字段，`traffic_gates.yaml` 作为地图包第 4 个文件随包下发（8 处链路：`REQUIRED_WAREHOUSE_FILES` / `metadata.py` / `package.py` / `validator.py` / `MapInfo.msg` / `map_manager.cpp::publishMapInfo()` / `amr_behavior_manager` MapInfo 回调 / 新 `traffic_gate_loader`）；完整数据结构与字段表见 `docs/requirements/interface-contract.md` 第 8 节。
+7. **V2 路权逻辑不设独立模块**，实现为 `amr_behavior_manager` 包内 `TrafficGate`；`amr_agent` 只补 `TrafficBridge` 透明桥，不持有位姿 / 几何 / 业务决策（INV-14 模块归属不变）。
+8. ROS2 / MQTT topic 命名按 D-058 / D-059 与 INV-14 固定，实现者不得自行选择。
+
+### 4.11 V2 电量、行为树与安全
+
+#### FR-025：电量消耗与自动充电模拟
+
+**优先级：** Must
+**版本：** V2
+
+1. `amr_power_manager` 为 AMR 侧 SOC 真值唯一持有者；Edge 侧只保存 battery 只读镜像，不得产生、累加或修改 SOC 数值。
+2. `amr_behavior_manager` 用专用、单向、不含 `battery` 的 `PowerMode` 声明 IDLE / WORK / CHARGING 档位；`amr_power_manager` 查表积分、零运行时判定、不订阅 `cmd_vel`。
+3. 充电采用本地按时间速率积分（B 方案），不引入独立充电模拟器、无远端充电源、无 `ChargeSource` 抽象、不实现 CC-CV。
+4. 低电量应触发充电准入与 `CHARGE_POINT` 资源申请；battery 数值不再硬编码为 `100.0`。
+
+#### FR-026：行为树编排与软件急停
+
+**优先级：** Should
+**版本：** V2
+
+1. 单趟执行编排引入 BehaviorTree.CPP（C 方案），实现 `Retry` / `Fallback` / `RequestOnApproach` / `WaitAndRetry` / `ReleaseTrafficRight` 等节点；BT 完全位于 `amr_behavior_manager` 内部，不改 `task_state`。
+2. BT 技术选型、XML 路径、自定义节点注册方式由 TBD-023 冻结；不得直接照抄文档示意。
+3. 多机与交通路权同时存在时应提供软件急停与 `cmd_vel` 优先级仲裁；触发源与仲裁落点由 TBD-024 冻结。
+
 ---
 
 ## 5. 非功能需求
@@ -968,6 +1083,45 @@ V1 至少应维护以下逻辑数据对象：
 
 数据库表结构、索引和幂等键见 `docs/architecture/edge-data-model.md`；任务级与 AMR 行为状态机见 `docs/architecture/task-state-machine.md`。
 
+### 6.7 V2 交通路权功能流程（补充）
+
+> V1 的 6.2 正常运输流程整体不变；本节只描述 V2 在「导航执行途中」额外插入的路权闸门。所有场景中 `task_state` 全程不变。
+
+**场景 A：提前授权（正常路径，绝大多数情况）**
+
+1. `amr_behavior_manager` 已发出 `NavigateToPose(D)`，由 Nav2 动态选路；`TrafficGate` **不订阅 `plan`**。
+2. `TrafficGate` 消费 `amr_navigate_to_pose` action feedback 的 `current_pose`，中心点 `point_in_poly(center, polygon)` 出现 `false→true` **进区边沿**（拉长的 `L_pull` 已自带提前量，无 `D_trigger` 预判）→ 经 `traffic_request` → `amr_agent` → MQTT 发申请（带 `op=REQUEST` / `ETA` / `lease_ttl_sec`）。
+3. Edge 按 FIFO 授权，单播 `response` 经 `amr_agent` → `traffic_response` 回到 `TrafficGate`。
+4. `REQUESTING` 收 `GRANTED` **零动作**：不减速、不取消、不重发 goal；车沿原 `NavigateToPose(D)` 直接通过（AC-020）。
+5. `GRANTED → HELD` 写入 lease，`lease_expires_at` 开始计时。
+
+**场景 B：被拒等待与恢复（异常路径）**
+
+1. Edge 返回 `REJECTED` / `PENDING`。
+2. `TrafficGate` 进程内调 `NavigationClient::cancelNavigation()`，**等待 result 回调把 `m_goal_active` 置回 false**。
+3. 按边沿时刻锁存的 `entry_side`，在 `wait_poses[entry_side]` **组内就近**（`argmin dist`）选等待点并 `navigateToPose(wait_pose)`；等待点位于入口端边外侧（上游）。停稳进入 `WAITING`：Nav2 无活动 goal、`cmd_vel` 归零。
+4. 每固定 10 s 用同一 `request_id` 幂等重发；**只有 `WAITING` 收到 `GRANTED` 才立即**（不等轮询）重发 `NavigateToPose(D)` → `RESUMING → HELD`。
+
+**场景 C：正常释放**
+
+1. `TrafficGate` 消费 `amr_navigate_to_pose` 的 feedback `current_pose`，中心点 `inside` 出现 `true→false` **出区边沿**（经滞回双阈值去抖）。
+2. 立即发 `op=RELEASE`；Edge `HELD → RELEASED`；车不停、不改 goal。掉头从入口退出同样由出区边沿触发，无需单独分支。
+
+**场景 D：区内改道**
+
+1. 授权后车在区内改选绕行路并**驶出通行控制区** → 由「出区边沿」释放（不设独立改道检测）。
+2. 车停住区内 / 位姿断流 → 由 `lease_ttl` 到期 `EXPIRED` 回收；不订阅 `plan`、不做 `pathIntersects*` / 改道去抖。
+3. 「改道即释放」的**语义保留、独立机制已移除**：由出区 + TTL 承接，仍作为 AC 验收项。
+
+**场景 E：兜底**
+
+1. 导航 `SUCCEEDED` / 任务结束 / 异常 `ABORTED` → 兜底释放（出区边沿漏检时）。
+2. `lease_expires_at` 到期 → Edge `EXPIRED` 自动回收（AMR 崩溃 / `cancel` 丢包 / 通信中断 / 区内停住）。
+3. AMR 显式 `op=CANCEL`：`PENDING` 出队；`GRANTED` / `HELD` 释放 lease + 配额回退；带旧 `epoch` 的消息一律丢弃。
+4. 四触发（出区边沿 / 任务结束 / TTL / 显式 `CANCEL`）取最早释放。
+
+逐跳接口与调用顺序见 `docs/architecture/roadmap/v2-traffic-control-chain.md` §4 / §6，实现级伪代码见 `v2-implementation-spec.md` §5；V0.20 权威口径见 `.workbuddy/artifacts/traffic-gate-8-decisions-frozen.md` §4。
+
 ---
 
 ## 7. 验收标准
@@ -994,6 +1148,19 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | AC-016 | 多 AMR 仿真      | 至少两个 AMR 实例能够区分身份并运行于同一仿真环境                    |
 | AC-017 | 故障诊断          | 关键初始化、通信、导航和任务失败能够产生可识别的日志                     |
 | AC-018 | 文档完整性         | 项目具备基本需求、架构、构建及验证文档                            |
+| AC-019 | V2 路权互斥        | 两车同时申请同一窄道，只有一个获批，另一个进入等待；FIFO 排队不串台 |
+| AC-020 | V2 导航连续性      | 授权提前到达时零 goal 重发、零停顿；`REQUESTING` 收 `GRANTED` 零动作、只有 `WAITING` 获批才立即重发 D；`NavigateToPose` 目标全程为 D，`task_state` 不变 |
+| AC-021 | V2 动态选路        | 走绕行路（从不进区）时零申请、零停顿；区内改道后驶出控制区由出区边沿释放、停住则由 `lease_ttl` 回收；全流程不订阅 `plan` |
+| AC-022 | V2 释放            | 中心点 `inside` 出区边沿（`true→false`）即释放；任务结束 / TTL / 显式 `CANCEL` 兜底不漏释放，四触发取最早；释放与导航 Action 结束解耦 |
+| AC-023 | V2 取消与时限      | 显式 `cancel` 被正确区分「排队中出队 / 已授权后释放」；`lease_ttl` 到期自动回收；旧 `epoch` 迟到消息被丢弃 |
+| AC-024 | V2 电量            | SOC 按 `PowerMode` 档位积分、低电量触发充电、`battery` 不再硬编码；Edge 只读镜像不修改 SOC |
+| AC-025 | V2 行为树与急停    | 注入导航失败后 Groot 可见 `Retry` / `Fallback`；软件急停能压住 `cmd_vel` 且可恢复 |
+| AC-026 | V2 中心点进出判据与抗抖 | 主判据为 AMR 中心点 `point_in_poly(center, polygon)` 的 `inside` 边沿（进区 `false→true` 发 `REQUEST`、出区 `true→false` 发 `RELEASE`），数据源为 `amr_navigate_to_pose` feedback 的 `current_pose`，1 Hz `robot_pose` 不作主判据；滞回双阈值（内缩进入 / 外扩离开）下边界抖动不产生重复申请或释放；掉头从入口退出触发出区；`crossed()` 已废弃为主判据，仅作侧边异常辅助 |
+| AC-027 | V2 进入侧锁存与无 `plan` 订阅 | `entry_side` 由 `s=dot(enter_pose-centroid, long_axis)` 于进区边沿算一次并在本次穿越周期锁存（不每帧重算），等待点取同侧组内 `argmin dist` 且位于入口端边外侧；全流程不订阅 Nav2 `plan`、无 `onPlan()` / `D_trigger` / 改道去抖，提前量由 `L_pull` 提供 |
+
+> AC-001 至 AC-018 属 V1；AC-019 至 AC-027 属 V2，不纳入 V1 完成定义。
+>
+> AC-026 / AC-027 为 V0.20 顺延新增，状态 `Planned`（设计已定案、代码未实现），已同步 7.1 追溯矩阵与 7.2 实现状态矩阵。
 
 ### 7.1 需求与验收追溯矩阵
 
@@ -1019,6 +1186,12 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | FR-018 | 多 AMR 仿真 | AC-016 |
 | FR-019 | Cloud 与 Edge 通信 | 后续版本，不纳入 V1 验收 |
 | FR-020 | 端到端业务闭环 | AC-007 至 AC-014 |
+| FR-021 | 中心点进区边沿触发的路权申请与导航连续性（无 `plan` 订阅） | AC-020、AC-021、AC-026、AC-027 |
+| FR-022 | Edge 侧中心仲裁与 lease 生命周期 | AC-019、AC-023 |
+| FR-023 | 路权释放与导航结果解耦（中心点出区边沿 + 四触发） | AC-021、AC-022、AC-026 |
+| FR-024 | 独立 `traffic_gates.yaml` 几何数据模型与模块归属 | AC-019、AC-020、AC-026、AC-027 |
+| FR-025 | 电量消耗与自动充电模拟 | AC-024 |
+| FR-026 | 行为树编排与软件急停 | AC-025 |
 | NFR-001 至 NFR-013 | 模块化、通信隔离、可构建、可测试、可诊断、可维护、可扩展、网络异常、配置管理、状态一致性、取消可控、仿真可复现、仿真安全 | AC-001、AC-014、AC-016、AC-017、AC-018 |
 
 ### 7.2 需求实现状态矩阵
@@ -1051,6 +1224,12 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | FR-018 多 AMR 仿真 | Partial | 命名空间与身份隔离已有，双机联测待完成。 |
 | FR-019 Cloud 与 Edge 通信 | Planned | V2 规划，V1 不交付。 |
 | FR-020 端到端业务闭环 | Partial | 正常运输闭环已通，取消与断网恢复闭环待完整验证。 |
+| FR-021 按需触发路权与导航连续性 | Planned | 设计已按 V0.20 改写（D-060 / INV-13）：中心点进区边沿触发、`L_pull` 自带提前量、无 `plan` 订阅；代码未实现，4 个导航缺陷为前置阻塞。 |
+| FR-022 Edge 中心仲裁与 lease | Planned | 设计已冻结（D-062）；`tbl_resource_lease` 表结构仍属 TBD-020。 |
+| FR-023 路权释放与导航解耦 | Planned | 设计已按 V0.20 改写（D-061）：中心点出区边沿 + 四触发取最早（出区 / 任务结束 / TTL / 显式 `CANCEL`）；改道语义由出区 + TTL 承接，不设独立机制。 |
+| FR-024 窄道几何与模块归属 | Planned | V0.20 改为独立 `traffic_gates.yaml`（4 点 `polygon` + `wait_poses{l1,l2}`）+ `traffic_gates_editor` 两阶段 + validator 7 条内容校验 + `MapInfo.traffic_gates_yaml` 下发；模块归属仍按 D-057 / D-058 / INV-14；`L_pull` 属 TBD-021、滞回去抖阈值属 TBD-038、loader 读取属 TBD-039。 |
+| FR-025 电量消耗与自动充电 | Planned | 设计已冻结（D-064 / TBD-035=B / TBD-036=D）；速率数值属 TBD-022。 |
+| FR-026 行为树编排与软件急停 | Planned | C 方案已定；BT 选型属 TBD-023、急停落点属 TBD-024。 |
 | NFR-001 模块化 | Partial | 模块边界已有，但部分实现未完成。 |
 | NFR-002 通信隔离 | Partial | 通信边界清晰，Cloud MQTT 未实现。 |
 | NFR-003 可构建性 | Partial | 当前工作区可构建，但未做干净环境验证。 |
@@ -1073,15 +1252,17 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 
 以下内容暂定为 V2 或更后续版本的规划，不属于 V1 的完成条件。
 
-### 8.1 多机器人交通管理
+### 8.1 多机器人交通管理（**V2 已正式立项**）
 
-* 实现 `amr_traffic_manager`。
-* 实现机器人间的路权请求与响应。
-* 支持等待、恢复和必要的交通异常处理。
-* 逐步完善多 AMR 协同运行能力。
-* 研究交通管理与导航执行之间的协调机制。
+> 本节原为「后续版本规划」。2026-11-20 第七轮项目所有者授权把 V2 需求写入 SRS，本主题已转为 **4.10 节 FR-021 ~ FR-024** 与 **6.7 节** 的正式需求，不再只是规划。
 
-V1 不实现交通路权协调。多 AMR 仿真只用于验证身份隔离、基本启动和导航能力。
+* 路权逻辑**并入 `amr_behavior_manager`（`TrafficGate`），不设独立模块**。
+* 实现机器人间的路权请求、Edge 中心 FIFO 仲裁、显式取消与 `lease_ttl` 超时回收。
+* 支持中心点进区边沿申请、提前授权零停顿、被拒后进入侧组内就近等待与恢复、中心点出区边沿释放；「改道即释放」语义由出区 + TTL 承接，**不订阅 `plan`**。
+* 保留 Nav2 动态选路，不写死路线、不预求全序列。
+* V1 不实现交通路权协调；V1 多 AMR 仿真只用于验证身份隔离、基本启动和导航能力。
+
+仍在 `version-roadmap.md` TBD-020 / 021 / 038 / 039 中的数值与字段细节未冻结，按 D-066 处理。**V0.20 口径**：TBD-021 现对应 `L_pull` 拉长量、TBD-038 对应滞回双阈值与去抖窗、TBD-039 对应 `traffic_gates.yaml` loader 读取，均须 V1.5 实测后再定；编号集合不变。
 
 ### 8.2 电量管理
 
@@ -1089,6 +1270,8 @@ V1 不实现交通路权协调。多 AMR 仿真只用于验证身份隔离、基
 * 管理电池配置及电量状态。
 * 实现电量变化模拟。
 * 支持充电点、充电状态及自动充电任务。
+
+> **V2 已正式立项**：本主题的设计已转为 **4.11 节 FR-025**（B + D 方案）；速率数值仍属 TBD-022。
 
 ### 8.3 高级任务调度
 
@@ -1136,17 +1319,25 @@ V1 不实现交通路权协调。多 AMR 仿真只用于验证身份隔离、基
 
 上述问题应在相关模块开始实现前逐步明确，不要求一次性全部解决。涉及任务取消、断网续行和结果补报的关键问题，应在对应功能实现前确定最低可行规则。
 
+> **编号边界**：本表 `TBD-001` ~ `TBD-019` 为 V1 事项。**V2 的 `TBD-020` ~ `TBD-039` 统一维护在 `docs/architecture/version-roadmap.md` 第 5 节与 V2 分册第 9 节**，不在此重复编号。V2 已定案项见本文件 1.6 节 D-057 ~ D-066 与 INV-14。
+>
+> **V0.20 编号核对**：TBD / INV / FR / D 的既有编号集合**未增删、未改号**；TBD-021（`L_pull` 拉长量）/ TBD-038（滞回双阈值与去抖窗）/ TBD-039（`traffic_gates.yaml` loader 读取）继续保留并改按 8 项定案对应；AC 仅顺延新增 AC-026 / AC-027，7.1 / 7.2 矩阵已同步。
+
 ---
 
 ## 10. 版本与变更管理
 
 ### 10.1 当前版本基线
 
-当前开发目标为 V1。
+V1 已交付；当前进入 **V2 开发前设计冻结阶段**。
 
-只有明确标记为 V1 的 Must 需求才是必须完成的核心交付项。
+只有明确标记为 V1 的 Must 需求才是 V1 必须完成的核心交付项；V1 完成定义见 10.3。
 
-V2 规划项不应自动转化为 V1 的开发任务。
+**V2 需求已于 2026-11-20 正式纳入本 SRS**（1.6 节决策、4.10 / 4.11 节 FR-021 ~ FR-026、6.7 节流程、7 章 AC-019 ~ AC-027）。V2 的实现任务书为 `docs/architecture/version-roadmap.md` 与 `docs/architecture/roadmap/` 下各分册，实现级规格为 `v2-implementation-spec.md`。
+
+**V0.20 基线（2026-11-22）**：按项目所有者 8 项拍板同步 V2 窄道路权口径 —— 4 点通行控制区、中心点进出边沿判据、无 `plan` 订阅、独立 `traffic_gates.yaml` 与 `traffic_gates_editor`、`MapInfo.traffic_gates_yaml` 下发、「改道即释放」语义由出区 + TTL 承接；D-060 / D-061 / D-063、FR-021 / FR-023 / FR-024、6.7 五场景、AC-019 ~ AC-025 及矩阵同步改写，新增 AC-026 / AC-027。权威口径见 `.workbuddy/artifacts/traffic-gate-8-decisions-frozen.md`，逐项变更见 10.4。
+
+V2 规划项不应自动转化为 V1 的开发任务；V2 未冻结的 TBD 不得假定实现方式。
 
 ### 10.2 需求变更原则
 
@@ -1198,3 +1389,5 @@ V2 规划项不应自动转化为 V1 的开发任务。
 | V0.16 | 2026-10-12 | 确认 map/zone/station/location 关系、zone.goods_ids 映射和任务不携带 target 字段。 |
 | V0.17 | 2026-10-12 | 确认 `goods_ids` 使用列表，V1 先假设所有 zone 均为货物相关区域。 |
 | V0.18 | 2026-10-22 | 增加 IDLE 充电区域/点位类型与工具选择录入；Edge 解析地图包分配 IDLE 点；注册响应返回 `initial_pose`。 |
+| V0.19 | 2026-11-20 | **项目所有者授权纳入 V2 需求**：新增 1.6 节 V2 决策 D-057~D-066、4.10/4.11 节 FR-021~FR-026、6.7 节路权功能流程、7 章 AC-019~AC-025 与追溯/状态矩阵；3.4.2/3.4.4 节登记 V2 已定名 MQTT / ROS2 接口；8.1/8.2 由「规划」改为「V2 已立项」；明确 V2 路权逻辑并入 `amr_behavior_manager`、不设独立模块，全仓清理已废弃的独立交通模块命名；10.1 节版本基线更新。**未改动任何 V1 需求语义。** |
+| V0.20 | 2026-11-22 | **同步项目所有者 V2 窄道路权 8 项拍板定案**（权威记录 `.workbuddy/artifacts/traffic-gate-8-decisions-frozen.md`）：① 几何改为独立 `traffic_gates.yaml` 的 4 点凸 `polygon` 通行控制区（端边外移 `min_release_clearance`、侧边拉长 `L_pull`，点序 `P1→P2`/`P2→P3`/`P3→P4`）+ `wait_poses{l1,l2}`，无 `side`/`forward`/`trigger`/`release`；② 主判据改为 AMR 中心点 `point_in_poly(center, polygon)` 进 / 出区边沿（滞回双阈值、feedback `current_pose`，1 Hz `robot_pose` 禁用），`crossed()` 降为侧边异常辅助；③ 进入侧由 `s=dot(enter_pose-centroid, long_axis)` 定侧、`entry_side` 本次穿越周期锁存、组内 `argmin dist` 就近；④ 每侧可多个等待点，不新建 station / 不复用 `WAIT` / 不需要 `TRAFFIC_WAIT`；⑤ S1（`REQUESTING` 收 `GRANTED` 零动作）/ S2（仅 `WAITING` 获批立即重发 D）区分，cancel 后等 result 回调；⑥ 全部省掉 `plan` 订阅、`onPlan()` / `onPlanChanged()` / `pathIntersects*` / `D_trigger`（转译为 `L_pull`）/ 改道去抖；⑦ 兜底全保留（10 s 重试、Edge FIFO + `PENDING` + `tryGrant()`、`lease_ttl`/`EXPIRED`、`epoch`、显式 `CANCEL`、四触发取最早、AC-019~025），「改道即释放」保留语义、移除独立机制，改由出区 + TTL 承接；⑧ 新增 `traffic_gates_editor` 两阶段（4 点 zone + N 等待点）、`MapInfo.msg` 加 `traffic_gates_yaml` 与打包下发 8 处链路、`validator.py` 新增 7 条内容校验。改写 D-060 / D-061 / D-063、FR-021 / FR-023 / FR-024、6.7 五场景、7 章 AC-021 / AC-022，顺延新增 AC-026 / AC-027（`Planned`）并同步 7.1 / 7.2 矩阵、8.1 / 9 章编号边界 / 10.1；3.4.4 补 `traffic_gates_yaml` 字段说明。**TBD / INV / FR / D 既有编号集合不变，TBD-021/038/039 继续保留；未改动任何 V1 需求语义。** |

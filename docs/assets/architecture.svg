@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" width="1200" height="780" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif" role="img">
+<title>AMR 仓储协同系统 V1 架构</title>
+<desc>云、边、端三层隔离：V2 的 Cloud Platform 以虚线表示；Edge Server 通过 HTTP、MQTT、WebSocket 分别连接 AMR、EMQX 与 Simulation Manager。</desc>
+<rect x="0" y="0" width="1200" height="780" fill="#FFFFFF"/>
+<defs>
+  <marker id="arrBlue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#185FA5" stroke-width="1.5"/></marker>
+  <marker id="arrGreen" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#0F6E56" stroke-width="1.5"/></marker>
+  <marker id="arrGray" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#888780" stroke-width="1.5"/></marker>
+</defs>
+
+<text x="40" y="46" font-size="22" font-weight="500" fill="#1F2328">AMR 仓储协同系统 · V1 架构</text>
+<text x="40" y="72" font-size="13" fill="#57606A">云 / 边 / 端三层隔离 · 实线为 V1 已实现，虚线为 V2 规划</text>
+
+<rect x="40" y="96" width="1120" height="92" rx="12" fill="#F7F7F5" stroke="#B4B2A9" stroke-width="1" stroke-dasharray="6 4"/>
+<text x="60" y="122" font-size="15" font-weight="500" fill="#5F5E5A">V2 · Cloud Platform（规划中，cloud_platform/ 当前为空）</text>
+<rect x="60" y="134" width="250" height="40" rx="6" fill="#FFFFFF" stroke="#D3D1C7"/>
+<text x="185" y="159" font-size="13" text-anchor="middle" fill="#444441">FastAPI / Web 控制台</text>
+<rect x="326" y="134" width="250" height="40" rx="6" fill="#FFFFFF" stroke="#D3D1C7"/>
+<text x="451" y="159" font-size="13" text-anchor="middle" fill="#444441">任务调度 / 多仓库管理</text>
+<rect x="592" y="134" width="250" height="40" rx="6" fill="#FFFFFF" stroke="#D3D1C7"/>
+<text x="717" y="159" font-size="13" text-anchor="middle" fill="#444441">Cloud-side EMQX</text>
+<text x="872" y="159" font-size="12" fill="#888780">与 Edge-side 是两套独立 Broker</text>
+
+<text x="40" y="222" font-size="15" font-weight="500" fill="#1F2328">Edge 层</text>
+<text x="130" y="222" font-size="12" fill="#57606A">Simulation ⇄ Edge：WebSocket :9000 / robot_list 同步</text>
+
+<rect x="40" y="236" width="560" height="176" rx="10" fill="#E6F1FB" stroke="#85B7EB"/>
+<text x="60" y="262" font-size="15" font-weight="500" fill="#0C447C">Edge Server · C++17</text>
+<rect x="60" y="276" width="250" height="52" rx="6" fill="#FFFFFF" stroke="#B5D4F4"/>
+<text x="72" y="297" font-size="13" fill="#185FA5">Bootstrap / HTTP :8080</text>
+<text x="72" y="316" font-size="12" fill="#57606A">注册 · 任务注入 · 地图包</text>
+<rect x="326" y="276" width="250" height="52" rx="6" fill="#FFFFFF" stroke="#B5D4F4"/>
+<text x="338" y="297" font-size="13" fill="#185FA5">TaskService</text>
+<text x="338" y="316" font-size="12" fill="#57606A">创建 · 货物审批 · 状态聚合</text>
+<rect x="60" y="340" width="250" height="52" rx="6" fill="#FFFFFF" stroke="#B5D4F4"/>
+<text x="72" y="361" font-size="13" fill="#185FA5">WebSocket :9000</text>
+<text x="72" y="380" font-size="12" fill="#57606A">robot_list 生命周期同步</text>
+<rect x="326" y="340" width="250" height="52" rx="6" fill="#FFFFFF" stroke="#B5D4F4"/>
+<text x="338" y="361" font-size="13" fill="#185FA5">SQLite · 11 张表</text>
+<text x="338" y="380" font-size="12" fill="#57606A">幂等事件表 / 待补报合并</text>
+
+<rect x="620" y="236" width="250" height="176" rx="10" fill="#E1F5EE" stroke="#5DCAA5"/>
+<text x="640" y="262" font-size="15" font-weight="500" fill="#085041">Edge-side EMQX</text>
+<text x="640" y="288" font-size="12" fill="#0F6E56">主题常量集中在</text>
+<text x="640" y="306" font-size="12" fill="#0F6E56">common/mqtt_topic.h</text>
+<text x="640" y="336" font-size="12" fill="#57606A">task / status / goods / ack</text>
+<text x="640" y="356" font-size="12" fill="#57606A">5s 状态上报 · 5min 超时</text>
+<text x="640" y="384" font-size="12" fill="#57606A">QoS + 幂等合并</text>
+
+<rect x="890" y="236" width="270" height="176" rx="10" fill="#EEEDFE" stroke="#AFA9EC"/>
+<text x="910" y="262" font-size="15" font-weight="500" fill="#3C3489">Simulation Manager</text>
+<text x="910" y="288" font-size="12" fill="#534AB7">生命周期状态机（5 态）</text>
+<text x="910" y="306" font-size="12" fill="#534AB7">WAIT_GAZEBO_MODEL → ACTIVE</text>
+<line x1="910" y1="322" x2="1140" y2="322" stroke="#CECBF6"/>
+<text x="910" y="344" font-size="13" fill="#3C3489">Gazebo 仓库世界</text>
+<text x="910" y="364" font-size="12" fill="#57606A">按 Edge 清单动态 spawn 多台</text>
+<text x="910" y="384" font-size="12" fill="#57606A">独立 controller_manager</text>
+
+<line x1="300" y1="190" x2="300" y2="234" stroke="#888780" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrGray)"/>
+<text x="310" y="216" font-size="12" fill="#888780">MQTT（V2）</text>
+<line x1="745" y1="414" x2="745" y2="464" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrBlue)"/>
+<text x="755" y="442" font-size="12" fill="#185FA5">MQTT 任务下发 / 状态上报</text>
+<line x1="300" y1="464" x2="300" y2="414" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#arrGreen)"/>
+<text x="310" y="442" font-size="12" fill="#0F6E56">HTTP /api/bootstrap</text>
+
+<text x="40" y="452" font-size="15" font-weight="500" fill="#1F2328">端侧 · AMR 实例（独立 namespace，TF 前缀 robot_id + 下划线）</text>
+
+<rect x="40" y="466" width="1120" height="250" rx="12" fill="#F8F9FB" stroke="#D9DEE7"/>
+<rect x="60" y="490" width="350" height="200" rx="8" fill="#FFFFFF" stroke="#9FE1CB"/>
+<text x="76" y="516" font-size="14" font-weight="500" fill="#085041">AMR · robot_01</text>
+<text x="76" y="546" font-size="13" fill="#0F6E56">amr_agent</text>
+<text x="76" y="564" font-size="12" fill="#57606A">Bootstrap / MQTT / 待补报 / ACK 清理</text>
+<text x="76" y="592" font-size="13" fill="#0F6E56">amr_behavior_manager</text>
+<text x="76" y="610" font-size="12" fill="#57606A">6 态行为状态机 · 分趟搬运</text>
+<text x="76" y="638" font-size="13" fill="#0F6E56">amr_navigation + Nav2</text>
+<text x="76" y="656" font-size="12" fill="#57606A">按 robot_id 动态生成 nav2 参数</text>
+<text x="76" y="678" font-size="12" fill="#888780">ros2_control diff drive</text>
+
+<rect x="425" y="490" width="350" height="200" rx="8" fill="#FFFFFF" stroke="#9FE1CB"/>
+<text x="441" y="516" font-size="14" font-weight="500" fill="#085041">AMR · robot_02</text>
+<text x="441" y="546" font-size="13" fill="#0F6E56">结构与 robot_01 完全一致</text>
+<text x="441" y="572" font-size="12" fill="#57606A">隔离手段：</text>
+<text x="441" y="592" font-size="12" fill="#57606A">· 独立 ROS2 namespace</text>
+<text x="441" y="612" font-size="12" fill="#57606A">· 独立 TF 树前缀（map 除外）</text>
+<text x="441" y="632" font-size="12" fill="#57606A">· 独立 controller_manager</text>
+<text x="441" y="660" font-size="12" fill="#888780">共享同一任务池，各自申请货物</text>
+
+<rect x="790" y="490" width="350" height="200" rx="8" fill="#FFFFFF" stroke="#9FE1CB" stroke-dasharray="5 4"/>
+<text x="806" y="516" font-size="14" font-weight="500" fill="#085041">AMR · robot_N</text>
+<text x="806" y="546" font-size="13" fill="#0F6E56">由 Simulation Manager 动态创建</text>
+<text x="806" y="572" font-size="12" fill="#57606A">fork + exec spawn_amr.launch.py</text>
+<text x="806" y="600" font-size="12" fill="#57606A">add / replace / remove 三态同步</text>
+<text x="806" y="628" font-size="12" fill="#57606A">名称规则 amr_{robot_id}_{instance_id}</text>
+<text x="806" y="660" font-size="12" fill="#888780">V1 验证至少 2 台实例</text>
+
+<text x="40" y="740" font-size="12" fill="#57606A">协议隔离：AMR 内部 ROS2 DDS ｜ AMR ⇄ Edge HTTP + MQTT ｜ Simulation ⇄ Edge WebSocket ｜ Cloud ⇄ Edge MQTT（V2）</text>
+<text x="40" y="760" font-size="12" fill="#57606A">工具链：tool/map_tool 上传地图包 → Edge HTTP；warehouse_tool 编辑 zone / station / location；data/warehouse_01 为地图包真源</text>
+</svg>

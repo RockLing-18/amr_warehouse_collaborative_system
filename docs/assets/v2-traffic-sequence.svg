@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 890" width="1400" height="890" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif" role="img">
+<title>V2 交通路权五场景时序</title>
+<desc>五条泳道：Nav2 / amr_navigation、TrafficGate（amr_behavior_manager）、TrafficBridge（amr_agent）、Edge（Broker）、SQLite lease。自上而下五个场景：中心点进区申请并提前授权零动作、被拒后取消导航到同侧等待点并固定 10 秒重发、中心点出区边沿释放、改道由出区或 TTL 承接、SUCCEEDED 与 lease_ttl 兜底。V0.20 定案：4 点通行控制区 + inside 边沿判据 + 无 plan 订阅。</desc>
+<rect x="0" y="0" width="1400" height="890" fill="#FFFFFF"/>
+<defs>
+  <marker id="mBlue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#185FA5" stroke-width="1.5"/></marker>
+  <marker id="mOrange" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#B26A00" stroke-width="1.5"/></marker>
+  <marker id="mGreen" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#0F6E56" stroke-width="1.5"/></marker>
+  <marker id="mPurple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#534AB7" stroke-width="1.5"/></marker>
+  <marker id="mGray" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#6E6B63" stroke-width="1.5"/></marker>
+</defs>
+
+<text x="40" y="40" font-size="22" font-weight="500" fill="#1F2328">V2 交通路权 · 五场景时序</text>
+<text x="40" y="66" font-size="13" fill="#57606A">配 v2-traffic-control-chain.md §6 · 时间自上而下 · 五场景中 task_state 全程不变（INV-13）</text>
+<text x="40" y="86" font-size="11" fill="#888780">目标全程 NavigateToPose(D)；等待点是唯一例外，同侧组内就近选取且位于入口端边外侧（上游）</text>
+
+<!-- 泳道头 -->
+<rect x="40" y="104" width="210" height="40" rx="6" fill="#E6F1FB" stroke="#B5D4F4"/>
+<text x="145" y="129" font-size="12" font-weight="500" text-anchor="middle" fill="#0C447C">Nav2 / amr_navigation</text>
+<rect x="270" y="104" width="260" height="40" rx="6" fill="#FFF4E5" stroke="#E0A458"/>
+<text x="400" y="123" font-size="12" font-weight="500" text-anchor="middle" fill="#8A5A00">TrafficGate（amr_behavior_manager）</text>
+<text x="400" y="139" font-size="10" text-anchor="middle" fill="#57606A">判定 + 决策 + 调用 NavigationClient</text>
+<rect x="550" y="104" width="210" height="40" rx="6" fill="#E1F5EE" stroke="#5DCAA5"/>
+<text x="655" y="129" font-size="12" font-weight="500" text-anchor="middle" fill="#085041">TrafficBridge（amr_agent）</text>
+<rect x="780" y="104" width="260" height="40" rx="6" fill="#EEEDFE" stroke="#AFA9EC"/>
+<text x="910" y="129" font-size="12" font-weight="500" text-anchor="middle" fill="#3C3489">Edge（traffic_rights / Broker）</text>
+<rect x="1060" y="104" width="300" height="40" rx="6" fill="#F7F7F5" stroke="#B4B2A9"/>
+<text x="1210" y="129" font-size="12" font-weight="500" text-anchor="middle" fill="#444441">SQLite · tbl_resource_lease</text>
+
+<!-- 生命线 -->
+<line x1="145" y1="146" x2="145" y2="826" stroke="#C9CDD4" stroke-width="1" stroke-dasharray="4 5"/>
+<line x1="400" y1="146" x2="400" y2="826" stroke="#C9CDD4" stroke-width="1" stroke-dasharray="4 5"/>
+<line x1="655" y1="146" x2="655" y2="826" stroke="#C9CDD4" stroke-width="1" stroke-dasharray="4 5"/>
+<line x1="910" y1="146" x2="910" y2="826" stroke="#C9CDD4" stroke-width="1" stroke-dasharray="4 5"/>
+<line x1="1210" y1="146" x2="1210" y2="826" stroke="#C9CDD4" stroke-width="1" stroke-dasharray="4 5"/>
+
+<!-- ===== 场景 1：正常提前授权 ===== -->
+<rect x="40" y="155" width="1320" height="24" rx="4" fill="#E6F1FB"/>
+<text x="52" y="172" font-size="11.5" font-weight="500" fill="#0C447C">场景 6.1　正常路径：提前授权 → 零动作（最常见，绝大多数情况走这条）</text>
+<line x1="145" y1="196" x2="398" y2="196" stroke="#185FA5" stroke-width="1.5" marker-end="url(#mBlue)"/>
+<text x="153" y="190" font-size="10.5" fill="#185FA5">① feedback.current_pose：中心点进区 false→true 边沿触发申请（无 plan 订阅）</text>
+<line x1="400" y1="218" x2="653" y2="218" stroke="#185FA5" stroke-width="1.5" marker-end="url(#mBlue)"/>
+<text x="408" y="212" font-size="10.5" fill="#185FA5">② traffic_request（J4，已定名）：op=REQUEST / request_id / resource_id / eta_sec / lease_ttl_sec / epoch</text>
+<line x1="655" y1="240" x2="908" y2="240" stroke="#185FA5" stroke-width="1.5" marker-end="url(#mBlue)"/>
+<text x="663" y="234" font-size="10.5" fill="#185FA5">③ MQTT request（J5 / J6：amr/+/traffic_rights/request）</text>
+<line x1="910" y1="262" x2="1208" y2="262" stroke="#185FA5" stroke-width="1.5" marker-end="url(#mBlue)"/>
+<text x="918" y="256" font-size="10.5" fill="#185FA5">④ FIFO 原子授权：GRANTED → HELD，写入 lease_expires_at</text>
+<line x1="910" y1="284" x2="402" y2="284" stroke="#185FA5" stroke-width="1.5" marker-end="url(#mBlue)"/>
+<text x="410" y="278" font-size="10.5" fill="#185FA5">⑤ response GRANTED（J8 / J9）→【零动作】不减速、不 cancel、不重发 goal，车继续原 NavigateToPose(D)</text>
+
+<!-- ===== 场景 2：被拒等待 ===== -->
+<rect x="40" y="302" width="1320" height="24" rx="4" fill="#FFF4E5"/>
+<text x="52" y="319" font-size="11.5" font-weight="500" fill="#8A5A00">场景 6.2　异常路径：被拒 → 取消导航 → 等待点 → 固定 10 s 重发 → 重发 D</text>
+<line x1="910" y1="344" x2="402" y2="344" stroke="#B26A00" stroke-width="1.5" marker-end="url(#mOrange)"/>
+<text x="410" y="338" font-size="10.5" fill="#B26A00">① response REJECTED / PENDING（J8 / J9）</text>
+<line x1="400" y1="366" x2="147" y2="366" stroke="#B26A00" stroke-width="1.5" marker-end="url(#mOrange)"/>
+<text x="155" y="360" font-size="10.5" fill="#B26A00">② J10 NavigationClient::cancelNavigation()（进程内 → action cancel → Nav2）</text>
+<line x1="145" y1="388" x2="398" y2="388" stroke="#B26A00" stroke-width="1.5" marker-end="url(#mOrange)"/>
+<text x="153" y="382" font-size="10.5" fill="#B26A00">③ result CANCELED → m_goal_active=false（必须等，否则新 goal 被丢）</text>
+<line x1="400" y1="410" x2="147" y2="410" stroke="#B26A00" stroke-width="1.5" marker-end="url(#mOrange)"/>
+<text x="155" y="404" font-size="10.5" fill="#B26A00">④ J11 navigateToPose(同侧组内就近等待点) → WAITING：Nav2 无活动 goal、cmd_vel 归零</text>
+<line x1="400" y1="432" x2="908" y2="432" stroke="#B26A00" stroke-width="1.5" marker-end="url(#mOrange)"/>
+<text x="408" y="426" font-size="10.5" fill="#B26A00">⑤ 固定 T_retry = 10 s（无 jitter）同 request_id 幂等重发；Edge FIFO 吸收多车同步申请</text>
+<line x1="910" y1="454" x2="402" y2="454" stroke="#B26A00" stroke-width="1.5" marker-end="url(#mOrange)"/>
+<text x="410" y="448" font-size="10.5" fill="#B26A00">⑥ response GRANTED → 事件驱动立即响应，不等轮询</text>
+<line x1="400" y1="476" x2="147" y2="476" stroke="#B26A00" stroke-width="1.5" marker-end="url(#mOrange)"/>
+<text x="155" y="470" font-size="10.5" fill="#B26A00">⑦ navigateToPose(D)：目标恢复 D，不改 task_state，不切分任务</text>
+
+<!-- ===== 场景 3：出区边沿释放 ===== -->
+<rect x="40" y="494" width="1320" height="24" rx="4" fill="#E1F5EE"/>
+<text x="52" y="511" font-size="11.5" font-weight="500" fill="#085041">场景 6.3　正常释放：中心点出区 true→false 边沿（主判据，与导航结果解耦）</text>
+<line x1="145" y1="536" x2="398" y2="536" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#mGreen)"/>
+<text x="153" y="530" font-size="10.5" fill="#0F6E56">① action feedback.current_pose（J2）：填实 V1 的空回调，不是新建 topic</text>
+<line x1="400" y1="558" x2="653" y2="558" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#mGreen)"/>
+<text x="408" y="552" font-size="10.5" fill="#0F6E56">② inside 边沿 true→false（滞回去抖）→ J12 release：车不停、不改 goal</text>
+<line x1="655" y1="580" x2="1208" y2="580" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#mGreen)"/>
+<text x="663" y="574" font-size="10.5" fill="#0F6E56">③ HELD → RELEASED；端边外移 min_release_clearance 保证中心过端边即车尾出窄道，不做 footprint</text>
+
+<!-- ===== 场景 4：改道释放语义由出区 / TTL 承接 ===== -->
+<rect x="40" y="598" width="1320" height="24" rx="4" fill="#EEEDFE"/>
+<text x="52" y="615" font-size="11.5" font-weight="500" fill="#3C3489">场景 6.4　改道：由出区边沿 / TTL 承接（无独立 plan 检测机制）</text>
+<line x1="145" y1="640" x2="398" y2="640" stroke="#534AB7" stroke-width="1.5" marker-end="url(#mPurple)"/>
+<text x="153" y="634" font-size="10.5" fill="#534AB7">① 授权后 Nav2 改选绕行路 → 车驶离拉长的通行控制区</text>
+<line x1="400" y1="662" x2="653" y2="662" stroke="#534AB7" stroke-width="1.5" marker-end="url(#mPurple)"/>
+<text x="408" y="656" font-size="10.5" fill="#534AB7">② 出区边沿即触发 J12 release（语义保留、机制移除，无 onPlanChanged / 去抖冷却）</text>
+<line x1="910" y1="684" x2="1208" y2="684" stroke="#534AB7" stroke-width="1.5" marker-end="url(#mPurple)"/>
+<text x="918" y="678" font-size="10.5" fill="#534AB7">③ 若车停区内不动 / 位姿断流，lease_ttl 到期 EXPIRED 自动回收；不必订阅 plan</text>
+
+<!-- ===== 场景 5：兜底 ===== -->
+<rect x="40" y="702" width="1320" height="24" rx="4" fill="#F7F7F5"/>
+<text x="52" y="719" font-size="11.5" font-weight="500" fill="#444441">场景 6.5　兜底：SUCCEEDED / 显式 cancel / lease_ttl 到期（四触发取最早）</text>
+<line x1="400" y1="744" x2="653" y2="744" stroke="#6E6B63" stroke-width="1.5" marker-end="url(#mGray)"/>
+<text x="408" y="738" font-size="10.5" fill="#57606A">① 导航 SUCCEEDED / 任务结束 / 异常 ABORTED → 兜底 release（出区边沿漏检时）</text>
+<line x1="400" y1="766" x2="653" y2="766" stroke="#6E6B63" stroke-width="1.5" marker-end="url(#mGray)"/>
+<text x="408" y="760" font-size="10.5" fill="#57606A">② AMR 显式 cancel（改道 / 任务取消）：PENDING → 出队；GRANTED / HELD → 释放 + 配额回退</text>
+<line x1="1210" y1="788" x2="912" y2="788" stroke="#6E6B63" stroke-width="1.5" marker-end="url(#mGray)"/>
+<text x="920" y="782" font-size="10.5" fill="#57606A">③ J13 lease_expires_at 到期 → EXPIRED 自动回收（崩溃 / cancel 丢包 / 断网）</text>
+<line x1="655" y1="810" x2="908" y2="810" stroke="#6E6B63" stroke-width="1.5" marker-end="url(#mGray)"/>
+<text x="663" y="804" font-size="10.5" fill="#57606A">④ QoS 1 重传由 request_id 幂等吸收；带旧 epoch 的迟到消息一律丢弃并记录</text>
+
+<text x="40" y="848" font-size="11" fill="#57606A">等待期间 Nav2 无活动 goal → 结构上规避 SimpleProgressChecker 的 movement_time_allowance = 20 s，不靠调参。</text>
+<text x="40" y="868" font-size="11" fill="#888780">V0.20 定案：4 点通行控制区 + 中心点进出边沿 + 无 plan 订阅；权威口径见 traffic-gate-8-decisions-frozen.md。模块归属与 topic 命名已定案（INV-14）。前置阻塞：amr_navigation 的 4 个缺陷须先修。</text>
+</svg>

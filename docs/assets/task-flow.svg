@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" width="1200" height="560" font-family="system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif" role="img">
+<title>任务闭环与可靠性机制</title>
+<desc>V1 任务从 HTTP 注入到结果反馈的八个步骤，以及断网续行、幂等合并、三套状态隔离三个可靠性锚点。</desc>
+<rect x="0" y="0" width="1200" height="560" fill="#FFFFFF"/>
+<defs>
+  <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1 1 L7 4 L1 7" fill="none" stroke="#185FA5" stroke-width="1.5"/></marker>
+</defs>
+
+<text x="40" y="46" font-size="22" font-weight="500" fill="#1F2328">任务闭环与可靠性机制</text>
+<text x="40" y="72" font-size="13" fill="#57606A">V1 已实现链路 · 编号即执行顺序 · 下半部分是三个值得在面试里展开的工程锚点</text>
+
+<rect x="40" y="110" width="260" height="76" rx="8" fill="#E6F1FB" stroke="#B5D4F4"/>
+<text x="56" y="138" font-size="14" font-weight="500" fill="#0C447C">1 · HTTP 注入任务</text>
+<text x="56" y="160" font-size="12" fill="#185FA5">POST /api/tasks（V1 入口）</text>
+<text x="56" y="178" font-size="12" fill="#57606A">robot_ids 非空，Edge 不选 AMR</text>
+<line x1="302" y1="148" x2="328" y2="148" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<rect x="330" y="110" width="260" height="76" rx="8" fill="#E6F1FB" stroke="#B5D4F4"/>
+<text x="346" y="138" font-size="14" font-weight="500" fill="#0C447C">2 · Edge 落库</text>
+<text x="346" y="160" font-size="12" fill="#185FA5">tbl_task / goods_allocation</text>
+<text x="346" y="178" font-size="12" fill="#57606A">共享任务状态发布</text>
+<line x1="592" y1="148" x2="618" y2="148" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<rect x="620" y="110" width="260" height="76" rx="8" fill="#E6F1FB" stroke="#B5D4F4"/>
+<text x="636" y="138" font-size="14" font-weight="500" fill="#0C447C">3 · MQTT 下发任务</text>
+<text x="636" y="160" font-size="12" fill="#185FA5">task/assign → 指定 AMR</text>
+<text x="636" y="178" font-size="12" fill="#57606A">不下发坐标，只给 goods_id</text>
+<line x1="882" y1="148" x2="908" y2="148" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<rect x="910" y="110" width="260" height="76" rx="8" fill="#E6F1FB" stroke="#B5D4F4"/>
+<text x="926" y="138" font-size="14" font-weight="500" fill="#0C447C">4 · AMR 申请货物</text>
+<text x="926" y="160" font-size="12" fill="#185FA5">goods/request → 获批才搬</text>
+<text x="926" y="178" font-size="12" fill="#57606A">carry_capacity = 10 分趟</text>
+
+<rect x="40" y="210" width="260" height="76" rx="8" fill="#E6F1FB" stroke="#B5D4F4"/>
+<text x="56" y="238" font-size="14" font-weight="500" fill="#0C447C">5 · 行为状态机 6 态</text>
+<text x="56" y="260" font-size="12" fill="#185FA5">ACCEPTED → NAVIGATING_TO_PICKUP</text>
+<text x="56" y="278" font-size="12" fill="#57606A">→ GRASPING → TRANSPORTING → PLACING</text>
+<line x1="302" y1="248" x2="328" y2="248" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<rect x="330" y="210" width="260" height="76" rx="8" fill="#E6F1FB" stroke="#B5D4F4"/>
+<text x="346" y="238" font-size="14" font-weight="500" fill="#0C447C">6 · 周期状态上报</text>
+<text x="346" y="260" font-size="12" fill="#185FA5">5s status + status/ack</text>
+<text x="346" y="278" font-size="12" fill="#57606A">心跳 5min 超时判定</text>
+<line x1="592" y1="248" x2="618" y2="248" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<rect x="620" y="210" width="260" height="76" rx="8" fill="#E6F1FB" stroke="#B5D4F4"/>
+<text x="636" y="238" font-size="14" font-weight="500" fill="#0C447C">7 · 结果反馈与聚合</text>
+<text x="636" y="260" font-size="12" fill="#185FA5">goods_status 四量收敛</text>
+<text x="636" y="278" font-size="12" fill="#57606A">Edge 共享状态发布</text>
+<line x1="882" y1="248" x2="908" y2="248" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arr)"/>
+
+<rect x="910" y="210" width="260" height="76" rx="8" fill="#E6F1FB" stroke="#B5D4F4"/>
+<text x="926" y="238" font-size="14" font-weight="500" fill="#0C447C">8 · 完成 / 取消</text>
+<text x="926" y="260" font-size="12" fill="#185FA5">CARRY_COMPLETED / ABORTED</text>
+<text x="926" y="278" font-size="12" fill="#57606A">导航失败不重试（D-047）</text>
+
+<text x="40" y="322" font-size="15" font-weight="500" fill="#1F2328">三个可靠性锚点</text>
+
+<rect x="40" y="336" width="360" height="140" rx="8" fill="#E1F5EE" stroke="#9FE1CB"/>
+<text x="58" y="364" font-size="14" font-weight="500" fill="#085041">断网续行与结果补报</text>
+<text x="58" y="390" font-size="12" fill="#0F6E56">pending_task_reports.json 原子写</text>
+<text x="58" y="410" font-size="12" fill="#0F6E56">恢复后补报 → Edge 幂等合并</text>
+<text x="58" y="438" font-size="12" fill="#57606A">AC-012 ~ 014 目前尚缺验证证据</text>
+<text x="58" y="458" font-size="12" fill="#57606A">这是含金量最高、却最没被展示的一段</text>
+
+<rect x="420" y="336" width="360" height="140" rx="8" fill="#E1F5EE" stroke="#9FE1CB"/>
+<text x="438" y="364" font-size="14" font-weight="500" fill="#085041">幂等合并</text>
+<text x="438" y="390" font-size="12" fill="#0F6E56">tbl_amr_task_status_event</text>
+<text x="438" y="410" font-size="12" fill="#0F6E56">at-least-once 下重复上报不重复计数</text>
+<text x="438" y="438" font-size="12" fill="#57606A">解决的是分布式状态收敛真问题</text>
+<text x="438" y="458" font-size="12" fill="#57606A">建议作为面试主讲的十分钟话题</text>
+
+<rect x="800" y="336" width="360" height="140" rx="8" fill="#E1F5EE" stroke="#9FE1CB"/>
+<text x="818" y="364" font-size="14" font-weight="500" fill="#085041">三套状态严格隔离</text>
+<text x="818" y="390" font-size="12" fill="#0F6E56">任务 state / 行为 task_state</text>
+<text x="818" y="410" font-size="12" fill="#0F6E56">/ 机器人 RobotState，不可混用</text>
+<text x="818" y="438" font-size="12" fill="#57606A">寻址：map → zone → station → location</text>
+<text x="818" y="458" font-size="12" fill="#57606A">目的地由 goods_id + task_type 推导</text>
+
+<text x="40" y="506" font-size="12" fill="#57606A">诚实边界：V1 的 GRASPING / PLACING 以固定延时与数据变化代替，没有真实抓取与力反馈（SRS D-026 / D-045）。</text>
+<text x="40" y="528" font-size="12" fill="#57606A">演示建议：把断网注入、待补报落盘、SQLite 幂等表前后对比作为视频主线，比单纯看小车移动更有说服力。</text>
+</svg>

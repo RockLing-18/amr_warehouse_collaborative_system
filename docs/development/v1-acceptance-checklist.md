@@ -210,7 +210,7 @@ curl -X POST http://127.0.0.1:8080/api/tasks \
 
 - 同一趟搬运暂按单类货物执行，多货物按类型拆分为多趟。
 - 地图完整性为文件存在性校验，未做 checksum/size 校验。
-- 无 `amr_traffic_manager` / `amr_power_manager`，多机仅验证身份隔离。
+- 无交通路权协调与电量管理（V2 范围；V2 路权逻辑内嵌于 `amr_behavior_manager`），多机仅验证身份隔离。
 - `FAILED` 状态 V1 不主动使用。
 
 ## 8. 状态矩阵

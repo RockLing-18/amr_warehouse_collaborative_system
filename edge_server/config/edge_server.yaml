@@ -20,7 +20,8 @@ mqtt:
   host: "127.0.0.1"
   port: 1883
   username: "edge_amr"
-  password: "xyzyr@710"
+  # 凭据不写入仓库：真实值由部署环境的 AMR_MQTT_PASSWORD 注入，见 .env.example
+  password: "${AMR_MQTT_PASSWORD}"
   client_id: "edge_server_001"
   tls_enable: false
   ca_file: ""

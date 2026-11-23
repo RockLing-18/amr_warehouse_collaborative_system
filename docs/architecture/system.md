@@ -30,7 +30,7 @@ architecture-beta
     service agent(server)[amr_agent] in amr
     service behavior(server)[amr_behavior_manager] in amr
     service navigation(server)[amr_navigation] in amr
-    service traffic(server)[amr_traffic_manager (V2)] in amr
+    %% V2: traffic-right logic (TrafficGate) lives INSIDE amr_behavior_manager; no standalone service
     service power(server)[amr_power_manager (V2)] in amr
 
 
@@ -53,7 +53,6 @@ architecture-beta
 
     agent:B -- T:behavior
     behavior:B -- T:navigation
-    behavior:R -- L:traffic
     behavior:R -- L:power
 
     simulation_manager:B -- T:gazebo
@@ -62,6 +61,6 @@ architecture-beta
 ## 状态说明
 
 - V1：Edge Server、Edge MQTT、AMR（`amr_agent`、`amr_behavior_manager`、`amr_navigation`）、Simulation。
-- V2/Planned：Cloud Platform、Cloud MQTT、`amr_traffic_manager`、`amr_power_manager`。
+- V2/Planned：Cloud Platform、Cloud MQTT、`amr_power_manager`、内嵌于 `amr_behavior_manager` 的 V2 路权逻辑 `TrafficGate`（不设独立模块）。
 
 V1 暂不实现 Cloud Platform，任务通过 Edge 侧任务注入完成闭环。

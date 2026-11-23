@@ -7,7 +7,7 @@
 - 需求权威文档为 `docs/requirements/srs.md`。
 - V1 只实现 SRS 中明确标记为 V1 且优先级为 Must 的需求。
 - V2 及后续版本规划不得自动转化为 V1 开发任务。
-- `amr_traffic_manager`、`amr_power_manager`、Cloud Platform、机械臂、视觉、完整 WMS/Web 平台均不属于 V1 交付范围。
+- V1 不实现交通路权协调、电量管理、Cloud Platform、机械臂、视觉、完整 WMS/Web 平台。V2 的路权逻辑**并入 `amr_behavior_manager`（不设独立模块）**，电量管理由 `amr_power_manager` 承担。
 
 ## 2. 文档规则
 
@@ -48,13 +48,19 @@
 - 货物申请由 `amr_behavior_manager` 决策，`amr_agent` 负责 MQTT 请求；导航失败不自动重试。
 - `map -> zone -> station -> location` 是货物点位映射关系；`zones.yaml` 中 zone 使用 `goods_ids`。
 - 任务消息不携带 target zone/station/location，由 AMR 按 `goods_id + task_type` 推导。
-- V1 先假设所有 zone 均为货物相关区域；非货物区域后续再增加字段区分。
+- V1 先假设所有 zone 均为货物相关区域；非货物区域后续再增加字段区分。**V2 的窄道通行控制区走独立 `traffic_gates.yaml`，不改动 V1 的 `map -> zone -> station -> location` 层级与 `zones.yaml` / `stations.yaml` 的 `type` 取值。**
 - JSON 消息字段使用 `snake_case`；任务状态枚举与 SRS 保持一致。
 - AMR 内部 ROS2 Topic/Service/Action 名称统一定义在 `amr_common`。
 - Cloud/Edge/AMR 相关 MQTT Topic 统一定义在 `common/mqtt/mqtt_topic.h`。
 - AMR 内部使用 ROS2；AMR 与 Edge Server 使用 HTTP/MQTT；Simulation Manager 与 Edge Server 使用 WebSocket。
 - 模块之间通过明确接口交互，避免直接依赖其他模块内部实现。
 - 重要架构决策记录在 `docs/architecture/adr/`。
+- **V2 路权模块归属（2026-11-20 定案）**：不设独立模块，实现为 `amr_behavior_manager` 包内的 `TrafficGate`（类 + BT 节点）。全仓文档与代码**不得再使用已废弃的独立交通模块命名**，避免实现者误以为存在独立进程 / ROS2 包。
+- **V2 路权专用 ROS2 topic（2026-11-20 定案）**：`traffic_request`（常量 `amr_common::topic::TRAFFIC_REQUEST`，`amr_behavior_manager` → `amr_agent`）与 `traffic_response`（常量 `amr_common::topic::TRAFFIC_RESPONSE`，`amr_agent` → `amr_behavior_manager`）；消息 `amr_interfaces/msg/TrafficRequest.msg` / `TrafficResponse.msg`。**不得复用 `task_command` / `task_event`**。
+- **V2 路权 MQTT topic（2026-11-20 定案）**：上行 `amr/{robot_id}/traffic_rights/request`，下行单播 `amr/{robot_id}/traffic_rights/response`；Edge 订阅 `amr/+/traffic_rights/request`。动作语义由 payload `op` 承载（`REQUEST` / `CANCEL` / `RELEASE`），**不采用动作分层 topic**。
+- **V2 电量 topic（D 方案）**：`power_mode` / `power_level`，消息 `PowerMode.msg` / `BatteryState.msg`。
+- **V2 窄道几何与权限判据（2026-11-22 第十三轮定案，V0.20）**：窄道数据为独立 `traffic_gates.yaml`（`resource_id` + 4 点凸 `polygon` + `wait_poses{l1,l2}`，每侧 ≥1），**不扩展** `zones.yaml` / `stations.yaml` 的 `type`、不新增 `NARROW` / `TRAFFIC_WAIT` / `side` 字段；点序冻结 `P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2。主判据为 **AMR 中心点进出区域的 `inside` 边沿**（action feedback `current_pose` + 边沿检测 + 滞回；禁用 1 Hz `robot_pose`），**不是**跨线事件、不是 footprint；进入侧由 `dot(enter_pose - centroid, long_axis)` 符号确定并**在本次穿越周期锁存**，等待点在**同侧组内**就近选取且位于入口端边外侧。**全程不订阅 `plan`**，不设 `onPlan()` / `onPlanChanged()` / `D_trigger`；拉长 `L_pull` 自带提前量；改道释放语义由「出区边沿 / TTL」承接，无独立改道检测机制。`REQUESTING` 收 `GRANTED` 零动作，仅 `WAITING` 获批才重发 D。`MapInfo.msg` 加 `traffic_gates_yaml` 字段（地图包第 4 文件）；工具侧新建 `traffic_gates_editor` 两阶段（4 点 zone + 每侧 ≥1 等待点），复用 `ClickedPointReceiver` / `ZoneMarkerPublisher`，**不复用** `zone_editor` 节点本体 / `YamlZoneManager` / `ZoneInfo` / `selectZoneType()`。权威口径见 `.workbuddy/artifacts/traffic-gate-8-decisions-frozen.md`。
+- **V2 图的可读文字版（2026-11-22）**：`docs/assets/v2-traffic-dataflow.svg` / `v2-traffic-sequence.svg` 两张图**仅供人类阅读**，写代码的 agent 读 `docs/` 时读不到图内文字；其纯文字等价物是 `docs/architecture/roadmap/v2-traffic-diagrams.md`（mermaid `flowchart` / `sequenceDiagram` / `stateDiagram-v2`）。**语义真值仍是 `v2-traffic-control-chain.md` §4 逐跳表与 §6 五场景**；新增或修改跨模块链路、topic、状态转移时，须同步「SVG + mermaid + 控制链文档」三处，避免图与文字口径分叉。
 
 ## 4. 开发规则
 

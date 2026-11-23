@@ -1,7 +1,30 @@
+#include <cstdlib>
+
 #include "config/config.h"
 #include "utils/LogDefine.h"
 #include <yaml-cpp/yaml.h>
 #include "mqtt/mqtt_topic.h"
+
+namespace
+{
+// 配置中的 ${VAR} 形式只提交变量名，真实值由部署环境的同名环境变量注入。
+// 未设置时返回空串并告警：既不把凭据写进仓库，也不静默连接到错误的 broker。
+std::string resolveSecret(const std::string& raw, const std::string& field)
+{
+    if(raw.size() > 3 && raw[0] == '$' && raw[1] == '{' && raw.back() == '}')
+    {
+        const std::string env_name = raw.substr(2, raw.size() - 3);
+        const char* value = std::getenv(env_name.c_str());
+        if(value != nullptr && value[0] != '\0')
+        {
+            return std::string(value);
+        }
+        LOG_WARN("config {} references an unset environment variable [{}], using empty value", field, env_name);
+        return "";
+    }
+    return raw;
+}
+}
 
 namespace edge_server
 {
@@ -28,7 +51,8 @@ bool ConfigManager::load(const std::string& file)
             m_config.edge_amr_mqtt.url =  "tcp://" + mqttIp + ":" + std::to_string(mqttPort);
 
         m_config.edge_amr_mqtt.user = yaml["mqtt"]["username"].as<std::string>();
-        m_config.edge_amr_mqtt.pwd = yaml["mqtt"]["password"].as<std::string>();
+        const std::string mqtt_password_raw = yaml["mqtt"]["password"].as<std::string>();
+        m_config.edge_amr_mqtt.pwd = resolveSecret(mqtt_password_raw, "mqtt.password");
         m_config.edge_amr_mqtt.client_id = yaml["mqtt"]["client_id"].as<std::string>();
         m_config.edge_amr_mqtt.ca_file = yaml["mqtt"]["ca_file"].as<std::string>();
         m_config.edge_amr_mqtt.keepalive = yaml["mqtt"]["keepalive"].as<int>();

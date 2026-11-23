@@ -72,9 +72,27 @@ emqx start
 
 ## 5. 启动 Edge Server
 
+### 5.1 首次配置（凭据外置）
+
+MQTT 密码不写入仓库，由环境变量注入：
+
+```bash
+cp .env.example .env
+# 编辑 .env，把 AMR_MQTT_PASSWORD 改为本地 EMQX 的密码
+```
+
+`edge_server/config/edge_server.yaml` 中的 `password: "${AMR_MQTT_PASSWORD}"` 只是占位符，
+由 `ConfigManager::load()` 在启动时展开为同名环境变量的值。未设置时服务仍会启动，
+但会打印 warn 日志且 MQTT 连接失败。`.env` 已被 `.gitignore` 忽略，请勿提交。
+
+### 5.2 启动
+
 ```bash
 cd /home/zyr/code/amr_warehouse_collaborative_system
-./edge_server/bin/edge_server
+./edge_server/scripts/run_edge_server.sh
+
+# 或手动注入后直接启动
+# set -a; source .env; set +a; ./edge_server/bin/edge_server
 ```
 
 默认读取配置：
@@ -82,6 +100,9 @@ cd /home/zyr/code/amr_warehouse_collaborative_system
 ```text
 edge_server/config/edge_server.yaml
 ```
+
+注意：`CMakeLists.txt` 会把 `config/` 拷贝到 `bin_dir/config/`，修改 yaml 后需重新执行
+`cmake --build build`；也可用 `--config <path>` 显式指定配置文件路径。
 
 ## 6. 启动 AMR
 
