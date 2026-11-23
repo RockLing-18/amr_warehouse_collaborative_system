@@ -2,7 +2,7 @@ import os
 import glob
 import yaml
 
-from config import REQUIRED_WAREHOUSE_FILES
+from config import REQUIRED_WAREHOUSE_FILES, OPTIONAL_WAREHOUSE_FILES
 
 
 def find_map_yaml(map_dir):
@@ -53,6 +53,11 @@ def discover_warehouse_files(warehouse_dir):
         key = file.replace(".yaml", "")
         files[key] = file
 
+    for file in OPTIONAL_WAREHOUSE_FILES:
+        file_path = os.path.join(warehouse_dir, file)
+        key = file.replace(".yaml", "")
+        files[key] = file if os.path.exists(file_path) else None
+
     return files
 
 
@@ -69,4 +74,8 @@ def validate_warehouse_directory(warehouse_dir):
     print(f"[OK] map image: {files['map_image']}")
     for name in ["zones", "stations", "walls"]:
         print(f"[OK] {files[name]}")
+    if files.get("traffic_gates"):
+        print(f"[OK] traffic_gates: {files['traffic_gates']}")
+    else:
+        print("[INFO] traffic_gates: not present (no narrow zones, skip)")
     return True

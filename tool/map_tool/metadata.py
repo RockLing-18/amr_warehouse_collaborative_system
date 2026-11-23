@@ -17,6 +17,9 @@ def generate_metadata(warehouse_dir, warehouse_id, version, files):
         },
     }
 
+    if files.get("traffic_gates"):
+        metadata["files"]["traffic_gate"] = files["traffic_gates"]
+
     path = os.path.join(warehouse_dir, "metadata.yaml")
     with open(path, "w", encoding="utf-8") as f:
         yaml.dump(

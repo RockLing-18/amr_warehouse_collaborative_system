@@ -11,5 +11,10 @@ REQUIRED_WAREHOUSE_FILES = [
     "walls.yaml"
 ]
 
+# 地图可选文件：无 narrow 区域时允许不存在
+OPTIONAL_WAREHOUSE_FILES = [
+    "traffic_gates.yaml"
+]
+
 # 临时输出目录
 PACKAGE_DIR = "output"

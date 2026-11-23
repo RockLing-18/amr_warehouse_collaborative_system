@@ -163,11 +163,11 @@ class WarehouseTool:
                 elif choice == "3":
                     self.run_wall_editor()
                 elif choice == "4":
-                    self.show_status()
-                elif choice == "5":
-                    self.upload_data()
-                elif choice == "6":
-                    self.upload_all()
+                    self.run_traffic_gate_editor()
+                # elif choice == "5":
+                #     self.upload_data()
+                # elif choice == "6":
+                #     self.upload_all()
                 elif choice == "0":
                     print("\nBye.")
                     break
@@ -200,9 +200,10 @@ class WarehouseTool:
         print("1. Zone Editor")
         print("2. Station Editor")
         print("3. Wall Editor")
-        print("4. Show Warehouse Status")
-        print("5. Upload Data")
-        print("6. Upload All")
+        print("4. TrafficGate Editor")
+        # print("5. Show Warehouse Status")
+        # print("6. Upload Data")
+        # print("7. Upload All")
         print("0. Exit")
         print("-" * 60)
 
@@ -294,6 +295,21 @@ class WarehouseTool:
         ]
         self.launch_in_new_terminal(command, title="Wall Editor")
         print("[INFO] Wall Editor opened in new terminal!")
+
+    def run_traffic_gate_editor(self):
+        print()
+        print("=" * 60)
+        print("Starting TrafficGate Editor")
+        print("=" * 60)
+        if not self.check_map():
+            return
+
+        command = [
+            "ros2", "run", "warehouse_tool", "traffic_gate_editor",
+            "--ros-args", "-p", f"map_dir:={self.warehouse_dir}"
+        ]
+        self.launch_in_new_terminal(command, title="TrafficGate Editor")
+        print("[INFO] TrafficGate Editor opened in new terminal!")
 
     # ============================================================
     # Process

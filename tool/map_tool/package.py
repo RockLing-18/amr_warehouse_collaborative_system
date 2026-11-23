@@ -18,8 +18,10 @@ def package_map(warehouse_dir, warehouse_id, version, files, output_dir):
             if os.path.exists(src_path):
                 z.write(src_path, src_name)
 
-        for name in ["zones", "stations", "walls"]:
-            file_name = files[name]
+        for name in ["zones", "stations", "walls", "traffic_gates"]:
+            file_name = files.get(name)
+            if not file_name:
+                continue
             src_path = os.path.join(warehouse_dir, file_name)
             if os.path.exists(src_path):
                 z.write(src_path, file_name)

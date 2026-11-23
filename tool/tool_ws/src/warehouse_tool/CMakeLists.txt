@@ -34,6 +34,7 @@ src/zone_marker_publisher.cpp
 src/station_marker_publisher.cpp
 src/yaml_wall_manager.cpp
 src/wall_marker_publisher.cpp
+src/yaml_traffic_gate_manager.cpp
 )
 
 target_include_directories(
@@ -108,12 +109,31 @@ ament_target_dependencies(
   visualization_msgs
 )
 
+add_executable(
+  traffic_gate_editor
+  src/traffic_gate_editor_node.cpp
+)
+
+
+target_link_libraries(
+  traffic_gate_editor
+  warehouse_tool_common
+)
+
+ament_target_dependencies(
+  traffic_gate_editor
+  rclcpp
+  geometry_msgs
+  visualization_msgs
+)
+
 install(
   TARGETS
   warehouse_tool_common
   zone_editor
   station_editor
   wall_editor
+  traffic_gate_editor
   DESTINATION lib/${PROJECT_NAME}
 )
 
