@@ -36,6 +36,7 @@ class RobotService;
 class BootstrapService;
 class MapService;
 class TaskService;
+class TrafficRightsService;
 
 class ServiceContext
 {
@@ -47,12 +48,14 @@ public:
     std::shared_ptr<BootstrapService> getBootstrapService();
     std::shared_ptr<MapService> getMapService();
     std::shared_ptr<TaskService> getTaskService();
+    std::shared_ptr<TrafficRightsService> getTrafficRightsService();
 
 private:
     std::shared_ptr<RobotService> m_robotService;
     std::shared_ptr<BootstrapService> m_bootstrapService;
     std::shared_ptr<MapService> m_mapService;
     std::shared_ptr<TaskService> m_taskService;
+    std::shared_ptr<TrafficRightsService> m_trafficRightsService;
 };
 
 }

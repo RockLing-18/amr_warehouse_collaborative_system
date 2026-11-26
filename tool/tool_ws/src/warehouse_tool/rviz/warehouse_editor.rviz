@@ -553,6 +553,21 @@ Visualization Manager:
       Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
+      Name: TrafficGateWaitMarker
+      Namespaces:
+        traffic_wait_l1: true
+        traffic_wait_l2: true
+        preview_traffic_wait_l1: true
+        preview_traffic_wait_l2: true
+      Topic:
+        Depth: 10
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /traffic_gate_marker
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
       Name: MarkerArray
       Namespaces:
         wall_line: true

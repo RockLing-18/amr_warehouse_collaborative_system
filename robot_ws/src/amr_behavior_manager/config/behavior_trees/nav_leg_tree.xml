@@ -1,0 +1,9 @@
+<root BTCPP_format="4" main_tree_to_execute="NavLegTree">
+  <BehaviorTree ID="NavLegTree">
+    <ReactiveSequence>
+      <BatteryOK/>
+      <TrafficGranted/>
+      <NavigateToPose goal="{goal}"/>
+    </ReactiveSequence>
+  </BehaviorTree>
+</root>

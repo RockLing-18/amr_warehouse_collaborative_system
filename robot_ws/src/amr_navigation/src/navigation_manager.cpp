@@ -16,7 +16,7 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
     if(!m_action_client->wait_for_action_server(std::chrono::seconds(5)))
     {
         RCLCPP_ERROR(m_logger, "Nav2 Action服务未启动");
-        resp.accepted = false;
+        resp.submitted = false;
         resp.message = "nav2 action server not available";
         return resp;
     }
@@ -24,7 +24,7 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
     // 单活动导航：忙碌时直接返回，由调用方（amr_navigation 的 server）决策
     if(m_state == NavigationExecutionState::ACCEPTING || m_state == NavigationExecutionState::NAVIGATING || m_state == NavigationExecutionState::CANCELING)
     {
-        resp.accepted = false;
+        resp.submitted = false;
         resp.state = m_state;
         resp.message = "robot busy";
         RCLCPP_WARN(m_logger, "robot already navigating");
@@ -59,9 +59,9 @@ NavigationResponse NavigationManager::navigateToPose(const NavigationRequest& re
     m_current_epoch = epoch;
     m_action_client->async_send_goal(goal, options);
 
-    resp.accepted = true;
+    resp.submitted = true;
     resp.state = NavigationExecutionState::ACCEPTING;
-    resp.message = "navigation request accepted";
+    resp.message = "navigation request submitted";
     return resp;
 }
 

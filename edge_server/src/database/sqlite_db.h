@@ -44,6 +44,11 @@ public:
     bool ApproveGoodsAllocation(const std::string& request_id, const std::string& task_id, const std::string& goods_id, const std::string& robot_id, int quantity, const std::string& allocated_at);
     bool SettleGoodsAllocation(const std::string& request_id, const std::string& robot_id, const std::string& state, const std::string& settled_at);
 
+    // traffic resource lease
+    bool TryGrantLease(const ResourceLease& lease, bool& granted, int& queue_seq);
+    bool CancelOrReleaseLease(const std::string& request_id, const std::string& resource_type, const std::string& resource_id, std::string& promoted_holder, std::string& promoted_request_id);
+    bool ExpireLeases(const std::string& now, std::vector<ResourceLease>& expired);
+
 private:
     SQLiteDB();
     ~SQLiteDB();

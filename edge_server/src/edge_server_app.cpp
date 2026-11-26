@@ -20,6 +20,7 @@
 #include "service/bootstrap_service.h"
 #include "service/map_service.h"
 #include "service/task_service.h"
+#include "service/traffic_rights_service.h"
 #include "service/idle_point_allocator.h"
 
 #include "communication/amr_communication.h"
@@ -199,6 +200,16 @@ bool EdgeServerApp::init(const std::string& cfgPath)
                 return false;
             return comm->publish(topic, payload);
         });
+
+    m_serviceContext->getTrafficRightsService()->setPublishCallback(
+        [amrCommWeak](const std::string& topic, const std::string& payload)
+        {
+            auto comm = amrCommWeak.lock();
+            if(!comm)
+                return false;
+            return comm->publish(topic, payload);
+        });
+    m_serviceContext->getTrafficRightsService()->init();
     
     m_httpServer = std::make_shared<HttpServer>(
         m_serviceContext->getBootstrapService(),

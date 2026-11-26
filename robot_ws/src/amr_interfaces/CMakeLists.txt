@@ -25,6 +25,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/TaskEvent.msg"
   "msg/EdgeStatus.msg"
   "msg/InitialPose.msg"
+  "msg/TrafficRequest.msg"
+  "msg/TrafficResponse.msg"
+  "msg/PowerMode.msg"
+  "msg/BatteryState.msg"
   DEPENDENCIES geometry_msgs builtin_interfaces
 )
 

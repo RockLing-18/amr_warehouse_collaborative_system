@@ -6,6 +6,7 @@
 #include "bootstrap/bootstrap.h"
 #include "communication/edge_communication.h"
 #include "bridge/task_bridge.h"
+#include "bridge/traffic_bridge.h"
 #include "map/map_manager.h"
 #include "utils/ros_logger.h"
 #include "nlohmann/json.hpp"
@@ -104,6 +105,7 @@ bool AmrAgentNode::init()
                 return;
             m_current_task_id = msg->current_task_id;
             m_behavior_navigating = msg->navigating;
+            m_battery = msg->battery;
         });
 
     m_robot_pose_sub = this->create_subscription<amr_interfaces::msg::RobotPose>(
@@ -177,6 +179,12 @@ bool AmrAgentNode::init()
         info.warehouse_id,
         this->get_parameter("pending_report_path").as_string());
     m_taskBridge->init();
+
+    m_trafficBridge = std::make_shared<TrafficBridge>(
+        shared_from_this(),
+        m_communication.get(),
+        info.robot_id);
+    m_trafficBridge->init();
 
     m_communication->setRegisterResponseCallback(
         [this](const RobotRegisterResponse& response)
@@ -293,7 +301,7 @@ void AmrAgentNode::publishRobotStatus()
     root["robot_id"] = m_robot_id;
     root["state"] = state;
     root["online"] = true;
-    root["battery"] = 100.0;
+    root["battery"] = m_battery;
     root["pose"]["x"] = m_pose_valid ? m_pose_x : 0.0;
     root["pose"]["y"] = m_pose_valid ? m_pose_y : 0.0;
     root["pose"]["yaw"] = m_pose_valid ? m_pose_yaw : 0.0;

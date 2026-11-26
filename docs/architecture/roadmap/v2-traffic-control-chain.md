@@ -67,7 +67,7 @@ action feedback.current_pose（中心点） / traffic_gates.yaml（4 点 polygon
 | ② 关键设计取舍 | **已冻结** | 运行时按需触发主模型、**4 点通行控制区 + AMR 中心点 `point_in_poly` 进出边沿判据 + 无 `plan` 订阅**（V0.20 定案）、目标全程 D、固定 10 s、Edge 中心 FIFO + TTL、电量 B/D、充电 B、BT C 方案、INV-13。见 V2 分册 3.2 / 3.3 / 3.4。 |
 | ③ 业务流程与状态机 | **主流程已定，前置阻塞未清** | 主流程（申请 / 授权 / 被拒 / 等待 / 重发 / 释放）与 lease 状态机（`PENDING → GRANTED → HELD → RELEASED`）已定；但 **`amr_navigation` 的 4 个缺陷是阻塞项**（V2 分册 3.2.3），且**跨模块调用时序此前从未画过**，本文件 §6 与配套时序图补上。 |
 | ④ **数据链路（谁连谁）** | **已定案** | 第七轮：模块归属（INV-14）、ROS2 / MQTT topic 命名、payload `op` 形态、消息字段全部冻结；§2 的 4 处断点已全部消除。 |
-| ⑤ 参数与接口形态 | **命名已定，数值仍开** | 仍待：TBD-020（`queue_seq` / `PENDING` 超时 / `lease_ttl` 默认值 / 表最终字段）、021（`polygon` / `wait_poses` 字段名、`L_pull` / `min_release_clearance` 净距数值）、023 / 024（BT 与急停）、038（滞回双阈值 / 去抖）、039（AMR 侧 `traffic_gate_loader` 读取 `traffic_gates.yaml`）。见 §9。 |
+| ⑤ 参数与接口形态 | **命名已定，数值仍开** | 仍待：TBD-020 表字段与数值已定（新建 `tbl_resource_lease`、`lease_ttl=60s` 自 `GRANTED` 起算、`PENDING` 超时 60 s）；021（`L_pull` / `min_release_clearance` 净距数值）；023 已定 BT v4 + Groot2；024 已关闭（无独立急停）；038（滞回双阈值 / 去抖）；039（AMR 侧 `traffic_gate_loader` 读取 `traffic_gates.yaml`）。见 §9。 |
 | ⑥ 代码实现 | **基本为零** | `traffic_rights_service`、`TrafficBridge`、`TrafficRequest/Response` 消息与编解码、`tbl_resource_lease`、FIFO、`TrafficGate` / BT 节点 **全部不存在**。V1 只留下 2 个 topic 常量、两侧被注释的 handler 注册、一个空壳前向声明。 |
 
 **结论（第七轮）**：需求、取舍、业务流程、数据链路、接口命名**均已确定**，且 V2 需求已进 SRS；尚未确定的只剩**数值参数与少量技术选型**（§9），以及代码实现本身。别的 agent 现在可照 [V2 实现规格](v2-implementation-spec.md) 开工。
@@ -261,7 +261,7 @@ TrafficGate -> NavigationClient::navigateToPose(等待点) 或 (D)
 
 1. Edge 返回 `REJECTED`（或 `PENDING` 未获批）。
 2. `TrafficGate` → J10 `cancelNavigation()` → **等 result 回调 `m_goal_active=false`**（§5 坑 1）再发新 goal。
-3. → J11 `navigateToPose(同侧就近等待点)`（`argmin dist` 于 `wait_poses[entry_side]`，`entry_side` 用进区边沿锁存值）；等待点**必须在入口端边外侧（上游）**（V2 分册 3.2.1.3 硬约束 1），否则车会无权限穿越窄道。
+3. → J11 `navigateToPose(同侧就近等待点)`（`argmin dist` 于 `wait_poses[entry_side]`，`entry_side` 用进区边沿锁存值）；等待点位置由人工录入，允许在区域内 / 区域外，但**必须位于真实窄道上游**（V2 分册 3.2.1.3 硬约束 1），否则车会无权限穿越窄道。
 4. 停稳进入 `WAITING`：**Nav2 无活动 goal**（本就**无 `plan` 订阅**）、`cmd_vel` 闸门归零（模型 A，规避 `SimpleProgressChecker` 20 s 超时）。
 5. 每 **固定 `T_retry = 10 s`（无 jitter）** 用**同一 `request_id`** 幂等重发；Edge FIFO + 幂等去重吸收多车同步申请。
 6. **仅 `WAITING` 收 `GRANTED` 立即**（不等轮询）→ J11 `navigateToPose(D)` → `RESUMING → HELD`；任务目标恢复为 D，不改 `task_state`。
@@ -320,7 +320,7 @@ TrafficGate -> NavigationClient::navigateToPose(等待点) 或 (D)
 - [ ] `current_pose` 从 **action feedback** 取（填实 `amr_behavior_manager_node.cpp:125-129` 的空回调），不是新建 topic；主判据是 **AMR 中心点 `point_in_poly` 的 `inside` 进出边沿**（含滞回双阈值 + 状态过滤）；**不订阅 `plan`**，1 Hz `robot_pose` 禁止作主判据。
 - [ ] 不复用 `task_command` / `task_event` 传路权；新增**已定名**的 `traffic_request` / `traffic_response`（常量定义在 `amr_common::topic`）；MQTT 用 `amr/{robot_id}/traffic_rights/request` / `response`，动作走 payload `op`。
 - [ ] `NavigationClient::cancelNavigation()` 直接复用；**等 result 回调 `m_goal_active=false` 后再发新 goal**。
-- [ ] 目标全程为 D；等待点是唯一例外且**位于入口端边外侧（上游）**、同侧就近（`entry_side` 边沿锁存）；`REQUESTING` 收 `GRANTED` **零动作（零 goal 重发、零停顿）**，仅 `WAITING` 收 `GRANTED` 才立即重发 D。
+- [ ] 目标全程为 D；等待点是唯一例外且**位于真实窄道上游（位置可区域内 / 区域外）**、同侧就近（`entry_side` 边沿锁存）；`REQUESTING` 收 `GRANTED` **零动作（零 goal 重发、零停顿）**，仅 `WAITING` 收 `GRANTED` 才立即重发 D。
 - [ ] 等待期间 Nav2 无活动 goal（本就**无 `plan` 订阅**）；固定 `T_retry = 10 s` 无 jitter，同 `request_id` 幂等；仅 `WAITING` 收到 `GRANTED` 立即重发 D。
 - [ ] 释放四触发取最早（**出区边沿 / 任务结束 / `lease_ttl` 到期 / 显式 `CANCEL`**）；「改道即释放」**保留语义、移除独立机制**（驶离由出区边沿、停住 / 断流由 TTL 承接）；`SUCCEEDED` 只是兜底。
 - [ ] Edge 侧 `PENDING` 不进部分唯一索引；显式 `cancel` 分「出队 / 释放」两态；`epoch` 丢弃迟到消息；占用状态不广播、不改 `task_state`。
@@ -337,7 +337,7 @@ TrafficGate -> NavigationClient::navigateToPose(等待点) 或 (D)
 | `polygon` / `wait_poses` 字段名、`resource_id` 取值、`L_pull` / `min_release_clearance` 数值（`L_pull ≥ v_max × (RTT_拒绝_p99 + T_cancel + T_newgoal_accept) + v_max²/(2·abs(a_dec)) + d_safety`） | TBD-021 | 几何**形态**已定案（4 点凸 `polygon` 通行控制区：端边外移 / 侧边拉长 `L_pull` / 端边不压分叉点），字段与数值未定；数值由 V1.5 基准实验实测 |
 | 滞回双阈值（内缩进入 / 外扩 `d_hyst` 或连续 N 帧时间窗）、边沿检测去抖；AMR 侧 `traffic_gate_loader` 读取 `traffic_gates.yaml` | TBD-038 / 039 | 未定（`crossed()` 已降级为侧边异常辅助，「改道即释放」独立机制已移除、无冷却项；039 对应 loader 读取） |
 | BT 库版本、XML 路径、自定义节点注册方式 | TBD-023 | 未定；V1 无任何 BT 代码 |
-| 软件急停触发源与仲裁落点 | TBD-024 | 未定 |
+| 软件急停触发源与仲裁落点 | TBD-024 已关闭 | V2 不新增独立节点，由任务取消 / 异常路径承接 |
 | `ETA` 精度与 lease 生效时刻、验收阈值 | TBD-038 | 未定 |
 
 另：**SRS 已纳入 V2 需求**（第七轮授权写入 V0.19，2026-11-22 起为 V0.20）；**ADR-0002 仍未产出**、**V1.5 尚未自验**（项目所有者说明稍后进行）。这两项是实施前的流程前置，不是本文能代劳的。

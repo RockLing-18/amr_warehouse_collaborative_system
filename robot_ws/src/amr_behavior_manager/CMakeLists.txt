@@ -13,6 +13,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(amr_interfaces REQUIRED)
 find_package(amr_common REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(behaviortree_cpp REQUIRED)
 
 
 # ============================
@@ -24,6 +25,10 @@ add_executable(
     src/navigation_client.cpp
     src/zone_station_loader.cpp
     src/goods_point_resolver.cpp
+    src/traffic_gate_loader.cpp
+    src/traffic_gate.cpp
+    src/bt_nodes.cpp
+    src/behavior_tree_runtime.cpp
 )
 
 target_include_directories(
@@ -39,6 +44,7 @@ ament_target_dependencies(
     geometry_msgs
     amr_interfaces
     amr_common
+    behaviortree_cpp
 )
 
 target_link_libraries(

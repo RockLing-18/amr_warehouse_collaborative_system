@@ -3,6 +3,7 @@
 #include "service/bootstrap_service.h"
 #include "service/map_service.h"
 #include "service/task_service.h"
+#include "service/traffic_rights_service.h"
 
 
 namespace edge_server
@@ -13,6 +14,7 @@ bool ServiceContext::init()
     m_bootstrapService = std::make_shared<BootstrapService>();
     m_mapService = std::make_shared<MapService>();
     m_taskService = std::make_shared<TaskService>();
+    m_trafficRightsService = std::make_shared<TrafficRightsService>();
     return true;
 }
 
@@ -34,6 +36,11 @@ std::shared_ptr<MapService> ServiceContext::getMapService()
 std::shared_ptr<TaskService> ServiceContext::getTaskService()
 {
     return m_taskService;
+}
+
+std::shared_ptr<TrafficRightsService> ServiceContext::getTrafficRightsService()
+{
+    return m_trafficRightsService;
 }
 
 

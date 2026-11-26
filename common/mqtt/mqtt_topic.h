@@ -50,8 +50,9 @@ constexpr const char AMR_TASK_STATUS[] = "amr/{}/task/status";
 // robot_id 会替换 {}
 constexpr const char AMR_TASK_STATUS_ACK[] = "amr/{}/task/status/ack";
 
-constexpr const char TRAFFIC_RIGHTS_REQ[] = "amr/traffic_rights/request";
-constexpr const char TRAFFIC_RIGHTS_RSP_PREFIX[] = "amr/traffic_rights/response/";
+constexpr const char AMR_TRAFFIC_REQUEST[] = "amr/{}/traffic_rights/request";
+constexpr const char AMR_TRAFFIC_RESPONSE[] = "amr/{}/traffic_rights/response";
+constexpr const char AMR_TRAFFIC_SUBSCRIBE[] = "amr/+/traffic_rights/request";
 
 
 inline std::string makeRobotStatusTopic(const std::string& robot_id)
@@ -99,6 +100,16 @@ inline std::string makeAmrTaskStatusTopic(const std::string& robot_id)
 inline std::string makeAmrTaskStatusAckTopic(const std::string& robot_id)
 {
     return fmt::format(AMR_TASK_STATUS_ACK, robot_id);
+}
+
+inline std::string makeAmrTrafficRequestTopic(const std::string& robot_id)
+{
+    return fmt::format(AMR_TRAFFIC_REQUEST, robot_id);
+}
+
+inline std::string makeAmrTrafficResponseTopic(const std::string& robot_id)
+{
+    return fmt::format(AMR_TRAFFIC_RESPONSE, robot_id);
 }
 
 }

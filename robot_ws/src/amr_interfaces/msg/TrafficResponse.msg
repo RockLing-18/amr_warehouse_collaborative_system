@@ -1,0 +1,9 @@
+builtin_interfaces/Time stamp
+string request_id
+string robot_id
+string resource_id
+int64 epoch
+string result
+int32 queue_seq
+float64 lease_expires_at
+string reason

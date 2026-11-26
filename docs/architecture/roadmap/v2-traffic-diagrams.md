@@ -33,7 +33,7 @@
 | `E` | `AmrCommunication` → `traffic_rights_service` → `ResourceBroker` | Edge |
 | `S` | SQLite `tbl_resource_lease` | Edge |
 
-> 五场景中 `task_state` **全程不变**（INV-13）；目标全程 `NavigateToPose(D)`，**等待点是唯一例外**，同侧组内就近选取且位于入口端边外侧（上游）。
+> 五场景中 `task_state` **全程不变**（INV-13）；目标全程 `NavigateToPose(D)`，**等待点是唯一例外**，同侧组内就近选取且位于真实窄道上游（位置可区域内 / 区域外）。
 
 ---
 
@@ -180,7 +180,7 @@ sequenceDiagram
   G->>N: J11 navigateToPose D 目标恢复 D 不改 task_state
 ```
 
-**易错点**：① `cancelNavigation()` 是异步的，**必须等 result 回调把 `m_goal_active=false`** 再发等待点，立即重发会被直接丢弃（`navigation_client.cpp:28-32`）；② 等待点按 `entry_side` **先筛组再组内 `argmin dist`**，不能全场 `argmin`（会选到对侧、无权限却要穿过整条窄道）；③ 去等待点会再次穿越边界，此时未持权，**不能误触发释放**；④ 等待点必须在入口端边**外侧（上游）**。
+**易错点**：① `cancelNavigation()` 是异步的，**必须等 result 回调把 `m_goal_active=false`** 再发等待点，立即重发会被直接丢弃（`navigation_client.cpp:28-32`）；② 等待点按 `entry_side` **先筛组再组内 `argmin dist`**，不能全场 `argmin`（会选到对侧、无权限却要穿过整条窄道）；③ 去等待点会再次穿越边界，此时未持权，**不能误触发释放**；④ 等待点位置可区域内 / 区域外，但必须位于真实窄道**上游**。
 
 ### 2.3 S3 正常释放：中心点出区边沿（主判据，与导航结果解耦）
 

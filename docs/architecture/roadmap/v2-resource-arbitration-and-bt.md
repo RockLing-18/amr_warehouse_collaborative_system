@@ -4,14 +4,14 @@
 
 **Status:** Planned
 **所属路线图:** [`../version-roadmap.md`](../version-roadmap.md)
-**版本主题:** 统一资源仲裁（交通路权 / 充电点 / 货物配额）+ 电量真实化 + 行为树执行骨架 + 软件急停
+**版本主题:** 统一资源仲裁（交通路权 / 充电点 / 货物配额）+ 电量真实化 + 行为树执行骨架
 **前置依赖:** V1.5 验证基线完成（故障注入与取证能力可用）
 
 ---
 
 ## 1. 目标
 
-把 V1 中散落的「申请—批准—占用—释放」逻辑抽象成一套统一资源仲裁机制，同时让交通与电量成为该机制的两种资源实例；引入行为树作为**单趟执行的骨架**，把 V1 散在 if-else 里的恢复逻辑收敛成可组合结构；补齐工业 AMR 必备的软件急停与指令优先级。
+把 V1 中散落的「申请—批准—占用—释放」逻辑抽象成一套统一资源仲裁机制，同时让交通与电量成为该机制的两种资源实例；引入行为树作为**单趟执行的骨架**，把 V1 散在 if-else 里的恢复逻辑收敛成可组合结构。
 
 > **为什么这三件事放在同一版**：V2 的两个新功能（路权、低电量）本身就是行为树的两个条件节点。若先用 if-else 实现、以后再引入行为树，等于把恢复逻辑写死两次；合并实施既省代码，又能讲清「抽象与分层」的架构判断。
 
@@ -26,7 +26,6 @@
 - 地图几何扩展：独立 `traffic_gates.yaml`（`resource_id` + 4 点凸 `polygon` 通行控制区 + `wait_poses{l1,l2}` 每侧多个等待点）；**不录路线顺序、不预求全序列、不做单段前瞻、不扩展 zone/station type**，见 3.2.1。
 - 电量真实化：移除硬编码、消耗模型、低电量策略、自动回充、充电点占用管理。
 - 行为树执行骨架：BT 依赖、节点、XML、与 `task_state` 的映射、Groot 可视化。
-- 软件急停与 `cmd_vel` 优先级仲裁。
 - 降级与恢复策略矩阵（文档 + 实现）。
 - 与 V1.5 故障注入框架的联动验证。
 
@@ -52,7 +51,7 @@
 
 ### 3.0 功能 → 节点归属总表（实现前必读）
 
-> **本节回答「V2 每个功能落在哪个节点 / 哪一侧」。** 大原则：**Edge 管共享资源（谁占路口、谁占充电桩），AMR 管本体状态（电量、行为、急停）**。
+> **本节回答「V2 每个功能落在哪个节点 / 哪一侧」。** 大原则：**Edge 管共享资源（谁占路口、谁占充电桩），AMR 管本体状态（电量、行为）**。
 
 | 功能 | 承载节点 / 模块 | 所属侧 | 交互对象 | 归属依据 |
 | --- | --- | --- | --- | --- |
@@ -64,7 +63,6 @@
 | 充电点分配与占用 | `IdlePointAllocator` 升级为 lease | Edge | SQLite | 3.1.5、D-053/054 |
 | battery **只读镜像** | `tbl_robot_status.battery` | Edge | 由 `amr_agent` 5s 上报写入 | 3.3.1；SRS 961 行：用于列表/查询/异常识别 |
 | 路权本地按需触发 / 等待 / 恢复 | **`amr_behavior_manager` 内 `TrafficGate`（类 + BT 节点）· 已定案，不设独立模块 / ROS2 包** | AMR | 只读 `amr_navigate_to_pose` action feedback 的 `current_pose`（中心点）+ `traffic_gates.yaml` 的 4 点 `polygon` / `wait_poses`；中心点进出边沿判定，**不订阅 `plan`**；进程内调 `NavigationClient`；经 `traffic_request` / `traffic_response` 与 `amr_agent` 的 `TrafficBridge` 交互 | INV-14（2026-11-20 第七轮）；控制链 §3 / §4；实现规格 §3 |
-| 软件急停与 `cmd_vel` 优先级仲裁 | 落点待定（新节点 or `navigation_server` 内） | AMR | `cmd_vel` mux | TBD-024 |
 | 电量数据源 | **B + D 方案**：本地速率积分（IDLE/WORK 两档消耗 + 充电），不引入独立充电源 | `amr_power_manager` | AMR · `robot_ws` | 行为层 `PowerMode` 声明档位、`amr_agent` 复用已有 `robot_status` 订阅取数值、Edge 只读镜像；**TBD-035 已冻结为 B、TBD-036 已冻结为 D**，见 3.3.2 / 3.3.2.3 / 3.3.5 |
 | 消耗档位判定信号 | 行为层单向发布的 `PowerMode`（专用 msg，不含 `battery`）；**不订阅** `cmd_vel` / `robot_status` / `task_status` / `task_state` | `amr_behavior_manager` 发布、`amr_power_manager` 订阅 | AMR · `robot_ws` | **TBD-036 已冻结为 D**：行为层声明、电量层查表积分（零判定），见 3.3.2.1 / 3.3.2.3 |
 
@@ -181,7 +179,7 @@ CREATE TABLE IF NOT EXISTS tbl_resource_lease
 | `data/warehouse_01/walls.yaml` | 6 条线段，构成通道 | 窄道由墙形成；控制区 `polygon` 需校验不与墙冲突、通道宽度足够 |
 | `data/warehouse_01/map/warehouse_01.yaml` | `resolution: 0.05`、`origin: [-6.02, -5.48, 0]` | 几何单位与坐标系基准 |
 | `data/warehouse_01/metadata.yaml` | `version: '2.0'`、`files` 映射 zone/station/wall | 新增第 4 文件 `traffic_gates.yaml` 需升版本，引用 TBD-003 |
-| `tool/map_tool/validator.py:59-72` | **只检查三个文件是否存在，无任何内容 / 枚举校验** | **新增 7 条内容校验**（4 点凸 / 点序 / 端边 `L_pull` / 与墙不冲突 / 等待点分组且位于端边外侧 / 不与分叉点前通道重叠 / `resource_id` 唯一），原「同步校验」说法已废弃 |
+| `tool/map_tool/validator.py:59-72` | **只检查三个文件是否存在，无任何内容 / 枚举校验** | **新增 7 条内容校验**（4 点凸 / 点序 / 端边 `L_pull` / 与墙不冲突 / 等待点分组且位于真实窄道上游 / 不与分叉点前通道重叠 / `resource_id` 唯一），原「同步校验」说法已废弃 |
 | `warehouse_tool/src/zone_editor_node.cpp:186-208` | zone type 菜单硬编码 4 选 1（UNLOAD/LOAD/STORAGE/IDLE） | **不扩展 `selectZoneType()` 菜单、`NARROW` 已废弃**；新建独立 `traffic_gates_editor`，仅复用 `ClickedPointReceiver` / `ZoneMarkerPublisher` |
 | `warehouse_tool/src/station_editor_node.cpp:257-277` | location type 菜单硬编码 3 选 1（WORK/WAIT/IDLE） | **不扩展 location type 菜单、不加 `TRAFFIC_WAIT` / `side`（已废弃）**；等待点由 `traffic_gates_editor` 阶段 B 采集、`yaw` 由长轴派生 |
 | `amr_behavior_manager/src/zone_station_loader.cpp:16-31` | `ZoneInfo` **无 `polygon` 字段**，`load()` 只读 `id/name/type/goods_ids` | V1 `ZoneInfo` 无几何属实，但**不扩展它**；新建独立 `traffic_gate_loader` 读 `traffic_gates.yaml` 的 4 点 `polygon` / `wait_poses`（TBD-039），供中心点进出边沿判定 |
@@ -195,7 +193,7 @@ CREATE TABLE IF NOT EXISTS tbl_resource_lease
 | | 静态（人工 / 工具录入） | 运行时自动（不录入） |
 | --- | --- | --- |
 | 内容 | 独立 `traffic_gates.yaml`：`resource_id` + 4 点凸 `polygon` 通行控制区（点序 `P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2；端边外移 `min_release_clearance`、侧边拉长 `L_pull`）+ 每侧 ≥1 个等待点 `wait_poses{l1,l2}`；**无 `side` / `forward` / `trigger` / `release` 字段** | 这一趟是否进 / 出控制区、何时按 `inside` 边沿申请 / 释放、Nav2 走哪条路 |
-| 录入方式 | `traffic_gates_editor` 两阶段（阶段 A 点 4 下录 zone + 终端填 `resource_id`；阶段 B 点 N 下录等待点，工具按几何归档到 L1 / L2 外侧两组、`yaw` 由长轴派生） | 只读 `amr_navigate_to_pose` action feedback 的 `current_pose`（中心点）；**不订阅 `plan`**，1 Hz `robot_pose` 禁止作主判据 |
+| 录入方式 | `traffic_gates_editor` 两阶段（阶段 A 点 4 下录 zone + 终端填 `resource_id`；阶段 B 点 N 下录等待点，工具按 `s=dot(p-centroid, long_axis)` 自动归档到 `l1` / `l2`、`yaw` 由长轴派生、位置可区域内 / 区域外但须位于真实窄道上游） | 只读 `amr_navigate_to_pose` action feedback 的 `current_pose`（中心点）；**不订阅 `plan`**，1 Hz `robot_pose` 禁止作主判据 |
 | 反向 A→D / D→A | **同一份数据，不改、不录第二份** | **方向无关**：进 / 出区只看 `inside` 边沿，掉头从入口退出天然触发「出区」；进入侧由 `dot(enter_pose-centroid, long_axis)` 符号定 L1 / L2 并锁存 |
 | 地图改动 | 新增独立 `traffic_gates.yaml` + `MapInfo.traffic_gates_yaml` 字段（打包下发 8 处链路）+ 升版本，V1 zones/stations 不动 | 自动跟随 |
 
@@ -247,7 +245,7 @@ traffic_gates:
         - {x: .., y: .., yaw: ..}
 ```
 
-字段说明：`yaw` 由工具按长轴 `P2→P3` 派生（不让人工填）；**不设 `side` / `forward` / `trigger` / `release` 字段** —— 进入侧 L1 / L2 由运行时 `s` 符号决定，等待点归哪一组由 editor 阶段 B 按几何归档，方向无关、正反一份数据。
+字段说明：`yaw` 由工具按长轴 `P2→P3` 派生（不让人工填）；等待点位置由人工录入，允许在区域内 / 区域外但须位于真实窄道上游；**不设 `side` / `forward` / `trigger` / `release` 字段** —— 进入侧 L1 / L2 由运行时 `s` 符号决定，等待点归哪一组由 editor 阶段 B 按 `s=dot(p-centroid, long_axis)` 自动归档，方向无关、正反一份数据。
 
 **中心点判据（唯一主判据）**：`inside = point_in_poly(center, polygon)`，取 `amr_navigate_to_pose` action feedback 的 `current_pose`（`amr_behavior_manager_node.cpp:125-129` 空回调填实）；1 Hz `robot_pose` 禁止作主判据。进区 `false→true` 发 `op=REQUEST`（不动 goal）、出区 `true→false` 发 `op=RELEASE`；仍需**边沿检测 + 滞回双阈值**（进入用内缩 `d_hyst`、离用外扩 `d_hyst`，TBD-038）+ 状态过滤。`crossed()` 仅作侧边异常识别辅助；`zonePolygon()` 保留（validator / 异常裁决 / 可视化）。
 
@@ -257,7 +255,7 @@ traffic_gates:
 
 **三条几何硬约束**：
 
-1. **等待点必须在入口端边外侧（上游）**、每侧 ≥ 1 个，等待路径不得穿过真实窄道；否则「申请未过 → 导航到等待点」会让车无权限穿越窄道。由 editor 阶段 B 几何归档 + validator 静态校验保证。
+1. **等待点每侧 ≥ 1 个，位置由人工录入，允许在区域内 / 区域外，但必须位于真实窄道上游**；等待路径不得穿过真实窄道；否则「申请未过 → 导航到等待点」会让车无权限穿越窄道。由 editor 阶段 B 几何归档 + validator 静态校验保证。
 2. **端边外移 `min_release_clearance`**、**侧边拉长 `L_pull`**，`L_pull ≥ v_max × (RTT_拒绝_p99 + T_cancel + T_newgoal_accept) + v_max²/(2·abs(a_dec)) + d_safety`。用 `nav2_params.yaml:146` `max_vel_x=0.26`、`:157` `decel_lim_x=-0.5` 估算约 0.8~1.0 m 量级，数值由 V1.5 基准实验实测并入 TBD-021 / 038；未实测前不得假设 0.8 m 够用。`xy_goal_tolerance` / `yaw_goal_tolerance` 不参与进出判定。
 3. **端边不压分叉点**（区域不与分叉点之前的公共通道重叠）：走绕行路的车根本不进区 → 零申请、零停顿（S6「走绕行路零申请」）；相邻控制区 `polygon` 不得重叠，`polygon` 不与 `walls.yaml` 线段冲突、端边处通道宽度 ≥ 车宽 + 余量。
 
@@ -267,11 +265,11 @@ traffic_gates:
 
 | 位置 | 改动 |
 | --- | --- |
-| `tool/tool_ws/.../traffic_gates_editor`（**新节点**） | **两阶段**：阶段 A「点 4 下录 zone → `size()==4` / 凸 / 点序连续 / 面积 > 0 → 终端填 `resource_id`（仅此一项）」；阶段 B「点 N 下录等待点（N ≥ 2）→ 工具按几何归档到 L1 / L2 外侧两组、每侧 ≥ 1、点在区域内拒绝重录、`yaw` 由长轴 `P2→P3` 派生 → 写 `traffic_gates.yaml` + Marker 刷新」。**复用 `ClickedPointReceiver`（`/clicked_point` 仅 x/y）/ `ZoneMarkerPublisher`（end 边实线 / 侧边虚线 / 两组等待点分色 / 长轴箭头）；不复用 `zone_editor` 节点本体 / `YamlZoneManager` / `ZoneInfo` / `selectZoneType()`** |
+| `tool/tool_ws/.../traffic_gates_editor`（**新节点**） | **两阶段**：阶段 A「点 4 下录 zone → `size()==4` / 凸 / 点序连续 / 面积 > 0 → 终端填 `resource_id`（仅此一项）」；阶段 B「点 N 下录等待点 → 工具按 `s=dot(p-centroid, long_axis)` 自动归档到 `l1` / `l2`，**每次点击立即显示归属侧并以不同颜色标记**，每侧 ≥ 1、`yaw` 由长轴 `P2→P3` 派生、位置可区域内 / 区域外但靠近短边且不超过中心点 → 写 `traffic_gates.yaml` + Marker 刷新」。**复用 `ClickedPointReceiver`（`/clicked_point` 仅 x/y）/ `ZoneMarkerPublisher`（end 边实线 / 侧边虚线 / 两组等待点分色 / 长轴箭头）；不复用 `zone_editor` 节点本体 / `YamlZoneManager` / `ZoneInfo` / `selectZoneType()`** |
 | `tool/tool_ws/.../data_define.h` + 新 manager | 新建 `TrafficGate{resource_id, polygon, wait_poses}` 数据结构与 `traffic_gates.yaml` 读写；**不改 `ZoneInfo` / `Location`；不扩展 zone/station type 菜单**（不加 `NARROW` / `TRAFFIC_WAIT`） |
-| `tool/map_tool/validator.py` | 现状只查文件存在，**新增 7 条内容校验**：① `polygon.size()==4`、凸四边形、点序连续、面积 > 0；② 两条端边近似平行 / 与长轴近似垂直、间距 `L_pull` ≥ 拉长下限；③ 端边与 `walls.yaml` 不冲突、通道宽度 ≥ 车宽 + 余量；④ `wait_poses.l1` / `.l2` 各 ≥ 1 且位于对应端边外侧（上游）、不在 `polygon` 内、相邻点间距 ≥ 车宽 + `d_queue_spacing`；⑤ 端边到真实窄道出口净距 ≥ `min_release_clearance`；⑥ 区域不与分叉点之前的公共通道重叠（保 S6）；⑦ `resource_id` 全局唯一、非空 |
+| `tool/map_tool/validator.py` | 现状只查文件存在，**新增 7 条内容校验**：① `polygon.size()==4`、凸四边形、点序连续、面积 > 0；② 两条端边近似平行 / 与长轴近似垂直、间距 `L_pull` ≥ 拉长下限；③ 端边与 `walls.yaml` 不冲突、通道宽度 ≥ 车宽 + 余量；④ `wait_poses.l1` / `.l2` 各 ≥ 1、位置允许区域内 / 区域外但须位于真实窄道上游、相邻点间距 ≥ 车宽 + `d_queue_spacing`；⑤ 端边到真实窄道出口净距 ≥ `min_release_clearance`；⑥ 区域不与分叉点之前的公共通道重叠（保 S6）；⑦ `resource_id` 全局唯一、非空 |
 | `robot_ws/src/amr_behavior_manager/traffic_gate_loader.{h,.cpp}`（**新建**） | 读取独立 `traffic_gates.yaml` 的 4 点 `polygon` + `wait_poses`（TBD-039），供中心点 `point_in_poly` 进出边沿、`entry_side` 计算与等待点导航；**不改 V1 `zone_station_loader`** |
-| `amr_interfaces/msg/MapInfo.msg` + 打包 / 下发 8 处链路 | `MapInfo.msg` 加 `traffic_gates_yaml`：`REQUIRED_WAREHOUSE_FILES` / `metadata.py` / `package.py` / `validator.py` / `map_manager.cpp::publishMapInfo()` / `amr_behavior_manager` MapInfo 回调 / 新 `traffic_gate_loader` 同步；下发的是**文件路径**（`YAML::LoadFile(...)`） |
+| `amr_interfaces/msg/MapInfo.msg` + 打包 / 下发 8 处链路 | `MapInfo.msg` 加 `traffic_gates_yaml`：`OPTIONAL_WAREHOUSE_FILES` / `metadata.py` / `package.py` / `validator.py` / `map_manager.cpp::publishMapInfo()` / `amr_behavior_manager` MapInfo 回调 / 新 `traffic_gate_loader` 同步；`traffic_gates.yaml` 为**可选文件**，缺失表示无窄道区域；下发的是**文件路径**（`YAML::LoadFile(...)`） |
 | `data/warehouse_01/metadata.yaml` | 地图包新增第 4 文件并升级版本，引用 TBD-003 |
 
 **必须配套**：`docs/requirements/srs.md` D-051/D-052（`interface-contract.md`、`edge-data-model.md` 同步；SRS 需项目所有者授权后修改）；地图包版本升级策略引用 TBD-003。
@@ -726,10 +724,10 @@ is_low=true → BT ReactiveFallback(BatteryOK?) 抢占 → GoCharge 分支
 
 | 项 | 要求 |
 | --- | --- |
-| BT 库 | `behaviortree_cpp_v3`（ROS2 Humble 的 Nav2 对应 3.x；**勿装 v4**） |
-| 声明 | `robot_ws/src/amr_behavior_manager/package.xml` 增加 `<depend>behaviortree_cpp_v3</depend>`；`CMakeLists.txt` 同步 `find_package` 与 `ament_target_dependencies` / `target_link_libraries`（项目规则要求两者一致） |
-| 可视化 | 配套 Groot 版本需与 BT.CPP 3.x 匹配（v4 的 Groot2 解析不了 3.x XML） |
-| XML 存放 | 建议 `robot_ws/src/amr_behavior_manager/config/` 或 `behavior_trees/`，并注册到 CMakeLists 的 install 目标 |
+| BT 库 | `behaviortree_cpp_v4`（Humble 无官方 rosdep 包，预计需源码构建；实施前确认依赖构建方式） |
+| 声明 | `robot_ws/src/amr_behavior_manager/package.xml` 增加对应依赖；`CMakeLists.txt` 同步 `find_package` 与链接（项目规则要求两者一致） |
+| 可视化 | Groot2（与 BT.CPP 4.x 匹配） |
+| XML 存放 | `robot_ws/src/amr_behavior_manager/config/behavior_trees/`，并注册到 CMakeLists 的 install 目标 |
 | 现状 | `nav2_params.yaml:42-53` 的 `bt_navigator` 已在使用默认 `navigate_to_pose_w_replanning_and_recovery.xml`，V2 可复用其范式但**不修改 Nav2 自带 XML** |
 
 #### 3.4.3 节点清单（建议，具体注册方式以 TBD-023 为准）
@@ -795,24 +793,17 @@ is_low=true → BT ReactiveFallback(BatteryOK?) 抢占 → GoCharge 分支
 
 ---
 
-### 3.5 软件急停与 `cmd_vel` 优先级仲裁（TBD-024）
+### 3.5 急停语义与 `cmd_vel` 归零（TBD-024 已关闭：不新增独立节点）
 
-#### 3.5.1 必须实现的优先级
-
-```text
-ESTOP  >  交通等待(Guard 未通过)  >  Nav2  >  手动调试指令
-```
-
-高优先级可覆盖低优先级；ESTOP 生效时所有下游 `cmd_vel` 必须为 0，且**不可被 Nav2 的重规划自动恢复**。
+**V2 不新增独立软件急停节点 / 接口**。急停语义由任务取消 / 异常路径已有能力承接：`NavigationClient::cancelNavigation()` + 等待 result 回调 + `cmd_vel` 归零；恢复按任务取消 / 异常回退流程处理。若后续引入外部急停（HTTP / MQTT / ROS2），再作为独立能力立项。
 
 > **作用域注（模型 A 定案）**：「交通等待」闸门覆盖的是「上一段导航结束后的残余速度」与「防止在授权未到时误发新 goal」，**不是压住一个仍在执行的 Nav2 goal**。等待期间 Nav2 无活动 goal（3.2.3），因此不会触发 `Failed to make progress`。各窄道闸门由**独立状态机按运行时实际遇到的顺序**驱动，不预排序列；同一时刻不得并发放行两个冲突区（Edge 中心仲裁保证，3.2.5）。
 
 #### 3.5.2 要求
 
-- 触发源（HTTP / MQTT / ROS2 topic）与仲裁落点（新节点 or `navigation_server` 内）由 TBD-024 确认。
-- 急停后进入明确状态，恢复需**显式复位**（建议人工复位，避免自动恢复带来安全风险）。
-- 急停期间：任务保持当前 `task_state`，不伪造完成、不丢失待补报（INV-03/09）。
-- 与 V4 的关系：**安全互锁在 V2 先建好**，V4 车顶臂只是复用（臂运动前底盘锁止、急停双切），不在 V4 才补。
+- 任务取消 / 异常路径：`cancelNavigation()` 后必须等 result 回调，期间 `cmd_vel` 归零。
+- 不新增独立急停节点 / 接口，不在 V2 做 `cmd_vel` mux 优先级仲裁。
+- 任务保持当前 `task_state`，不伪造完成、不丢失待补报（INV-03/09）。
 
 ---
 
@@ -857,9 +848,9 @@ ESTOP  >  交通等待(Guard 未通过)  >  Nav2  >  手动调试指令
 | ROS2 消息 | `PowerMode.msg`、`BatteryState.msg`（专用、单向、不含 `battery`）；`amr_power_manager` **不订阅** `cmd_vel` / `robot_status` / `task_status` / `task_state` | `amr_interfaces/msg/`、`amr_interfaces/CMakeLists.txt` | **已冻结（D）** |
 | 配置 | 独立 `traffic_gates.yaml`（`resource_id` + 4 点凸 `polygon` 通行控制区 + `wait_poses{l1,l2}`，**无 `NARROW` / `TRAFFIC_WAIT` / `side` / `trigger` / `release`**，TBD-021）；三个速率 `idle_drain_pct_per_min` / `work_drain_pct_per_min` / `charge_pct_per_min`、`mode_timeout_sec`、双阈值、仿真时间基准（速率数值待 TBD-022；形态已由 TBD-035=B / TBD-036=D 冻结）；BT XML 路径与重试次数 | 新增 `data/warehouse_01/traffic_gates.yaml`、`robot_ws/src/amr_power_manager/config/`、`amr_behavior_manager/config/` | 形态已定案、数值待定 |
 | 地图数据模型 | **独立 `traffic_gates.yaml`** 承载 4 点 `polygon` 通行控制区（端边外移 `min_release_clearance` / 侧边拉长 `L_pull`）+ `wait_poses{l1,l2}`；V1 `zones.yaml` / `stations.yaml` / `ZoneInfo` / `Location` **一律不动**、不扩展 type 菜单；`MapInfo.msg` 加 `traffic_gates_yaml`，打包下发 8 处链路；**不新增「路线 / 顺序」表、不新增途经点**；`metadata.yaml` 版本升级（TBD-003） | 新增 `data/warehouse_01/traffic_gates.yaml`、`tool/tool_ws/.../traffic_gates_editor`、`amr_behavior_manager/traffic_gate_loader.h` | 几何形态已定案（字段命名 / `L_pull` 数值 TBD-021 / 038） |
-| 地图校验 | `map_tool/validator.py` **新增 7 条内容校验**（4 点凸 / 点序 / 端边 `L_pull` / 与 walls 不冲突 / 等待点分组且端边外侧 / 不与分叉点前通道重叠 / `resource_id` 唯一）；原实现仅检查文件存在 | `tool/map_tool/validator.py` | 已定案（规则数值 TBD-021 / 038） |
+| 地图校验 | `map_tool/validator.py` **新增 7 条内容校验**（4 点凸 / 点序 / 端边 `L_pull` / 与 walls 不冲突 / 等待点分组且位于真实窄道上游 / 不与分叉点前通道重叠 / `resource_id` 唯一）；原实现仅检查文件存在 | `tool/map_tool/validator.py` | 已定案（规则数值 TBD-021 / 038） |
 | 导航接口 | **已定案不引入**：`ComputePath` / `FollowPath` 独立 Action Client、`NavigateThroughPoses` 均排除；目标全程 `NavigateToPose(D)`，**提前量由 `L_pull` 拉长控制区自带、不订阅 `plan`**，位姿取 action feedback `current_pose`（中心点）。**不新增 ROS2 导航接口** | `amr_navigation/` 仅修 4 个缺陷，不改对外接口 | 已冻结 |
-| 依赖 | `behaviortree_cpp_v3` | `package.xml` + `CMakeLists.txt` | 待定 |
+| 依赖 | `behaviortree_cpp_v4` + Groot2 | `package.xml` + `CMakeLists.txt` | 已定（依赖构建方式待实施确认） |
 | 代码 | 移除两处 `battery = 100.0` 硬编码，改由 `amr_power_manager` 提供数值 | `amr_agent_node.cpp:296`、`amr_behavior_manager_node.cpp:562` | 明确 |
 | ROS2 接口 | **跨包接口不变**（`task_command` / `task_event` / `amr_navigate_to_pose`） | `amr_common/ros_interface_names.h` | 冻结 |
 
@@ -876,13 +867,12 @@ ESTOP  >  交通等待(Guard 未通过)  >  Nav2  >  手动调试指令
 | 新增 | `amr_behavior_manager` 的 `PowerMode` 发布 | 复用已有 1 Hz `publishRobotStatus()` 定时器，同函数内多 publish 一条 `PowerMode`，零新增定时器；见 3.3.2.3（3） |
 | 新增 | `robot_ws/src/amr_behavior_manager/behavior_trees/*.xml` | BT 定义（TBD-023 确认路径） |
 | 新增 | `robot_ws/src/amr_behavior_manager/src/bt_nodes/*.cpp` | 自定义节点：BatteryOK / TrafficGranted / GoodsApproved / Grasp 占位 / Report 等 |
-| 新增 | `robot_ws/src/amr_navigation/` 或新包内急停仲裁节点 | `cmd_vel` mux（TBD-024） |
 | 修改 | `edge_server/src/database/sqlite_db.cpp` / `.h` | 新增 lease 表、查询与事务 |
 | 修改 | `edge_server/src/communication/amr_communication.cpp:111` | 启用路权订阅，改为 `amr/+/traffic_rights/request`（只订上行），按 payload `op` 分发；`robot_id` 与 topic 交叉校验（3.2.5） |
 | 修改 | `edge_server/src/service/idle_point_allocator.*` | 充电点分配升级为 lease |
 | 修改 | `robot_ws/src/amr_agent/src/amr_agent_node.cpp:296` | 移除 battery 硬编码；在已有 `robot_status` 回调里缓存 `msg->battery`（由 behavior manager 填入 D 方案真值），**不新增订阅**；上报消息结构不变，见 3.3.2.3（10） |
 | 修改 | `robot_ws/src/amr_behavior_manager/src/amr_behavior_manager_node.cpp` | 单趟执行段迁移到 BT；移除 562 行 `battery=100.0f` 硬编码、改为 `BatteryState` 缓存值；订阅 `BatteryState`；在 `publishRobotStatus()` 内发布 `PowerMode` 并补 `NAVIGATING_HOME` 判 WORK；保留对外状态上报，见 3.3.2.3（3）（10） |
-| 修改 | `robot_ws/src/amr_behavior_manager/package.xml`、`CMakeLists.txt` | 增加 `behaviortree_cpp_v3` 依赖与 install 目标 |
+| 修改 | `robot_ws/src/amr_behavior_manager/package.xml`、`CMakeLists.txt` | 增加 `behaviortree_cpp_v4` 依赖与 install 目标 |
 | 新增 | `data/warehouse_01/traffic_gates.yaml` | 独立文件：`resource_id` + 4 点凸 `polygon` 通行控制区 + `wait_poses{l1,l2}`；**V1 `zones.yaml` / `stations.yaml` 一律不动**、不新增 `NARROW` / `TRAFFIC_WAIT` / `side`；`metadata.yaml` 加第 4 文件并升版本；**不新增路线 / 顺序表**，见 3.2.1.3 |
 | 新增 | `tool/tool_ws/src/warehouse_tool/traffic_gates_editor.*`（新节点 + 新 manager + `CMakeLists.txt` + 第 4 个菜单项） | 两阶段交互（4 点 zone + N 等待点）；复用 `ClickedPointReceiver` / `ZoneMarkerPublisher`，**不复用 `zone_editor` 节点本体 / `YamlZoneManager` / `ZoneInfo` / `selectZoneType()`**；新建 `TrafficGate` 数据结构，见 3.2.1.4 |
 | 修改 | `tool/map_tool/validator.py` | **新增 7 条内容校验**规则（原仅检查文件存在），见 3.2.1.4 |
@@ -917,12 +907,12 @@ ESTOP  >  交通等待(Guard 未通过)  >  Nav2  >  手动调试指令
 
 1. **先冻结设计**：关闭 TBD-020 ~ TBD-024、TBD-038、TBD-039（TBD-035 已冻结为 B、TBD-036 已冻结为 D；**运行时按需触发 / 目标全程 D / 中心点进出边沿申请释放 / 固定 10 s / Edge 中心排队 + TTL 兜底** 为第五轮定案；**模块归属 / ROS2+MQTT topic 命名 / payload `op` / 消息字段 / V2 需求写入 SRS** 为第七轮定案，见 INV-14 与 [V2 实现规格](v2-implementation-spec.md)；**4 点通行控制区 / 中心点主判据 / 无 `plan` 订阅 / 独立 `traffic_gates.yaml`** 为 2026-11-22 V0.20 八项拍板，见 `.workbuddy/artifacts/traffic-gate-8-decisions-frozen.md`），产出 ADR-0002，按重大变更流程征得同意。开工前先读实现规格 §0〈定案速查〉。
 2. **数据层先行**：建 lease 表 + 原子授权 + 超时回收 + 重启恢复，先用单元测试/脚本验证幂等。
-3. **地图几何与工具链**：按 3.2.1 新建独立 `traffic_gates.yaml`（4 点凸 `polygon` 通行控制区 + `wait_poses{l1,l2}`）、`traffic_gates_editor` 两阶段交互、`map_tool` 7 条校验、`MapInfo.traffic_gates_yaml` 打包下发 8 处链路；新建 AMR 侧 `traffic_gate_loader` 读取 `polygon` / `wait_poses`（V1 `zones.yaml` / `stations.yaml` / loader / 菜单一律不动）。**先用脚本验证「同一份数据正反向均由中心点 `inside` 进出边沿触发、无需第二份数据；进入侧 `s` 符号判 L1/L2 且锁存；等待点在入口端边外侧（上游）；端边不压分叉点」**，再进下一步。
+3. **地图几何与工具链**：按 3.2.1 新建独立 `traffic_gates.yaml`（4 点凸 `polygon` 通行控制区 + `wait_poses{l1,l2}`）、`traffic_gates_editor` 两阶段交互、`map_tool` 7 条校验、`MapInfo.traffic_gates_yaml` 打包下发 8 处链路；新建 AMR 侧 `traffic_gate_loader` 读取 `polygon` / `wait_poses`（V1 `zones.yaml` / `stations.yaml` / loader / 菜单一律不动）。**先用脚本验证「同一份数据正反向均由中心点 `inside` 进出边沿触发、无需第二份数据；进入侧 `s` 符号判 L1/L2 且锁存；等待点位于真实窄道上游；端边不压分叉点」**，再进下一步。
 4. **修 4 个导航缺陷（阻塞项）**：无条件 supersede、60 s 超时未成对 cancel Nav2 goal、`m_nav_epoch` 竞态与无锁共享状态、`accepted`→`submitted`。多路口下会密集触发，不修则后续无法验证（评审意见稿 §4 / §10.6）。
 5. **接入路权**：启用通配符订阅与 Edge FIFO 排队，跑通「两车申请同一路口只有一个获批」「显式 cancel 被正确感知」「`lease_ttl` 到期回收」；填实 `amr_behavior_manager_node.cpp:125-129` 的 feedback 空回调，接中心点 `inside` 进出边沿 + 滞回去抖 + `entry_side` 锁存 + 同侧就近等待点重导航 + 固定 10 s 重发，验证「**授权提前到达时零 goal 重发、零停顿（S1 零动作 / S2 立即重发 D）**」与「重发 D 后绕行由出区边沿或 TTL 及时释放、无 `plan` 订阅」。
 6. **接入电量**：先在 AMR 侧建 `amr_power_manager`（归属见 3.0.1），按 **D 方案（TBD-036 已冻结）** 落地：新增 `PowerMode.msg` / `BatteryState.msg` 与两个常量，行为层在已有 1 Hz 定时器内发布 `PowerMode`，电量层只订阅 `PowerMode` + 查表积分（`dt_sim` 仿真时钟、clamp、双阈值、`mode_timeout_sec` 回落），**不订阅 `cmd_vel`、不需要 mux 就绪、无订阅点切换**。移除两处硬编码，接入 `IdlePointAllocator` lease，跑通低电量回充。**先验证给定 `PowerMode` 序列可离线复算 SOC 曲线**，再接 Edge 侧只读镜像。见 3.3.2.3。
 7. **迁移 BT**：加依赖、写自定义节点与 XML，把单趟执行段从 if-else 迁移过来，**逐条核对对外 `task_state` 未变**。
-8. **急停与仲裁**：接入 `cmd_vel` mux 并验证优先级。
+8. **急停语义**：不新增独立节点，验证任务取消 / 异常路径 `cancelNavigation()` + `cmd_vel` 归零。
 9. **验证与证据**：用 V1.5 故障注入框架跑 3.6 矩阵，Groot 录制 Retry/Fallback 演示片段；N 路口连续通过与反向通行各录一段。
 10. **文档同步与 DoD**：按第 6 节与路线图第 5 节收尾。
 
@@ -941,13 +931,13 @@ ESTOP  >  交通等待(Guard 未通过)  >  Nav2  >  手动调试指令
 - [ ] `power_mode` / `power_level` 均使用相对 topic；双机 namespace 下各车档位与 SOC 不串台，`tbl_robot_status.battery` 两车独立变化。
 - [ ] `amr_power_manager` **未订阅** `cmd_vel` / `robot_status` / `task_status` / `task_state`（源码与 `ros2 node info` 均可核对，只有 `power_mode` 入、`power_level` 出）。
 - [ ] `PowerMode` 丢失超过 `mode_timeout_sec` 回落 `MODE_IDLE` 且日志可见；`NAVIGATING_HOME` 期间按 WORK 档扣电（不漏算返航）。
-- [ ] 急停后行为层进入安全态并声明 `MODE_IDLE`，电量回落 IDLE 档，不按 WORK 扣电（不依赖电量层读 `cmd_vel`）。
+- [ ] 任务取消 / 异常路径后行为层进入安全态并声明 `MODE_IDLE`，电量回落 IDLE 档，不按 WORK 扣电（不依赖电量层读 `cmd_vel`）。
 - [ ] 充电为 B 方案本地速率积分：无独立充电模拟器进程、无 HTTP 充电请求、无 `ChargeSource` 抽象残留。
 - [ ] 给定 `PowerMode` 序列与三个速率配置可离线复算 SOC 曲线；SOC 始终 clamp 在 `[0,100]`；V1.5 基准实验能输出确定性的电量变化表；Gazebo 暂停时 SOC 不变。
 - [ ] 导航失败时 BT `Retry` 生效，达到上限后 `Fallback` 上报 `CARRY_ABORTED` 并释放路权/配额。
 - [ ] **同一份独立 `traffic_gates.yaml`，正向 A→D 与反向 D→A 均由 AMR 中心点 `inside` 进 / 出区边沿触发**；方向无关、掉头从入口退出天然触发「出区」；无人工录入的路线顺序表、无预求全序列、反向无需第二份数据；端边不压分叉点 → 走绕行路的车不进区、零申请、零停顿（S6）。
 - [ ] `NavigateToPose` 目标全程为 D：`REQUESTING` 收 `GRANTED` **零动作（零 goal 重发、零停顿）**、仅 `WAITING` 收 `GRANTED` 才立即重发 D；仅被拒时才 cancel + **等 result 回调 `m_goal_active=false`** + 到同侧就近等待点 + 重发 D；`task_state` 全程不变、无 `INTERRUPTED`、无重复 `CARRY_*` 上报。
-- [ ] 等待点位于**入口端边外侧（上游）**、每侧 ≥ 1 个、组内就近且 `entry_side` 本次穿越周期锁存；仅在授权确实未到时停车，日志可区分停顿原因（申请未回 / 急停）；等待期间 Nav2 无活动 goal、**全程无 `plan` 订阅**，`ros2 node info` 与日志均可核对。
+- [ ] 等待点位于**真实窄道上游（位置可区域内 / 区域外）**、每侧 ≥ 1 个、组内就近且 `entry_side` 本次穿越周期锁存；仅在授权确实未到时停车，日志可区分停顿原因（申请未回 / 任务取消）；等待期间 Nav2 无活动 goal、**全程无 `plan` 订阅**，`ros2 node info` 与日志均可核对。
 - [ ] 固定 `T_retry = 10 s`（**无 jitter**）幂等重发沿用同一 `request_id`；仅 `WAITING` 收到 `GRANTED` 立即重发 D，不等轮询。
 - [ ] 4 点凸 `polygon` 通行控制区：端边外移 `min_release_clearance`、侧边拉长 `L_pull`、端边不压分叉点；**中心点 `inside` 出区边沿即释放**（主判据，含掉头退出 / 改道驶离），`SUCCEEDED` 已降级为兜底；边沿检测 + 滞回双阈值生效（TBD-038）；释放与导航 Action 结束解耦（INV-13）。
 - [ ] 重发 D 后 Nav2 改道绕行 → 车驶离控制区由**出区边沿**释放、停住 / 位姿断流由 `lease_ttl` 回收（「改道即释放」保留语义、**无独立 `plan` 改道检测机制**），权限不被占死、对向车不白等。
@@ -956,12 +946,12 @@ ESTOP  >  交通等待(Guard 未通过)  >  Nav2  >  手动调试指令
 - [ ] Edge 通配符订阅按动作可辨（分层 topic 或 payload `op`），`robot_id` 与 topic 交叉校验；两车 FIFO 排队不串台、占用状态不广播。
 - [ ] `NavigateThroughPoses`、**`ComputePath` / `FollowPath` 独立 Action Client 均未被引入**（源码与 `nav2_params.yaml` 使用记录均可核对）；**`plan` 订阅 / `onPlan()` / `onPlanChanged()` / `pathIntersects*` / `D_trigger` / 改道去抖变量全部不存在**，提前量由 `L_pull` 拉长控制区自带；`traffic_gates.yaml` 与 `MapInfo.traffic_gates_yaml` 打包下发 8 处链路齐全、V1 `zones.yaml` / `stations.yaml` / type 菜单零改动。
 - [ ] Groot 可实时显示当前 tick 节点；故障注入触发 Retry/Fallback 的画面已归档。
-- [ ] 急停生效时所有下游 `cmd_vel` 为 0，且不可被 Nav2 自动覆盖；显式复位后恢复。
+- [ ] 任务取消 / 异常路径下所有下游 `cmd_vel` 为 0，且不可被 Nav2 自动覆盖；恢复按任务回退流程处理。
 - [ ] 第 3 节全部跨版本不变式逐条复核未破坏；`task_state` 枚举与 V1 完全一致。
 - [ ] `colcon build --packages-select amr_behavior_manager` 通过；`package.xml` 与 `CMakeLists.txt` 依赖一致。
 - [ ] 降级矩阵 3.6 每个场景有实测记录。
 - [ ] 第 6 节文档同步完成，状态词与代码一致；README 与架构图更新。
-- [ ] 提交说明附「为什么这么实现」（统一仲裁的抽象动机、BT 分层边界、急停优先级取舍）。
+- [ ] 提交说明附「为什么这么实现」（统一仲裁的抽象动机、BT 分层边界、取消路径承接急停语义的取舍）。
 
 ---
 
@@ -970,10 +960,10 @@ ESTOP  >  交通等待(Guard 未通过)  >  Nav2  >  手动调试指令
 | 编号 | 问题 | 需要明确的具体内容 | 开工前必须明确 |
 | --- | --- | --- | --- |
 | TBD-020 | 资源仲裁统一接口与 Edge 排队 | **已定案**：中心排队在 Edge、FIFO、显式取消一等事件、TTL 回收、`request_id` 幂等 + `epoch` 防陈旧、通配符订阅且动作可辨、复杂度边界（不做抢占/联合预约/死锁检测/广播）；**第七轮追加**：模块归属（INV-14）、ROS2 topic `traffic_request` / `traffic_response`、MQTT topic 带 `robot_id`、动作由 payload `op` 承载（不分层）、消息字段集合与 JSON 编码。**待明确**：是否新增 `tbl_resource_lease`；`queue_seq` 生成方式、`PENDING` 超时作废时长、`lease_ttl` 默认值与续租规则、表最终字段；与 `tbl_task_goods_allocation` 的一致性策略。见 3.1.2 / 3.2.5、实现规格 §1 | 是 |
-| TBD-021 | 窄道建模与控制区几何（`L_pull`） | **已定案**：独立 `traffic_gates.yaml`（`resource_id` + 4 点凸 `polygon` 通行控制区 + `wait_poses{l1,l2}`，**无 `NARROW` / `TRAFFIC_WAIT` / `side` / `trigger` / `release`**）；点序 `P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2；端边外移 `min_release_clearance`、侧边拉长 `L_pull`、端边不压分叉点；中心点 `point_in_poly` 进出边沿为主判据，`entry_side` 边沿时刻锁存；不录路线顺序、不预求全序列、不引入 `NavigateThroughPoses`、不订阅 `plan`。**待明确**：`polygon` / `wait_poses` 字段名、`resource_id` 取值、`L_pull` 与 `min_release_clearance` 数值（`L_pull ≥ v_max × (RTT_拒绝_p99 + T_cancel + T_newgoal_accept) + v_max²/(2·abs(a_dec)) + d_safety`，由 V1.5 基准实验实测）、validator 7 条规则数值细节、地图包版本升级与 TBD-003 的关系。见 3.2.1 | 是 |
+| TBD-021 | 窄道建模与控制区几何（`L_pull`） | **已定案**：独立 `traffic_gates.yaml`（`resource_id` + 4 点凸 `polygon` 通行控制区 + `wait_poses{l1,l2}`，**无 `NARROW` / `TRAFFIC_WAIT` / `side` / `trigger` / `release`**）；点序 `P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2；端边外移 `min_release_clearance`、侧边拉长 `L_pull`、端边不压分叉点；中心点 `point_in_poly` 进出边沿为主判据，`entry_side` 边沿时刻锁存；等待点位置人工录入、允许区域内 / 区域外、`yaw` 由长轴派生；不录路线顺序、不预求全序列、不引入 `NavigateThroughPoses`、不订阅 `plan`。**待明确**：`L_pull` 与 `min_release_clearance` 数值（`L_pull ≥ v_max × (RTT_拒绝_p99 + T_cancel + T_newgoal_accept) + v_max²/(2·abs(a_dec)) + d_safety`，由 V2 联调阶段实测）、validator 7 条规则数值细节、地图包版本升级与 TBD-003 的关系。见 3.2.1 | 是 |
 | TBD-022 | 电量速率参数与日志 | 三个速率数值（IDLE / WORK / CHARGING）、`mode_timeout_sec`、`low_soc_threshold` / `charge_target_soc` 双阈值；是否新增 `tbl_robot_battery_log`；仿真时间换算（充电源形态已由 TBD-035 冻结为 B、档位判定已由 TBD-036 冻结为 D，均不在本项） | 是 |
-| TBD-023 | 行为树技术选型 | BT.CPP 版本与 Groot 配套；XML 路径与命名；自定义节点注册与 Blackboard 字段；重试次数 | 是 |
-| TBD-024 | 软件急停接口 | 触发源、仲裁落点、是否人工复位、是否需要新增 ROS2 接口 | 是 |
+| TBD-023 | 行为树技术选型 | **已定**：BehaviorTree.CPP v4 + Groot2；XML 放 `amr_behavior_manager/config/behavior_trees/`；自定义节点放 `src/`、头文件按需放 `include/`；剩余为自定义节点注册与 Blackboard 字段、重试次数 | 是 |
+| TBD-024 | 软件急停接口 | **已关闭**：V2 不新增独立软件急停节点 / 接口，急停语义由任务取消 / 异常路径的 `cancelNavigation()` + `cmd_vel` 归零承接 | 否（已关闭） |
 | TBD-033 | 证据归档规范（引用） | Groot 截图与故障注入结果的存放路径 | 否 |
 | TBD-035 | 充电源形态 | **已冻结：采用 B 方案**（本地按 `charge_pct_per_min` 时间积分；无独立充电模拟器、无远端充电源、无 `ChargeSource` 抽象）。仅剩速率数值待 TBD-022 一并确定 | 否（已关闭） |
 | TBD-036 | 消耗档位判定信号 | **已冻结：采用 D 方案**——`amr_behavior_manager` 用专用、单向、不含 `battery` 的 `PowerMode` 声明 IDLE/WORK/CHARGING，`amr_power_manager` 查表积分、零判定、零 `cmd_vel` 订阅；`power_mode` / `power_level` 两个 topic 与两条 msg 须登记接口契约；V2 **不为 V4 预留**运行时耗电判定机制；V4 抢占策略缺口已转 TBD-037。决策记录见 3.3.2.2、落地细则见 3.3.2.3 | 否（已关闭） |
@@ -988,7 +978,7 @@ ESTOP  >  交通等待(Guard 未通过)  >  Nav2  >  手动调试指令
 - **有序申请防死锁而非检测回滚**：协议层消除循环等待更简单、更可验证；检测+回滚会引入额外状态与竞态。
 - **BT 只管单趟执行**：任务级状态是跨进程可持久化契约，BT 的 tick 是易失运行时。分层后 V1 的 ACK / 补报 / 取消语义完全不动，风险最低，且「为什么划在这一层」本身就是面试里能讲十分钟的话题。
 - **Grasp 用占位节点**：V4 换机械臂时只替换叶节点，父树不动，避免「先写死动作序列、事后再重构」。
-- **急停提前到 V2**：多机 + 交通一旦存在就必须有安全边界；V4 车顶臂的安全互锁只是复用，不临时补。
+- **急停语义由任务取消 / 异常路径承接**：不新增独立节点，V2 不引入 `cmd_vel` mux 优先级仲裁；后续如需外部急停再立项。
 - **电量优先复用既有链路**：上报→解析→入库→读取全已打通，只换数据源，避免重复建设。
 - **SOC 单点持有在 AMR 侧**：电量是 BMS / 库仑计估出的本体状态，Edge 只存只读镜像、只仲裁充电点。若让 Edge 计算或由外部服务返回「SOC 增量」，会重新引入状态收敛与幂等问题，且断网时不自洽。
 - **充电用 B 方案、不做接口抽象**：本地按时间速率积分即可跑通全部验收项；在没有第二个充电源实现时引入 `ChargeSource` 是空接口。刻意保持线性可复算，把复杂度留给资源仲裁与行为树；线性简化在面试时主动声明为边界。

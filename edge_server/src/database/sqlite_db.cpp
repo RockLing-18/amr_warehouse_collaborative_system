@@ -1,10 +1,39 @@
 #include "database/sqlite_db.h"
 #include <iostream>
 #include <sstream>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
 #include "utils/LogDefine.h"
 #include "utils/CommonFunc.h"
 #include "sqlite/sqlite3.h"
 #include "nlohmann/json.hpp"
+
+namespace
+{
+std::string nowIso8601()
+{
+    auto now = std::chrono::system_clock::now();
+    std::time_t tt = std::chrono::system_clock::to_time_t(now);
+    std::tm tm{};
+    localtime_r(&tt, &tm);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S%z");
+    return oss.str();
+}
+
+std::string isoAfterSeconds(double seconds)
+{
+    auto now = std::chrono::system_clock::now() +
+               std::chrono::milliseconds(static_cast<int64_t>(seconds * 1000.0));
+    std::time_t tt = std::chrono::system_clock::to_time_t(now);
+    std::tm tm{};
+    localtime_r(&tt, &tm);
+    std::ostringstream oss;
+    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S%z");
+    return oss.str();
+}
+}
 
 namespace edge_server
 {
@@ -254,6 +283,48 @@ bool SQLiteDB::InitTaskTables()
 
         CREATE INDEX IF NOT EXISTS idx_amr_task_status_event_task_time
             ON tbl_amr_task_status_event(task_id, timestamp);
+
+        CREATE TABLE IF NOT EXISTS tbl_resource_lease
+        (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            request_id        TEXT NOT NULL,
+            resource_type     TEXT NOT NULL
+                              CHECK(resource_type IN ('GOODS_QUOTA','TRAFFIC_RIGHT','CHARGE_POINT')),
+            resource_id       TEXT NOT NULL,
+            holder_robot_id   TEXT NOT NULL,
+            state             TEXT NOT NULL DEFAULT 'GRANTED'
+                              CHECK(state IN ('PENDING','GRANTED','HELD','RELEASED','EXPIRED','REVOKED','CANCELLED')),
+            queue_seq         INTEGER,
+            epoch             INTEGER,
+            lease_ttl_sec     REAL,
+            lease_expires_at  TEXT,
+            granted_at        TEXT NOT NULL,
+            released_at       TEXT,
+            UNIQUE(request_id, resource_type, resource_id)
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_resource_lease_active
+            ON tbl_resource_lease(resource_type, resource_id)
+            WHERE state IN ('GRANTED','HELD');
+
+        CREATE INDEX IF NOT EXISTS idx_resource_lease_holder
+            ON tbl_resource_lease(holder_robot_id);
+
+        CREATE INDEX IF NOT EXISTS idx_resource_lease_expires
+            ON tbl_resource_lease(lease_expires_at);
+
+        CREATE TABLE IF NOT EXISTS tbl_robot_battery_log
+        (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            robot_id    TEXT NOT NULL,
+            event_type  TEXT NOT NULL
+                        CHECK(event_type IN ('LOW_ENTERED','LOW_CLEARED','FULL','CHARGE_STARTED','CHARGE_STOPPED')),
+            soc         REAL NOT NULL,
+            timestamp   TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_robot_battery_log_robot_time
+            ON tbl_robot_battery_log(robot_id, timestamp);
     )";
 
     char* err = nullptr;
@@ -1508,6 +1579,270 @@ bool SQLiteDB::SettleGoodsAllocation(
 
     Commit();
     return true;
+}
+
+bool SQLiteDB::TryGrantLease(const ResourceLease& lease, bool& granted, int& queue_seq)
+{
+    std::lock_guard<std::mutex> lock(m_Mu);
+    if(!m_pDB)
+        return false;
+
+    BeginTransaction();
+
+    const char* activeSql = R"(
+        SELECT COUNT(*)
+        FROM tbl_resource_lease
+        WHERE resource_type=? AND resource_id=? AND state IN ('GRANTED','HELD');
+    )";
+    sqlite3_stmt* activeStmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, activeSql, -1, &activeStmt, nullptr) != SQLITE_OK)
+    {
+        Rollback();
+        return false;
+    }
+    sqlite3_bind_text(activeStmt, 1, lease.resource_type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(activeStmt, 2, lease.resource_id.c_str(), -1, SQLITE_TRANSIENT);
+    bool hasActive = false;
+    if(sqlite3_step(activeStmt) == SQLITE_ROW && sqlite3_column_int(activeStmt, 0) > 0)
+        hasActive = true;
+    sqlite3_finalize(activeStmt);
+
+    const char* insertSql = R"(
+        INSERT INTO tbl_resource_lease
+            (request_id, resource_type, resource_id, holder_robot_id, state,
+             queue_seq, epoch, lease_ttl_sec, lease_expires_at, granted_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?);
+    )";
+    sqlite3_stmt* insertStmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, insertSql, -1, &insertStmt, nullptr) != SQLITE_OK)
+    {
+        Rollback();
+        return false;
+    }
+
+    if(!hasActive)
+    {
+        queue_seq = 0;
+        sqlite3_bind_text(insertStmt, 1, lease.request_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insertStmt, 2, lease.resource_type.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insertStmt, 3, lease.resource_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insertStmt, 4, lease.holder_robot_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insertStmt, 5, "GRANTED", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(insertStmt, 6, queue_seq);
+        sqlite3_bind_int64(insertStmt, 7, lease.epoch);
+        sqlite3_bind_double(insertStmt, 8, lease.lease_ttl_sec);
+        sqlite3_bind_text(insertStmt, 9, lease.lease_expires_at.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insertStmt, 10, lease.granted_at.c_str(), -1, SQLITE_TRANSIENT);
+        granted = true;
+    }
+    else
+    {
+        const char* maxSql = R"(
+            SELECT COALESCE(MAX(queue_seq), 0) + 1
+            FROM tbl_resource_lease
+            WHERE resource_type=? AND resource_id=?;
+        )";
+        sqlite3_stmt* maxStmt = nullptr;
+        if(sqlite3_prepare_v2(m_pDB, maxSql, -1, &maxStmt, nullptr) != SQLITE_OK)
+        {
+            sqlite3_finalize(insertStmt);
+            Rollback();
+            return false;
+        }
+        sqlite3_bind_text(maxStmt, 1, lease.resource_type.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(maxStmt, 2, lease.resource_id.c_str(), -1, SQLITE_TRANSIENT);
+        queue_seq = 0;
+        if(sqlite3_step(maxStmt) == SQLITE_ROW)
+            queue_seq = sqlite3_column_int(maxStmt, 0);
+        sqlite3_finalize(maxStmt);
+
+        sqlite3_bind_text(insertStmt, 1, lease.request_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insertStmt, 2, lease.resource_type.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insertStmt, 3, lease.resource_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insertStmt, 4, lease.holder_robot_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(insertStmt, 5, "PENDING", -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(insertStmt, 6, queue_seq);
+        sqlite3_bind_int64(insertStmt, 7, lease.epoch);
+        sqlite3_bind_double(insertStmt, 8, lease.lease_ttl_sec);
+        sqlite3_bind_null(insertStmt, 9);
+        sqlite3_bind_text(insertStmt, 10, lease.granted_at.c_str(), -1, SQLITE_TRANSIENT);
+        granted = false;
+    }
+
+    bool inserted = sqlite3_step(insertStmt) == SQLITE_DONE;
+    sqlite3_finalize(insertStmt);
+    if(!inserted)
+    {
+        Rollback();
+        return false;
+    }
+
+    Commit();
+    return true;
+}
+
+bool SQLiteDB::CancelOrReleaseLease(
+    const std::string& request_id,
+    const std::string& resource_type,
+    const std::string& resource_id,
+    std::string& promoted_holder,
+    std::string& promoted_request_id)
+{
+    std::lock_guard<std::mutex> lock(m_Mu);
+    if(!m_pDB)
+        return false;
+
+    BeginTransaction();
+
+    const char* selectSql = R"(
+        SELECT state, holder_robot_id, lease_ttl_sec
+        FROM tbl_resource_lease
+        WHERE request_id=? AND resource_type=? AND resource_id=?;
+    )";
+    sqlite3_stmt* selectStmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, selectSql, -1, &selectStmt, nullptr) != SQLITE_OK)
+    {
+        Rollback();
+        return false;
+    }
+    sqlite3_bind_text(selectStmt, 1, request_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(selectStmt, 2, resource_type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(selectStmt, 3, resource_id.c_str(), -1, SQLITE_TRANSIENT);
+    if(sqlite3_step(selectStmt) != SQLITE_ROW)
+    {
+        sqlite3_finalize(selectStmt);
+        Rollback();
+        return false;
+    }
+
+    std::string state = reinterpret_cast<const char*>(sqlite3_column_text(selectStmt, 0));
+    sqlite3_finalize(selectStmt);
+
+    std::string now = nowIso8601();
+    const char* updateSql = R"(
+        UPDATE tbl_resource_lease
+        SET state=?, released_at=?, lease_expires_at=NULL
+        WHERE request_id=? AND resource_type=? AND resource_id=?;
+    )";
+    sqlite3_stmt* updateStmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, updateSql, -1, &updateStmt, nullptr) != SQLITE_OK)
+    {
+        Rollback();
+        return false;
+    }
+
+    std::string newState = (state == "PENDING") ? "CANCELLED" : "RELEASED";
+    sqlite3_bind_text(updateStmt, 1, newState.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateStmt, 2, now.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateStmt, 3, request_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateStmt, 4, resource_type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateStmt, 5, resource_id.c_str(), -1, SQLITE_TRANSIENT);
+    bool updated = sqlite3_step(updateStmt) == SQLITE_DONE && sqlite3_changes(m_pDB) > 0;
+    sqlite3_finalize(updateStmt);
+    if(!updated)
+    {
+        Rollback();
+        return false;
+    }
+
+    if(state == "GRANTED" || state == "HELD")
+    {
+        const char* frontSql = R"(
+            SELECT request_id, holder_robot_id, lease_ttl_sec
+            FROM tbl_resource_lease
+            WHERE resource_type=? AND resource_id=? AND state='PENDING'
+            ORDER BY queue_seq ASC
+            LIMIT 1;
+        )";
+        sqlite3_stmt* frontStmt = nullptr;
+        if(sqlite3_prepare_v2(m_pDB, frontSql, -1, &frontStmt, nullptr) != SQLITE_OK)
+        {
+            Rollback();
+            return false;
+        }
+        sqlite3_bind_text(frontStmt, 1, resource_type.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(frontStmt, 2, resource_id.c_str(), -1, SQLITE_TRANSIENT);
+        if(sqlite3_step(frontStmt) == SQLITE_ROW)
+        {
+            promoted_request_id = reinterpret_cast<const char*>(sqlite3_column_text(frontStmt, 0));
+            promoted_holder = reinterpret_cast<const char*>(sqlite3_column_text(frontStmt, 1));
+            double ttl = sqlite3_column_double(frontStmt, 2);
+            sqlite3_finalize(frontStmt);
+
+            const char* promoteSql = R"(
+                UPDATE tbl_resource_lease
+                SET state='GRANTED', granted_at=?, lease_expires_at=?, released_at=NULL
+                WHERE request_id=? AND resource_type=? AND resource_id=?;
+            )";
+            sqlite3_stmt* promoteStmt = nullptr;
+            if(sqlite3_prepare_v2(m_pDB, promoteSql, -1, &promoteStmt, nullptr) != SQLITE_OK)
+            {
+                Rollback();
+                return false;
+            }
+            std::string expires = isoAfterSeconds(ttl);
+            sqlite3_bind_text(promoteStmt, 1, now.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(promoteStmt, 2, expires.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(promoteStmt, 3, promoted_request_id.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(promoteStmt, 4, resource_type.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(promoteStmt, 5, resource_id.c_str(), -1, SQLITE_TRANSIENT);
+            bool promoted = sqlite3_step(promoteStmt) == SQLITE_DONE && sqlite3_changes(m_pDB) > 0;
+            sqlite3_finalize(promoteStmt);
+            if(!promoted)
+            {
+                Rollback();
+                return false;
+            }
+        }
+        else
+        {
+            sqlite3_finalize(frontStmt);
+        }
+    }
+
+    Commit();
+    return true;
+}
+
+bool SQLiteDB::ExpireLeases(const std::string& now, std::vector<ResourceLease>& expired)
+{
+    std::lock_guard<std::mutex> lock(m_Mu);
+    if(!m_pDB)
+        return false;
+
+    const char* selectSql = R"(
+        SELECT request_id, resource_type, resource_id, holder_robot_id
+        FROM tbl_resource_lease
+        WHERE state IN ('GRANTED','HELD') AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?;
+    )";
+    sqlite3_stmt* stmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, selectSql, -1, &stmt, nullptr) != SQLITE_OK)
+        return false;
+    sqlite3_bind_text(stmt, 1, now.c_str(), -1, SQLITE_TRANSIENT);
+    while(sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        ResourceLease lease;
+        lease.request_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        lease.resource_type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        lease.resource_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        lease.holder_robot_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        expired.push_back(lease);
+    }
+    sqlite3_finalize(stmt);
+
+    const char* updateSql = R"(
+        UPDATE tbl_resource_lease
+        SET state='EXPIRED', released_at=?
+        WHERE state IN ('GRANTED','HELD') AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?;
+    )";
+    sqlite3_stmt* updateStmt = nullptr;
+    if(sqlite3_prepare_v2(m_pDB, updateSql, -1, &updateStmt, nullptr) != SQLITE_OK)
+        return false;
+    sqlite3_bind_text(updateStmt, 1, now.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(updateStmt, 2, now.c_str(), -1, SQLITE_TRANSIENT);
+    bool ok = sqlite3_step(updateStmt) == SQLITE_DONE;
+    sqlite3_finalize(updateStmt);
+    return ok;
 }
 
 }

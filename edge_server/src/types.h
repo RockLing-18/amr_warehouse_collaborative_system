@@ -281,6 +281,44 @@ struct GoodsApplyResult
     std::vector<TaskGoods> goods;
 };
 
+struct TrafficRightsRequest
+{
+    std::string op;          // REQUEST | CANCEL | RELEASE
+    std::string request_id;
+    std::string robot_id;
+    std::string resource_id;
+    int64_t epoch = 0;
+    double eta_sec = 0.0;
+    double lease_ttl_sec = 0.0;
+};
+
+struct TrafficRightsResponse
+{
+    std::string request_id;
+    std::string robot_id;
+    std::string resource_id;
+    int64_t epoch = 0;
+    std::string result;       // GRANTED | REJECTED | PENDING | CANCELLED | RELEASED | EXPIRED
+    int queue_seq = -1;
+    double lease_expires_at = 0.0;
+    std::string reason;
+};
+
+struct ResourceLease
+{
+    std::string request_id;
+    std::string resource_type;
+    std::string resource_id;
+    std::string holder_robot_id;
+    std::string state;
+    int queue_seq = 0;
+    int64_t epoch = 0;
+    double lease_ttl_sec = 0.0;
+    std::string lease_expires_at;
+    std::string granted_at;
+    std::string released_at;
+};
+
 
 
 // 字符串 -> 枚举（MQTT收到消息时调用）

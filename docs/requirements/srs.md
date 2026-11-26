@@ -135,7 +135,7 @@ V1 优先保证核心功能能够运行、关键通信链路能够验证、主�
 | D-060 | V2 采用**运行时按需触发主模型**：目标全程 `NavigateToPose(D)`，由 AMR **中心点进区边沿**（`point_in_poly(center, polygon)` 的 `false→true`）触发申请；4 点通行控制区沿通道拉长 `L_pull` 自带提前量，**不订阅 Nav2 `plan`、不做提前预判**；授权提前到达则零动作；仅被拒时 cancel 当前导航、等 result 回调后导航到进入侧组内就近等待点、固定 `T_retry = 10 s`（无 jitter）幂等重发、收到响应立即重发 D。保留 Nav2 动态选路能力。 | Confirmed |
 | D-061 | V2 释放由**AMR 中心点出区边沿**（`inside` 的 `true→false`）触发，四触发取最早（出区边沿 / 任务结束 `SUCCEEDED`+`ABORTED` / `lease_ttl` 到期 / 显式 `CANCEL`）；`SUCCEEDED` 降级为兜底，与导航 Action 结束解耦。**「改道即释放」保留语义、移除独立 `plan` 机制**：改道后驶离控制区由出区边沿释放，停住或位姿断流由 TTL 回收。 | Confirmed |
 | D-062 | V2 路权在 **Edge 中心仲裁**：FIFO 排队、`request_id` 幂等、`epoch` 防陈旧、显式 `cancel` 为一等消息、`lease_ttl` 到期自动回收；不做优先级抢占 / 多资源联合预约 / 死锁检测 / 占用状态广播。 | Confirmed |
-| D-063 | V2 窄道数据为**独立 `traffic_gates.yaml`**：每条含 `resource_id`、4 点凸 `polygon`（通行控制区，点序 `P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2）与 `wait_poses{l1,l2}`（每侧 ≥1）；**只录几何不录路线**，不预求全序列、不下发途经点；不引入 `NavigateThroughPoses` 及独立 `ComputePath` / `FollowPath` Action Client。`MapInfo.msg` 加 `traffic_gates_yaml` 随地图包下发。 | Confirmed |
+| D-063 | V2 窄道数据为**独立 `traffic_gates.yaml`**：每条含 `resource_id`、4 点凸 `polygon`（通行控制区，点序 `P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2）与 `wait_poses{l1,l2}`（每侧 ≥1；位置由人工录入，允许在区域内或区域外，但须位于真实窄道上游，`yaw` 由长轴派生）；**只录几何不录路线**，不预求全序列、不下发途经点；不引入 `NavigateThroughPoses` 及独立 `ComputePath` / `FollowPath` Action Client。`MapInfo.msg` 加 `traffic_gates_yaml` 随地图包下发；`traffic_gates.yaml` 为**可选文件**，缺失表示当前地图无窄道区域。 | Confirmed |
 | D-064 | V2 电量采用 **B + D 方案**：本地按速率积分、无独立充电源；`amr_behavior_manager` 用 `PowerMode` 声明档位，`amr_power_manager` 查表积分、零判定；充电按时间积分。 | Confirmed |
 | D-065 | V2 单趟执行编排引入 BehaviorTree.CPP（C 方案），BT 完全位于 `amr_behavior_manager` 内部；不改 `task_state`，不动 V1 的 ACK / 待补报 / 取消语义。 | Confirmed |
 | D-066 | V2 的 TBD-020~039 未冻结项（数值参数、表结构、BT 选型、急停落点）不得假定实现方式；需求变更按 10.2 节执行。 | Confirmed |
@@ -838,12 +838,12 @@ Edge Server 应作为唯一持有全局 lease 视图的一方，对 `TRAFFIC_RIG
 **优先级：** Must
 **版本：** V2
 
-1. 窄道数据为**独立 `traffic_gates.yaml`**，不写回 `zones.yaml` / `stations.yaml`：每条含 `resource_id`、4 点凸 `polygon`（点序冻结：`P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2）与 `wait_poses{l1,l2}`（每侧 ≥1 个，位于入口端边外侧 / 上游）；**无 `side` / `forward` / `trigger` / `release` 字段**，只录几何不录路线。不新建 station、不复用 `WAIT`、不需要 `TRAFFIC_WAIT` 类型；`zone.type` 扩展 `NARROW`、窄道 zone 下挂 station、成对有向触发段 / 外移释放线与 `side` 的 V0.19 口径**已废弃**。
+1. 窄道数据为**独立 `traffic_gates.yaml`**，不写回 `zones.yaml` / `stations.yaml`：每条含 `resource_id`、4 点凸 `polygon`（点序冻结：`P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2）与 `wait_poses{l1,l2}`（每侧 ≥1 个；位置由人工录入，允许在区域内或区域外，但须位于真实窄道上游；`yaw` 由长轴派生）；**无 `side` / `forward` / `trigger` / `release` 字段**，只录几何不录路线。不新建 station、不复用 `WAIT`、不需要 `TRAFFIC_WAIT` 类型；`zone.type` 扩展 `NARROW`、窄道 zone 下挂 station、成对有向触发段 / 外移释放线与 `side` 的 V0.19 口径**已废弃**。
 2. 几何 = **端边外移 + 侧边拉长的通行控制区**，不是 3×2 物理窄道：端边外移 `min_release_clearance`，侧边沿通道拉长 `L_pull ≥ v_max×(RTT_拒绝_p99 + T_cancel + T_newgoal_accept) + v_max²/(2·abs(a_dec)) + d_safety`（数值留 TBD-021 / 038 待 V1.5 实测）；端边不压分叉点，保走绕行路的车「从不进区」→ 零申请（S6）。旧 `D_trigger` 已废弃，其提前量语义由 `L_pull` 转译承接。
 3. 主判据 = **AMR 中心点 `point_in_poly(center, polygon)` 的 `inside` 边沿**：进区 `false→true` 发 `REQUEST`，出区 `true→false` 发 `RELEASE`；数据源为 `amr_navigate_to_pose` action feedback 的 `current_pose`，**1 Hz `robot_pose` 禁止作主判据**；必须**边沿检测 + 滞回双阈值**（内缩进入 / 外扩离开，TBD-038）+ 状态过滤。方向无关，掉头从入口退出天然触发出区；`crossed()` 已废弃为主判据，仅作侧边异常穿入识别辅助（按 `s` 兜底 + `LOG_WARN`）。
 4. 进入侧算法：边沿时刻按 `long_axis=normalize(P3-P2)`、`centroid=mean(P1..P4)`、`s=dot(enter_pose-centroid, long_axis)` 定侧（`s<0→L1/wait_poses.l1`，`s>0→L2/wait_poses.l2`），组内 `argmin dist` 就近选点；**`entry_side` 在本次穿越周期锁存，不得每帧重算**。多车默认组内 `argmin dist` + validator 点间距校验，备选 `queue_seq % N_side`（`TrafficResponse` 已有 `queue_seq`，不新增字段）。不订阅 `plan`、不引入 `NavigateThroughPoses` / 独立 `ComputePath` / `FollowPath`。
-5. 工具侧新增 `traffic_gates_editor` **两阶段**（阶段 A 录 4 点 zone、阶段 B 录 N 个等待点并按几何自动归档到 `l1` / `l2`），复用 `ClickedPointReceiver` / `ZoneMarkerPublisher`；**不复用** `zone_editor` 节点本体 / `YamlZoneManager` / `ZoneInfo` / `selectZoneType()`，不扩展 zone / station type 菜单。`map_tool/validator.py` 现状只查文件存在，须新增 7 条内容校验：① `polygon` 恰为 4 点凸四边形、点序连续、面积 > 0；② 两条端边近似平行且与长轴近似垂直、间距 `L_pull` 达下限；③ 端边与 `walls.yaml` 不冲突且通道宽度 ≥ 车宽 + 余量；④ `wait_poses.l1` / `.l2` 各 ≥1、在对应端边外侧且不在 `polygon` 内、同侧相邻点间距 ≥ 车宽 + `d_queue_spacing`；⑤ 端边到真实窄道出口净距 ≥ `min_release_clearance`；⑥ 区域不与分叉点之前的公共通道重叠（保 S6 零误触发）；⑦ `resource_id` 全局唯一非空。
-6. `MapInfo.msg` 新增 `traffic_gates_yaml` 字段，`traffic_gates.yaml` 作为地图包第 4 个文件随包下发（8 处链路：`REQUIRED_WAREHOUSE_FILES` / `metadata.py` / `package.py` / `validator.py` / `MapInfo.msg` / `map_manager.cpp::publishMapInfo()` / `amr_behavior_manager` MapInfo 回调 / 新 `traffic_gate_loader`）；完整数据结构与字段表见 `docs/requirements/interface-contract.md` 第 8 节。
+5. 工具侧新增 `traffic_gates_editor` **两阶段**（阶段 A 录 4 点 zone、阶段 B 录 N 个等待点并按 `s=dot(p-centroid, long_axis)` 自动归档到 `l1` / `l2`，`yaw` 由长轴派生、不人工填写），复用 `ClickedPointReceiver` / `ZoneMarkerPublisher`；**不复用** `zone_editor` 节点本体 / `YamlZoneManager` / `ZoneInfo` / `selectZoneType()`，不扩展 zone / station type 菜单。`map_tool/validator.py` 现状只查文件存在，须新增 7 条内容校验：① `polygon` 恰为 4 点凸四边形、点序连续、面积 > 0；② 两条端边近似平行且与长轴近似垂直、间距 `L_pull` 达下限；③ 端边与 `walls.yaml` 不冲突且通道宽度 ≥ 车宽 + 余量；④ `wait_poses.l1` / `.l2` 各 ≥1、等待点位置允许区域内 / 区域外但须位于真实窄道上游、同侧相邻点间距 ≥ 车宽 + `d_queue_spacing`；⑤ 端边到真实窄道出口净距 ≥ `min_release_clearance`；⑥ 区域不与分叉点之前的公共通道重叠（保 S6 零误触发）；⑦ `resource_id` 全局唯一非空。
+6. `MapInfo.msg` 新增 `traffic_gates_yaml` 字段，`traffic_gates.yaml` 作为地图包第 4 个文件（**可选**，缺失表示无窄道区域）随包下发（8 处链路：`OPTIONAL_WAREHOUSE_FILES` / `metadata.py` / `package.py` / `validator.py` / `MapInfo.msg` / `map_manager.cpp::publishMapInfo()` / `amr_behavior_manager` MapInfo 回调 / 新 `traffic_gate_loader`）；完整数据结构与字段表见 `docs/requirements/interface-contract.md` 第 8 节。
 7. **V2 路权逻辑不设独立模块**，实现为 `amr_behavior_manager` 包内 `TrafficGate`；`amr_agent` 只补 `TrafficBridge` 透明桥，不持有位姿 / 几何 / 业务决策（INV-14 模块归属不变）。
 8. ROS2 / MQTT topic 命名按 D-058 / D-059 与 INV-14 固定，实现者不得自行选择。
 
@@ -859,14 +859,14 @@ Edge Server 应作为唯一持有全局 lease 视图的一方，对 `TRAFFIC_RIG
 3. 充电采用本地按时间速率积分（B 方案），不引入独立充电模拟器、无远端充电源、无 `ChargeSource` 抽象、不实现 CC-CV。
 4. 低电量应触发充电准入与 `CHARGE_POINT` 资源申请；battery 数值不再硬编码为 `100.0`。
 
-#### FR-026：行为树编排与软件急停
+#### FR-026：行为树编排（急停由任务取消 / 异常路径承接）
 
 **优先级：** Should
 **版本：** V2
 
 1. 单趟执行编排引入 BehaviorTree.CPP（C 方案），实现 `Retry` / `Fallback` / `RequestOnApproach` / `WaitAndRetry` / `ReleaseTrafficRight` 等节点；BT 完全位于 `amr_behavior_manager` 内部，不改 `task_state`。
 2. BT 技术选型、XML 路径、自定义节点注册方式由 TBD-023 冻结；不得直接照抄文档示意。
-3. 多机与交通路权同时存在时应提供软件急停与 `cmd_vel` 优先级仲裁；触发源与仲裁落点由 TBD-024 冻结。
+3. V2 **不新增独立软件急停节点 / 接口**；急停语义由任务取消 / 异常路径已有的 `NavigationClient::cancelNavigation()` + `cmd_vel` 归零承接，后续如需外部急停再作为独立能力补充。
 
 ---
 
@@ -1099,7 +1099,7 @@ V1 至少应维护以下逻辑数据对象：
 
 1. Edge 返回 `REJECTED` / `PENDING`。
 2. `TrafficGate` 进程内调 `NavigationClient::cancelNavigation()`，**等待 result 回调把 `m_goal_active` 置回 false**。
-3. 按边沿时刻锁存的 `entry_side`，在 `wait_poses[entry_side]` **组内就近**（`argmin dist`）选等待点并 `navigateToPose(wait_pose)`；等待点位于入口端边外侧（上游）。停稳进入 `WAITING`：Nav2 无活动 goal、`cmd_vel` 归零。
+3. 按边沿时刻锁存的 `entry_side`，在 `wait_poses[entry_side]` **组内就近**（`argmin dist`）选等待点并 `navigateToPose(wait_pose)`；等待点位置允许区域内 / 区域外，但须位于真实窄道上游。停稳进入 `WAITING`：Nav2 无活动 goal、`cmd_vel` 归零。
 4. 每固定 10 s 用同一 `request_id` 幂等重发；**只有 `WAITING` 收到 `GRANTED` 才立即**（不等轮询）重发 `NavigateToPose(D)` → `RESUMING → HELD`。
 
 **场景 C：正常释放**
@@ -1154,9 +1154,9 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | AC-022 | V2 释放            | 中心点 `inside` 出区边沿（`true→false`）即释放；任务结束 / TTL / 显式 `CANCEL` 兜底不漏释放，四触发取最早；释放与导航 Action 结束解耦 |
 | AC-023 | V2 取消与时限      | 显式 `cancel` 被正确区分「排队中出队 / 已授权后释放」；`lease_ttl` 到期自动回收；旧 `epoch` 迟到消息被丢弃 |
 | AC-024 | V2 电量            | SOC 按 `PowerMode` 档位积分、低电量触发充电、`battery` 不再硬编码；Edge 只读镜像不修改 SOC |
-| AC-025 | V2 行为树与急停    | 注入导航失败后 Groot 可见 `Retry` / `Fallback`；软件急停能压住 `cmd_vel` 且可恢复 |
+| AC-025 | V2 行为树与取消承接    | 注入导航失败后 Groot 可见 `Retry` / `Fallback`；任务取消 / 异常路径使 `cmd_vel` 归零并可恢复；V2 不新增独立软件急停节点 |
 | AC-026 | V2 中心点进出判据与抗抖 | 主判据为 AMR 中心点 `point_in_poly(center, polygon)` 的 `inside` 边沿（进区 `false→true` 发 `REQUEST`、出区 `true→false` 发 `RELEASE`），数据源为 `amr_navigate_to_pose` feedback 的 `current_pose`，1 Hz `robot_pose` 不作主判据；滞回双阈值（内缩进入 / 外扩离开）下边界抖动不产生重复申请或释放；掉头从入口退出触发出区；`crossed()` 已废弃为主判据，仅作侧边异常辅助 |
-| AC-027 | V2 进入侧锁存与无 `plan` 订阅 | `entry_side` 由 `s=dot(enter_pose-centroid, long_axis)` 于进区边沿算一次并在本次穿越周期锁存（不每帧重算），等待点取同侧组内 `argmin dist` 且位于入口端边外侧；全流程不订阅 Nav2 `plan`、无 `onPlan()` / `D_trigger` / 改道去抖，提前量由 `L_pull` 提供 |
+| AC-027 | V2 进入侧锁存与无 `plan` 订阅 | `entry_side` 由 `s=dot(enter_pose-centroid, long_axis)` 于进区边沿算一次并在本次穿越周期锁存（不每帧重算），等待点取同侧组内 `argmin dist` 且位于真实窄道上游（位置可区域内 / 区域外）；全流程不订阅 Nav2 `plan`、无 `onPlan()` / `D_trigger` / 改道去抖，提前量由 `L_pull` 提供 |
 
 > AC-001 至 AC-018 属 V1；AC-019 至 AC-027 属 V2，不纳入 V1 完成定义。
 >
@@ -1191,7 +1191,7 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | FR-023 | 路权释放与导航结果解耦（中心点出区边沿 + 四触发） | AC-021、AC-022、AC-026 |
 | FR-024 | 独立 `traffic_gates.yaml` 几何数据模型与模块归属 | AC-019、AC-020、AC-026、AC-027 |
 | FR-025 | 电量消耗与自动充电模拟 | AC-024 |
-| FR-026 | 行为树编排与软件急停 | AC-025 |
+| FR-026 | 行为树编排（急停由任务取消 / 异常路径承接） | AC-025 |
 | NFR-001 至 NFR-013 | 模块化、通信隔离、可构建、可测试、可诊断、可维护、可扩展、网络异常、配置管理、状态一致性、取消可控、仿真可复现、仿真安全 | AC-001、AC-014、AC-016、AC-017、AC-018 |
 
 ### 7.2 需求实现状态矩阵
@@ -1229,7 +1229,7 @@ V1 只有在核心需求得到实际验证后，才能视为完成。
 | FR-023 路权释放与导航解耦 | Planned | 设计已按 V0.20 改写（D-061）：中心点出区边沿 + 四触发取最早（出区 / 任务结束 / TTL / 显式 `CANCEL`）；改道语义由出区 + TTL 承接，不设独立机制。 |
 | FR-024 窄道几何与模块归属 | Planned | V0.20 改为独立 `traffic_gates.yaml`（4 点 `polygon` + `wait_poses{l1,l2}`）+ `traffic_gates_editor` 两阶段 + validator 7 条内容校验 + `MapInfo.traffic_gates_yaml` 下发；模块归属仍按 D-057 / D-058 / INV-14；`L_pull` 属 TBD-021、滞回去抖阈值属 TBD-038、loader 读取属 TBD-039。 |
 | FR-025 电量消耗与自动充电 | Planned | 设计已冻结（D-064 / TBD-035=B / TBD-036=D）；速率数值属 TBD-022。 |
-| FR-026 行为树编排与软件急停 | Planned | C 方案已定；BT 选型属 TBD-023、急停落点属 TBD-024。 |
+| FR-026 行为树编排与取消承接 | Planned | C 方案已定；BT 选型已定 v4 + Groot2；不新增独立急停，由任务取消 / 异常路径承接。 |
 | NFR-001 模块化 | Partial | 模块边界已有，但部分实现未完成。 |
 | NFR-002 通信隔离 | Partial | 通信边界清晰，Cloud MQTT 未实现。 |
 | NFR-003 可构建性 | Partial | 当前工作区可构建，但未做干净环境验证。 |

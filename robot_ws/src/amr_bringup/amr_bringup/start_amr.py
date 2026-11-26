@@ -53,6 +53,7 @@ def main():
     parser.add_argument("--robot-id", required=True)
     parser.add_argument("--use-sim-time", default="true")
     parser.add_argument("--launch-nav2", default="false")
+    parser.add_argument("--use-bt-execution", default="false")
     args = parser.parse_args()
 
     robot_id = args.robot_id
@@ -77,7 +78,8 @@ def main():
             f"amr_behavior_manager-{robot_id}",
             "ros2 run amr_behavior_manager amr_behavior_manager_node --ros-args "
             f"-r __ns:=/{robot_id} --params-file {shlex.quote(behavior_cfg)} "
-            f"-p robot_id:={robot_id} -p use_sim_time:={args.use_sim_time}",
+            f"-p robot_id:={robot_id} -p use_sim_time:={args.use_sim_time} "
+            f"-p use_bt_execution:={args.use_bt_execution}",
         ),
         (
             f"navigation_server-{robot_id}",

@@ -6,6 +6,7 @@
 #include "context/service_context.h"
 #include "service/robot_service.h"
 #include "service/task_service.h"
+#include "service/traffic_rights_service.h"
 #include "message/message_codec.h"
 #include "nlohmann/json.hpp"
 
@@ -61,6 +62,7 @@ void AmrCommunication::setSubscribe()
 
     m_mqtt->setSubscribe(fmt::format(mqtt_topic::AMR_TASK_GOODS_REQUEST, "+"), 1);
     m_mqtt->setSubscribe(fmt::format(mqtt_topic::AMR_TASK_STATUS, "+"), 1);
+    m_mqtt->setSubscribe(mqtt_topic::AMR_TRAFFIC_SUBSCRIBE, 1);
 }
 
 void AmrCommunication::registerHandler()
@@ -98,6 +100,13 @@ void AmrCommunication::registerHandler()
         [this](const std::string& msg)
         {
             robotTaskStatusHandler(msg);
+        });
+
+    m_router->registerHandler(
+        mqtt_topic::AMR_TRAFFIC_SUBSCRIBE,
+        [this](const std::string& msg)
+        {
+            robotTrafficRequestHandler(msg);
         });
 
       // m_edge_amr_mqtt_msg_router->registerHandler(
@@ -269,6 +278,43 @@ void AmrCommunication::robotTaskStatusHandler(const std::string& msg)
     catch(const std::exception& e)
     {
         LOG_ERROR("handle amr task status exception:%s", e.what());
+    }
+}
+
+void AmrCommunication::robotTrafficRequestHandler(const std::string& msg)
+{
+    try
+    {
+        auto root = json::parse(msg);
+        TrafficRightsRequest request;
+        request.op = root.value("op", "");
+        request.request_id = root.value("request_id", "");
+        request.robot_id = root.value("robot_id", "");
+        request.resource_id = root.value("resource_id", "");
+        request.epoch = root.value("epoch", 0);
+        request.eta_sec = root.value("eta_sec", 0.0);
+        request.lease_ttl_sec = root.value("lease_ttl_sec", 0.0);
+
+        TrafficRightsResponse response;
+        m_context->getTrafficRightsService()->handleRequest(request, response);
+
+        json payload;
+        payload["request_id"] = response.request_id;
+        payload["robot_id"] = response.robot_id;
+        payload["resource_id"] = response.resource_id;
+        payload["epoch"] = response.epoch;
+        payload["result"] = response.result;
+        payload["queue_seq"] = response.queue_seq;
+        payload["lease_expires_at"] = response.lease_expires_at;
+        payload["reason"] = response.reason;
+
+        m_mqtt->publish(
+            mqtt_topic::makeAmrTrafficResponseTopic(response.robot_id),
+            payload.dump());
+    }
+    catch(const std::exception& e)
+    {
+        LOG_ERROR("handle traffic request exception:%s", e.what());
     }
 }
 

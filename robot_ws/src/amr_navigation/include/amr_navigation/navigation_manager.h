@@ -41,7 +41,7 @@ struct NavigationRequest
 // 导航请求响应
 struct NavigationResponse
 {
-    bool accepted{false}; // 请求是否被接受
+    bool submitted{false}; // 请求是否已提交给 Nav2 action server
     NavigationExecutionState state{NavigationExecutionState::IDLE};
     std::string message;
 };

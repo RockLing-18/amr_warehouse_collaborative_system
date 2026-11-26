@@ -1,0 +1,8 @@
+amr_power_manager:
+  ros__parameters:
+    idle_drain_pct_per_min: 0.2
+    work_drain_pct_per_min: 2.0
+    charge_pct_per_min: 10.0
+    low_soc_threshold: 20.0
+    charge_target_soc: 80.0
+    mode_timeout_sec: 3.0

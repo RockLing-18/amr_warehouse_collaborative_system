@@ -35,6 +35,7 @@ src/station_marker_publisher.cpp
 src/yaml_wall_manager.cpp
 src/wall_marker_publisher.cpp
 src/yaml_traffic_gate_manager.cpp
+src/traffic_gate_marker_publisher.cpp
 )
 
 target_include_directories(

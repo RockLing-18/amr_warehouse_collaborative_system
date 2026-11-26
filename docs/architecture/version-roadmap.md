@@ -52,7 +52,7 @@
 | --- | --- | --- | --- | --- | --- |
 | **V1** | 任务编排与状态同步 | `Implemented` | — | 已交付：Edge HTTP 任务注入、AMR 行为状态机、多机隔离、断网待补报与幂等表 | 见 `docs/development/v1-acceptance-checklist.md`；AC-011~014 未验证 |
 | **V1.5** | 验证基线 | `Planned` | V1 | **不新增任何业务功能**，只补测试证据与可观测性 | AC-011~014 全部实测通过并归档证据 |
-| **V2** | 资源仲裁 + 执行层骨架 | `Planned` | V1.5 | 交通路权、电量真实化、行为树执行骨架、软件急停 | 两车路口不冲突、低电量自动回充、BT 可组合恢复可演示 |
+| **V2** | 资源仲裁 + 执行层骨架 | `Planned` | V1.5 | 交通路权、电量真实化、行为树执行骨架 | 两车路口不冲突、低电量自动回充、BT 可组合恢复可演示 |
 | **V3** | 云端 + Web + 物理台阶 | `Planned` | V2 | Cloud 通过 MQTT 下发任务、只读 Web 看板、货箱物理挂载 | 云端下发的任务端到端跑通，货箱可见地随车移动 |
 | **V4** | 车顶机械臂（移动操作） | `Planned` | V3 | 停稳后抓取，替换行为树 `Grasp` 叶节点 | 真实抓取成功/失败可观测、不翻车、多机隔离保持 |
 
@@ -202,11 +202,11 @@ V1 (已交付)
 
 | 编号 | 所属版本 | 问题 | 需要明确的具体内容 | 开工前必须明确 |
 | --- | --- | --- | --- | --- |
-| TBD-020 | V2 | 资源仲裁统一接口与 Edge 排队 | **已定案**：中心排队在 Edge、FIFO、显式取消为一等事件、`lease_ttl` 超时回收、`request_id` 幂等 + `epoch` 防陈旧、通配符订阅且动作可辨、复杂度边界；**2026-11-20 第七轮追加定案**：模块归属（INV-14）、ROS2 topic `traffic_request` / `traffic_response`、MQTT topic 带 `robot_id`、动作由 payload `op` 承载（**不采用动作分层 topic**）、消息字段集合。**待明确**：是否新增 `tbl_resource_lease` 表；`queue_seq` 生成方式、`PENDING` 超时作废时长、`lease_ttl` 默认值与续租规则、表最终字段；与 `tbl_task_goods_allocation` 的一致性策略。见 V2 分册 3.1.2 / 3.2.5、V2 实现规格 §1 | 是 |
-| TBD-021 | V2 | 窄道建模与触发/释放几何 | **已定案（V0.20 修订）**：独立 `traffic_gates.yaml`，一条窄道一条记录 = `resource_id` + 4 点凸 `polygon`（点序 `P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2）+ `wait_poses{l1,l2}`（每侧 ≥1）；**无** `side` / `forward` / `trigger` / `release` 字段，**不扩展** `zones.yaml` / `stations.yaml` 的 `type`、不新增 `NARROW` / `TRAFFIC_WAIT`；区域为「端边外移 `min_release_clearance` + 侧边拉长 `L_pull`」的通行控制区而非 3×2 物理窄道，端边不压分叉点（保 S6 零申请）；**中心点进区边沿申请 / 出区边沿释放**，`SUCCEEDED` 降为兜底；进入侧由 `dot(enter_pose-centroid, long_axis)` 符号定并锁存，等待点在**同侧组内**就近选取且位于入口端边外侧；不录路线顺序、不引入 `NavigateThroughPoses`。**待明确**：`L_pull` / `min_release_clearance` / `d_safety` 数值（V1.5 基准实验实测）、地图包版本升级（TBD-003）、`map_tool` 7 条内容校验规则细节。见 V2 分册 3.2.1、接口契约 §8.7 | 是 |
-| TBD-022 | V2 | 电量速率参数与日志 | 三个速率数值（IDLE / WORK 消耗、充电）、`mode_timeout_sec`、`low_soc_threshold` / `charge_target_soc` 双阈值；是否新增 `tbl_robot_battery_log`；仿真时间换算（充电源形态已由 TBD-035 冻结为 B、档位判定已由 TBD-036 冻结为 D，均不在本项） | 是 |
-| TBD-023 | V2 | 行为树技术选型 | BehaviorTree.CPP 版本（Humble Nav2 对应 3.x）、XML 文件命名与存放路径、自定义节点注册方式、Groot 配套版本 | 是 |
-| TBD-024 | V2 | 软件急停接口 | 触发源（HTTP / MQTT / ROS2 topic）、`cmd_vel` 仲裁落点（新节点还是 `navigation_server` 内）、恢复语义与是否需要人工复位 | 是 |
+| TBD-020 | V2 | 资源仲裁统一接口与 Edge 排队 | **已定案**：中心排队在 Edge、FIFO、显式取消为一等事件、`lease_ttl` 超时回收、`request_id` 幂等 + `epoch` 防陈旧、通配符订阅且动作可辨、复杂度边界；**2026-11-20 第七轮追加定案**：模块归属（INV-14）、ROS2 topic `traffic_request` / `traffic_response`、MQTT topic 带 `robot_id`、动作由 payload `op` 承载（**不采用动作分层 topic**）、消息字段集合。**2026-11-24 定案**：新建 `tbl_resource_lease`，部分唯一索引仅覆盖 `GRANTED` / `HELD`；`PENDING` 可共存；`queue_seq` 单调递增；`PENDING` 超时 60 s；`lease_ttl` 默认 60 s、无静默续租；`lease_ttl` 从 Edge 授权 `GRANTED` 起算。见 V2 分册 3.1.2 / 3.2.5、V2 实现规格 §1 | 否（已关闭） |
+| TBD-021 | V2 | 窄道建模与控制区几何（`L_pull`） | **已定案（V0.20 修订）**：独立 `traffic_gates.yaml`，一条窄道一条记录 = `resource_id` + 4 点凸 `polygon`（点序 `P1→P2` 端边 L1 / `P2→P3` 长轴 / `P3→P4` 端边 L2）+ `wait_poses{l1,l2}`（每侧 ≥1；位置人工录入，允许区域内 / 区域外但须位于真实窄道上游；`yaw` 由长轴派生）；**无** `side` / `forward` / `trigger` / `release` 字段，**不扩展** `zones.yaml` / `stations.yaml` 的 `type`、不新增 `NARROW` / `TRAFFIC_WAIT`；区域为「端边外移 `min_release_clearance` + 侧边拉长 `L_pull`」的通行控制区而非 3×2 物理窄道，端边不压分叉点（保 S6 零申请）；**中心点进区边沿申请 / 出区边沿释放**，`SUCCEEDED` 降为兜底；进入侧由 `dot(enter_pose-centroid, long_axis)` 符号定并锁存，等待点在**同侧组内**就近选取；不录路线顺序、不引入 `NavigateThroughPoses`。**待明确**：`L_pull` / `min_release_clearance` / `d_safety` 数值（V2 联调阶段实测）、地图包版本升级（TBD-003）、`map_tool` 7 条内容校验规则细节。见 V2 分册 3.2.1、接口契约 §8.7 | 是 |
+| TBD-022 | V2 | 电量速率参数与日志 | 三个速率数值（IDLE / WORK 消耗、充电）、`mode_timeout_sec`、`low_soc_threshold` / `charge_target_soc` 双阈值；**已定**：新增 `tbl_robot_battery_log`，仅记录 `LOW_ENTERED` / `LOW_CLEARED` / `FULL` / `CHARGE_STARTED` / `CHARGE_STOPPED` 关键事件；仿真时间换算（充电源形态已由 TBD-035 冻结为 B、档位判定已由 TBD-036 冻结为 D，均不在本项） | 是（数值待定） |
+| TBD-023 | V2 | 行为树技术选型 | **已定**：BehaviorTree.CPP v4 + Groot2；XML 放 `amr_behavior_manager/config/behavior_trees/`；自定义节点放 `src/`、头文件按需放 `include/`；剩余为自定义节点注册与 Blackboard 字段、重试次数 | 是（注册细节待实现） |
+| TBD-024 | V2 | 软件急停接口 | **已关闭**：V2 不新增独立软件急停节点 / 接口；急停语义由任务取消 / 异常路径的 `cancelNavigation()` + `cmd_vel` 归零承接；后续如需外部急停再立项 | 否（已关闭） |
 | TBD-025 | V1.5 | `trace_id` 落地形态 | 是否进入 MQTT 消息字段（属接口变更，需同步契约）还是仅存在于日志（零侵入）；跨进程传播格式 | 是 |
 | TBD-026 | V3 | Web 技术栈与部署 | 前端框架、是否独立进程、静态资源托管位置、只读边界的鉴权方式 | 否（可在设计阶段确定） |
 | TBD-027 | V3 | 双 EMQX 连接细节 | Cloud 侧与 Edge 侧 broker 的地址、凭据注入方式、topic 映射与桥接策略 | 是 |
@@ -220,7 +220,7 @@ V1 (已交付)
 | TBD-035 | V2 | 充电源形态 | **已冻结：采用 B 方案**（`amr_power_manager` 本地按 `charge_pct_per_min` 时间积分；无独立充电模拟器、无远端充电源、无 `ChargeSource` 抽象）。仅剩速率数值待 TBD-022 一并确定 | 否（已关闭） |
 | TBD-036 | V2 | 消耗档位判定信号 | **已冻结：采用 D 方案**——`amr_behavior_manager` 用专用、单向、不含 `battery` 的 `PowerMode` 声明 IDLE/WORK/CHARGING，`amr_power_manager` 查表积分、零判定、零 `cmd_vel` 订阅；`power_mode` / `power_level` 两个 topic 与两条 msg 须登记接口契约；V2 不为 V4 预留运行时耗电判定机制；V4 抢占策略缺口已转 TBD-037。决策记录见 V2 分册 3.3.2.2、落地细则见 3.3.2.3 | 否（已关闭） |
 | TBD-037 | V4 | 机械臂抓取途中的低电量抢占策略 | BT `ReactiveFallback(BatteryOK?)` 在臂动作执行中电量跌破阈值时，是否允许打断臂动作回充；与安全互锁「急停必须能中断臂动作」的边界；如需体现臂耗电，是否采用 D 方案的 `MODE_ARM_ACTIVE` 扩展（加 1 枚举 + 1 行配置）。见 V4 分册 3.6 | 是 |
-| TBD-038 | V2 | 按需触发的时序参数（由「多路口流水线编排」重命名并收窄） | **已定案（V0.20 修订）**：运行时按需触发主模型、目标全程 D、**全程不订阅 `plan`**（提前量由拉长 `L_pull` 自带，`D_trigger` 概念转译为 `L_pull`）、被拒 cancel + 等 result 回调 + 同侧等待点重导航、**`T_retry = 10 s` 固定无 jitter**、事件驱动优先于轮询、申请带 ETA + `lease_ttl`；`REQUESTING` 收 `GRANTED` 零动作、仅 `WAITING` 获批才重发 D。**已关闭子项**：`ComputePath` / `FollowPath` 独立 Action Client、`onPlan()` / `onPlanChanged()` / `pathIntersects*` / 改道去抖冷却、`IsPathValid` / `path_validity_timeout` / 路径缓存 / 弧长排序 / 序列复核 —— **均不引入或已移除**。「改道即释放」保留语义、移除独立机制（由出区边沿 + TTL 承接）。**待明确**：ETA 精度与 lease 生效时刻、`L_pull` 数值、`inside` 滞回双阈值与去抖窗、`lease_ttl` 数值、验收阈值。见 V2 分册 3.2.2 / 3.2.3 / 3.6 | 是 |
+| TBD-038 | V2 | 按需触发的时序参数（由「多路口流水线编排」重命名并收窄） | **已定案（V0.20 修订）**：运行时按需触发主模型、目标全程 D、**全程不订阅 `plan`**（提前量由拉长 `L_pull` 自带，`D_trigger` 概念转译为 `L_pull`）、被拒 cancel + 等 result 回调 + 同侧等待点重导航、**`T_retry = 10 s` 固定无 jitter**、事件驱动优先于轮询、申请带 ETA + `lease_ttl`；`REQUESTING` 收 `GRANTED` 零动作、仅 `WAITING` 获批才重发 D。**已关闭子项**：`ComputePath` / `FollowPath` 独立 Action Client、`onPlan()` / `onPlanChanged()` / `pathIntersects*` / 改道去抖冷却、`IsPathValid` / `path_validity_timeout` / 路径缓存 / 弧长排序 / 序列复核 —— **均不引入或已移除**。「改道即释放」保留语义、移除独立机制（由出区边沿 + TTL 承接）。**2026-11-24 定案**：ETA 精度与 lease 生效时刻按 `lease_ttl` 自 `GRANTED` 起算；`L_pull` / 滞回阈值 / 去抖窗 / `lease_ttl` 数值由实施侧定义并在 V2 联调阶段实测。见 V2 分册 3.2.2 / 3.2.3 / 3.6 | 是（数值待定） |
 | TBD-039 | V2 | AMR 侧几何加载与区域判据（由「路径求交」大幅缩小，V0.20 再修订） | 新建 `traffic_gate_loader` 读取独立 `traffic_gates.yaml` 的 4 点 `polygon` 与 `wait_poses{l1,l2}`（经 `MapInfo.traffic_gates_yaml` 下发）；`inside = point_in_poly(center, polygon)` 边沿检测 + 滞回双阈值、`entry_side` 锁存与同侧就近、`already_handled` 防重复；`crossed()` 降级为「侧边异常穿入」识别辅助；**无 `plan` 订阅、无 namespace 上的 Path 订阅规则**；`map_tool` 7 条几何校验的 AMR 侧配套。**已删除**：路径与 polygon 求交、弧长排序、预期序列复核、`ComputePathToPose` 调用点、有向线段 `crossed()` 主判据。见 V2 分册 3.2.1.2 / 3.2.1.4、实现规格 §5.1 / §5.3 | 是 |
 
 > 已有事项直接引用原编号，不重复登记：**TBD-017**（Cloud Platform 后续形态：CLI / HTTP 脚本 / FastAPI 未定）、**TBD-004**（任务取消的安全策略，V1.5 验证时需给出最低可行规则）、**TBD-009**（断网期间的任务取消）、**TBD-010**（任务状态冲突合并规则）、**TBD-019**（Edge 故障恢复细节）。
@@ -232,7 +232,7 @@ V1 (已交付)
 | 分册 | 文件 | 内容 |
 | --- | --- | --- |
 | V1.5 验证基线 | [`roadmap/v1.5-validation-baseline.md`](roadmap/v1.5-validation-baseline.md) | AC-011~014 实测、故障注入框架、trace_id、基准实验、文档校准 |
-| V2 资源仲裁与行为树 | [`roadmap/v2-resource-arbitration-and-bt.md`](roadmap/v2-resource-arbitration-and-bt.md) | 统一资源仲裁、交通权限、电量、BT 骨架、软件急停、降级矩阵 |
+| V2 资源仲裁与行为树 | [`roadmap/v2-resource-arbitration-and-bt.md`](roadmap/v2-resource-arbitration-and-bt.md) | 统一资源仲裁、交通权限、电量、BT 骨架、降级矩阵 |
 | V3 云端 Web 与物理交互 | [`roadmap/v3-cloud-web-and-physical-goods.md`](roadmap/v3-cloud-web-and-physical-goods.md) | Cloud Platform、Web 看板、货箱 attach/detach、可选项 |
 | V4 车顶机械臂 | [`roadmap/v4-mobile-manipulation.md`](roadmap/v4-mobile-manipulation.md) | 移动操作、Grasp 叶节点替换、安全互锁、模型与控制器 |
 

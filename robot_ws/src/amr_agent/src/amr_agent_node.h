@@ -68,6 +68,7 @@ private:
     double m_pose_y = 0.0;
     double m_pose_yaw = 0.0;
     bool m_pose_valid = false;
+    float m_battery = 100.0f;
     rclcpp::TimerBase::SharedPtr m_register_timer;
     rclcpp::TimerBase::SharedPtr m_heartbeat_timer;
     rclcpp::TimerBase::SharedPtr m_status_watchdog_timer;

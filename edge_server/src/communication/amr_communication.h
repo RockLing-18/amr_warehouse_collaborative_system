@@ -27,6 +27,7 @@ private:
     void robotWillHandler(const std::string& msg);
     void robotGoodsRequestHandler(const std::string& msg);
     void robotTaskStatusHandler(const std::string& msg);
+    void robotTrafficRequestHandler(const std::string& msg);
 
 private:
     std::unique_ptr<MqttClient> m_mqtt;

@@ -13,6 +13,10 @@ inline constexpr char INITIAL_POSE[] = "initial_pose";
 inline constexpr char ROBOT_POSE[] = "robot_pose";
 inline constexpr char NAVIGATION_STATUS[] = "navigation_status";
 inline constexpr char BEHAVIOR_STATUS[] = "behavior_status";
+inline constexpr char TRAFFIC_REQUEST[] = "traffic_request";
+inline constexpr char TRAFFIC_RESPONSE[] = "traffic_response";
+inline constexpr char POWER_MODE[] = "power_mode";
+inline constexpr char POWER_LEVEL[] = "power_level";
 
 }
 

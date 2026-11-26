@@ -920,7 +920,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_lease_active
 
 ### 8.7 `traffic_gates.yaml` 数据结构（V0.20 新增，独立文件）
 
-> 窄道几何**不写回** `zones.yaml` / `stations.yaml`；`zone.type: NARROW`、`TRAFFIC_WAIT` station、成对有向触发段 / 外移释放线 / `side` / `forward` / `trigger` / `release` 等 V0.19 口径**已废弃**，不得实现。数据由工具侧 `traffic_gates_editor` 两阶段产出（阶段 A 录 4 点 zone，阶段 B 录 N 个等待点并按几何自动归档到 `l1` / `l2`），复用 `ClickedPointReceiver` / `ZoneMarkerPublisher`，不复用 `zone_editor` 节点本体 / `YamlZoneManager` / `ZoneInfo` / `selectZoneType()`，不扩展 zone / station type 菜单。
+> 窄道几何**不写回** `zones.yaml` / `stations.yaml`；`zone.type: NARROW`、`TRAFFIC_WAIT` station、成对有向触发段 / 外移释放线 / `side` / `forward` / `trigger` / `release` 等 V0.19 口径**已废弃**，不得实现。数据由工具侧 `traffic_gates_editor` 两阶段产出（阶段 A 录 4 点 zone，阶段 B 录 N 个等待点并按 `s=dot(p-centroid, long_axis)` 自动归档到 `l1` / `l2`，`yaw` 由长轴派生、不人工填写），复用 `ClickedPointReceiver` / `ZoneMarkerPublisher`，不复用 `zone_editor` 节点本体 / `YamlZoneManager` / `ZoneInfo` / `selectZoneType()`，不扩展 zone / station type 菜单。
+
+> **编辑器即时反馈**：阶段 B 每点选一个等待点后，工具立即按 `s=dot(p-centroid, long_axis)` 显示该点归属 `l1` 还是 `l2`，并以不同颜色标记，避免操作人分不清两侧。等待点位置允许在区域内 / 区域外，但应靠近 `P1→P2` 或 `P3→P4` 短边、不超过区域中心点，保证 `s` 符号无歧义。
 
 文件草案（顶层列表、点序与字段冻结）：
 
@@ -933,9 +935,9 @@ traffic_gates:
       - [x3, y3]                    # P3
       - [x4, y4]                    # P4
     wait_poses:
-      l1:                           # L1 端边外侧（上游），>=1 个
+      l1:                           # L1 侧等待点，位置可区域内 / 区域外（须在真实窄道上游），>=1 个
         - {x: .., y: .., yaw: ..}
-      l2:                           # L2 端边外侧（上游），>=1 个
+      l2:                           # L2 侧等待点，位置可区域内 / 区域外（须在真实窄道上游），>=1 个
         - {x: .., y: .., yaw: ..}
 ```
 
@@ -944,10 +946,10 @@ traffic_gates:
 | `traffic_gates` | array | 是 | 顶层列表，每个元素对应一条窄道通行控制区。 |
 | `traffic_gates[].resource_id` | string | 是 | 窄道 / 区域 id，全局唯一非空，与 `TrafficRequest.resource_id` 一致，**不是坐标**。 |
 | `traffic_gates[].polygon` | array[array[float]] | 是 | 恰好 4 个 `[x, y]` 点，凸四边形、点序连续、面积 > 0；点序约定 `P1→P2` 为端边 L1、`P2→P3` 为长轴、`P3→P4` 为端边 L2。 |
-| `traffic_gates[].wait_poses.l1` | array[pose] | 是 | L1 端边外侧（上游）等待点，≥1 个；元素为 `{x, y, yaw}`，`yaw` 由长轴 `P2→P3` 派生，不人工填写。 |
-| `traffic_gates[].wait_poses.l2` | array[pose] | 是 | L2 端边外侧（上游）等待点，≥1 个；同上。 |
+| `traffic_gates[].wait_poses.l1` | array[pose] | 是 | L1 侧等待点，≥1 个；`{x, y, yaw}` 位置由人工录入，允许在区域内 / 区域外但须位于真实窄道上游；`yaw` 由长轴 `P2→P3` 派生，不人工填写。 |
+| `traffic_gates[].wait_poses.l2` | array[pose] | 是 | L2 侧等待点，≥1 个；规则同上。 |
 
-**不设字段**（已废弃）：`side` / `forward` / `trigger` / `release`（含有向触发段、外移释放线、`D_trigger`），以及 `type` / `goods_ids`；一份数据正反两向共用，不新建 station、不复用 `WAIT`、不引入 `TRAFFIC_WAIT` 类型。进入侧由运行时按 `long_axis=normalize(P3-P2)`、`centroid=mean(P1..P4)`、`s=dot(enter_pose-centroid, long_axis)` 于进区边沿算一次并**在本次穿越周期锁存**（`s<0→l1`、`s>0→l2`），组内 `argmin dist` 就近选点，等待点位于入口端边外侧（上游）；多车默认组内 `argmin dist` + validator 点间距校验，备选 `queue_seq % N_side`（见 8.2，`TrafficResponse` 已有 `queue_seq`，不新增字段）。侧边异常穿入按 `s` 符号兜底 + `LOG_WARN`。
+**不设字段**（已废弃）：`side` / `forward` / `trigger` / `release`（含有向触发段、外移释放线、`D_trigger`），以及 `type` / `goods_ids`；一份数据正反两向共用，不新建 station、不复用 `WAIT`、不引入 `TRAFFIC_WAIT` 类型。进入侧由运行时按 `long_axis=normalize(P3-P2)`、`centroid=mean(P1..P4)`、`s=dot(enter_pose-centroid, long_axis)` 于进区边沿算一次并**在本次穿越周期锁存**（`s<0→l1`、`s>0→l2`），组内 `argmin dist` 就近选点，等待点位置允许区域内 / 区域外但须位于真实窄道上游；多车默认组内 `argmin dist` + validator 点间距校验，备选 `queue_seq % N_side`（见 8.2，`TrafficResponse` 已有 `queue_seq`，不新增字段）。侧边异常穿入按 `s` 符号兜底 + `LOG_WARN`。
 
 **几何与主判据**（与 SRS FR-024、定案记录 §1 / §2 / §4 一致）：4 点区域是端边外移 `min_release_clearance`、侧边沿通道拉长 `L_pull` 的**通行控制区**，不是 3×2 物理窄道；`L_pull ≥ v_max×(RTT_拒绝_p99 + T_cancel + T_newgoal_accept) + v_max²/(2·abs(a_dec)) + d_safety`（数值属 TBD-021 / 038，须 V1.5 实测）；端边不压分叉点，保走绕行路的车「从不进区」→ 零申请（S6）。主判据为 AMR **中心点** `point_in_poly(center, polygon)` 的 `inside` 边沿：进区 `false→true` 发 `REQUEST`、出区 `true→false` 发 `RELEASE`；数据源为 `amr_navigate_to_pose` action feedback 的 `current_pose`，**1 Hz `robot_pose` 禁止作主判据**；必须**边沿检测 + 滞回双阈值**（内缩进入 / 外扩离开，TBD-038），方向无关，掉头从入口退出天然触发出区。`crossed()` 已废弃为主判据，仅保留作侧边异常穿入识别辅助。**全程不订阅 Nav2 `plan`**：`onPlan()` / `onPlanChanged()` / `pathIntersects*` / 位姿远离判定 / 改道去抖 / `D_trigger` 均已废弃并移除；「改道即释放」保留语义、移除独立机制（改道后驶离控制区 → 出区边沿释放；停住 / 断流 → TTL 回收），四触发（出区边沿 / 任务结束 / TTL / 显式 `CANCEL`）取最早。`zonePolygon()` 保留供 validator / 异常裁决 / rviz 可视化使用，不再被改道检测调用；不引入 `NavigateThroughPoses` / 独立 `ComputePath` / `FollowPath`。
 
@@ -956,18 +958,18 @@ traffic_gates:
 1. `polygon` 恰为 4 点凸四边形、点序连续、面积 > 0；
 2. 两条端边近似平行、与长轴近似垂直，间距 `L_pull` 不低于配置下限；
 3. 端边与 `walls.yaml` 线段不冲突，端边所在处通道宽度 ≥ 车宽 + 余量；
-4. `wait_poses.l1` / `.l2` 各 ≥1，均在对应端边外侧（上游）、不在 `polygon` 内，且同侧相邻等待点间距 ≥ 车宽 + `d_queue_spacing`；
+4. `wait_poses.l1` / `.l2` 各 ≥1；等待点位置允许在区域内 / 区域外，但须位于真实窄道上游，同侧相邻等待点间距 ≥ 车宽 + `d_queue_spacing`；
 5. 端边到真实窄道出口净距 ≥ `min_release_clearance`；
 6. 区域不与分叉点之前的公共通道重叠（保 S6「走绕行路零申请」）；
 7. `resource_id` 全局唯一、非空。
 
 ### 8.8 `MapInfo.traffic_gates_yaml` 与打包下发链路（V0.20 新增）
 
-V1 已有实体文件 `MapInfo.msg`（`map_info` topic，字段 `warehouse_id` / `map_version` / `map_dir` / `map_yaml` / `zones_yaml` / `stations_yaml` / `ready`）新增 `string traffic_gates_yaml`，与三个 yaml 字段并列，显式声明地图包第 4 个文件，保证地图包版本一致性。`traffic_gates.yaml` 随地图包下发，**不按约定路径隐式读取**。V2 实现时需同步以下 8 处链路：
+V1 已有实体文件 `MapInfo.msg`（`map_info` topic，字段 `warehouse_id` / `map_version` / `map_dir` / `map_yaml` / `zones_yaml` / `stations_yaml` / `ready`）新增 `string traffic_gates_yaml`，与三个 yaml 字段并列，显式声明地图包第 4 个文件，保证地图包版本一致性。`traffic_gates.yaml` 为**可选文件**，缺失表示当前地图无窄道区域；存在时随地图包下发，**不按约定路径隐式读取**。V2 实现时需同步以下 8 处链路：
 
 | # | 位置 | 变更 |
 | --- | --- | --- |
-| 1 | `tool/map_tool/config.py` 的 `REQUIRED_WAREHOUSE_FILES` | 加入 `traffic_gates.yaml`。 |
+| 1 | `tool/map_tool/config.py` 的 `OPTIONAL_WAREHOUSE_FILES` | 加入 `traffic_gates.yaml`（可选，缺失不报错）。 |
 | 2 | `tool/map_tool/metadata.py` | 地图包元数据登记该文件。 |
 | 3 | `tool/map_tool/package.py` | 打包时纳入该文件。 |
 | 4 | `tool/map_tool/validator.py` | 由「只查文件存在」扩展为 8.7 的 7 条内容校验。 |

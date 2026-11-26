@@ -10,6 +10,7 @@
 //   ros2 run amr_navigation navigation_server --ros-args -r __ns:=/robot_namespace
 
 #include <chrono>
+#include <atomic>
 #include <cmath>
 #include <condition_variable>
 #include <functional>
@@ -302,8 +303,13 @@ private:
 			goal->goal_pose.pose.position.x,
 			goal->goal_pose.pose.position.y);
 
-		//   1. 校验 goal_pose（frame_id / 坐标合法性）
-		//   2. 导航冲突（busy）在 execute 中取消旧导航后重试（supersede）
+		amr_navigation::NavigationExecutionState state = m_navigation_manager->getState();
+		if (isBusyState(state))
+		{
+			RCLCPP_WARN(get_logger(), "robot busy, reject new navigation goal");
+			return rclcpp_action::GoalResponse::REJECT;
+		}
+
 		return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
 	}
 	
@@ -340,22 +346,12 @@ private:
 		amr_navigation::NavigationRequest req;
 		req.goal = goal->goal_pose;
 
-		// 机器人正忙于其他导航：直接取消旧导航（supersede），等待结束后重试本次目标
-		uint64_t next_epoch = m_nav_epoch + 1;
+		uint64_t next_epoch = m_nav_epoch.load() + 1;
+		m_nav_epoch.store(next_epoch);
 		amr_navigation::NavigationResponse resp =
 			m_navigation_manager->navigateToPose(req, next_epoch);
-		if (!resp.accepted && isBusyState(resp.state))
-		{
-			RCLCPP_WARN(this->get_logger(), "robot busy, cancel current navigation and retry");
-			m_navigation_manager->cancelNavigation();
-			amr_navigation::NavigationExecutionState old_state;
-			if (waitForNavigationResult(old_state))
-				RCLCPP_INFO(this->get_logger(), "old navigation finished, state=%d",
-					static_cast<int>(old_state));
-			resp = m_navigation_manager->navigateToPose(req, next_epoch);
-		}
 
-		if (!resp.accepted)
+		if (!resp.submitted)
 		{
 			result->success = false;
 			result->message = resp.message.empty() ? "navigate request rejected" : resp.message;
@@ -369,7 +365,6 @@ private:
 			m_navigation_result_ready = false;
 			m_active_goal_handle = goal_handle;
 		}
-		m_nav_epoch = next_epoch;
 
 		m_navigating = true;
 
@@ -382,9 +377,30 @@ private:
 		amr_navigation::NavigationExecutionState final_state;
 		if (!waitForNavigationResult(final_state))
 		{
+			RCLCPP_WARN(get_logger(), "navigation result timeout, cancel nav2 goal and wait result");
+			m_navigation_manager->cancelNavigation();
+			if (!waitForNavigationResult(final_state))
+			{
+				result->success = false;
+				result->message = "navigation result timeout after cancel";
+				goal_handle->abort(result);
+				return;
+			}
+		}
+
+		if (final_state == amr_navigation::NavigationExecutionState::CANCELED)
+		{
 			result->success = false;
-			result->message = "navigation result timeout";
-			goal_handle->abort(result);
+			if (goal_handle->is_canceling())
+			{
+				result->message = "canceled";
+				goal_handle->canceled(result);
+			}
+			else
+			{
+				result->message = "navigation canceled by timeout";
+				goal_handle->abort(result);
+			}
 			return;
 		}
 
@@ -394,11 +410,6 @@ private:
 				result->success = true;
 				result->message = "navigation succeeded";
 				goal_handle->succeed(result);
-				break;
-			case amr_navigation::NavigationExecutionState::CANCELED:
-				result->success = false;
-				result->message = "canceled";
-				goal_handle->canceled(result);
 				break;
 			default:
 				result->success = false;
@@ -439,7 +450,7 @@ private:
 	
 	void onNavigationResult(amr_navigation::NavigationExecutionState state, uint64_t epoch)
 	{
-		if(epoch != m_nav_epoch)
+		if(epoch != m_nav_epoch.load())
 			return;
 
 		m_navigating = false;
@@ -828,7 +839,7 @@ private:
 	std::condition_variable m_navigation_cv;
 	bool m_navigation_result_ready{false};
 	amr_navigation::NavigationExecutionState m_navigation_result{amr_navigation::NavigationExecutionState::IDLE};
-	uint64_t m_nav_epoch{0};
+	std::atomic<uint64_t> m_nav_epoch{0};
 	std::shared_ptr<GoalHandle> m_active_goal_handle;
 	rclcpp::Subscription<amr_interfaces::msg::MapInfo>::SharedPtr m_map_info_sub;
 	bool m_map_ready = false;
