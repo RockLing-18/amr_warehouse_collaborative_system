@@ -77,6 +77,7 @@ public:
 	NavigationServer() : Node("navigation_server")
 	{
 		this->declare_parameter("pose_publish_rate_hz", 1.0);
+		this->declare_parameter<double>("navigation_result_timeout_sec", 180.0);
 		// 默认不在本进程内 fork 启动 Nav2，
 		// 而是通过 scripts/start_nav2.py 在独立终端中启动，便于分离日志。
 		this->declare_parameter<bool>("launch_nav2", false);
@@ -466,10 +467,11 @@ private:
 	
 	bool waitForNavigationResult(amr_navigation::NavigationExecutionState & out_state)
 	{
-		// 单活动导航：同一时刻只有一个 execute 在等待，ready 标志即可匹配
-		// 超时时间可配置
+		double timeoutSec = this->get_parameter("navigation_result_timeout_sec").as_double();
 		std::unique_lock<std::mutex> lock(m_navigation_mutex);
-		bool ready = m_navigation_cv.wait_for(lock, std::chrono::seconds(60),
+		bool ready = m_navigation_cv.wait_for(
+			lock,
+			std::chrono::duration<double>(timeoutSec),
 			[this]()
 			{
 				return m_navigation_result_ready;
