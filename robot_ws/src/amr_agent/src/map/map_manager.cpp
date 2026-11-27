@@ -815,6 +815,11 @@ void MapManager::publishMapInfo()
     msg.stations_yaml =
         (fs::path(m_mapDir) / "stations.yaml").string();
 
+    std::string trafficGatesYaml =
+        (fs::path(m_mapDir) / "traffic_gates.yaml").string();
+    if(fs::exists(trafficGatesYaml))
+        msg.traffic_gates_yaml = trafficGatesYaml;
+
     msg.ready = true;
 
     m_mapInfoPublisher->publish(msg);
@@ -826,13 +831,15 @@ void MapManager::publishMapInfo()
         "map_dir=%s, "
         "map_yaml=%s, "
         "zones_yaml=%s, "
-        "stations_yaml=%s",
+        "stations_yaml=%s, "
+        "traffic_gates_yaml=%s",
         msg.warehouse_id.c_str(),
         msg.map_version.c_str(),
         msg.map_dir.c_str(),
         msg.map_yaml.c_str(),
         msg.zones_yaml.c_str(),
-        msg.stations_yaml.c_str());
+        msg.stations_yaml.c_str(),
+        msg.traffic_gates_yaml.c_str());
 }
 
 

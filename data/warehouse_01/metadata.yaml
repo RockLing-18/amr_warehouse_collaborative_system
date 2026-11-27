@@ -1,6 +1,6 @@
 warehouse_id: warehouse_01
 version: '3.0'
-create_time: '2026-11-24 00:29:18'
+create_time: '2026-11-27 10:57:22'
 files:
   map: warehouse_01.yaml
   image: warehouse_01.pgm
